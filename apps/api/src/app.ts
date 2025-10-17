@@ -12,6 +12,8 @@ const app = new Hono();
 // Apply CORS middleware globally for cross-origin cookie support
 app.use('*', corsMiddleware);
 
+app.route('/health', healthRoute);
+
 // Mount v1 routes
 const v1 = new Hono();
 v1.route('/health', healthRoute);
