@@ -32,12 +32,18 @@ importers:
 
   apps/api:
     dependencies:
+      '@auth/core':
+        specifier: ^0.37.0
+        version: 0.37.4
       '@hono/node-server':
         specifier: ^1.13.7
         version: 1.19.5(hono@4.10.0)
       '@hono/zod-openapi':
         specifier: ^0.18.4
         version: 0.18.4(hono@4.10.0)(zod@3.25.76)
+      '@hono/zod-validator':
+        specifier: ^0.7.4
+        version: 0.7.4(hono@4.10.0)(zod@3.25.76)
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -127,6 +133,9 @@ importers:
       '@auth/core':
         specifier: ^0.37.0
         version: 0.37.4
+      '@auth/prisma-adapter':
+        specifier: ^2.11.0
+        version: 2.11.0(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.3))(typescript@5.9.3))
       bcrypt:
         specifier: ^5.1.1
         version: 5.1.1
@@ -277,6 +286,25 @@ packages:
         optional: true
       nodemailer:
         optional: true
+
+  '@auth/core@0.41.0':
+    resolution: {integrity: sha512-Wd7mHPQ/8zy6Qj7f4T46vg3aoor8fskJm6g2Zyj064oQ3+p0xNZXAV60ww0hY+MbTesfu29kK14Zk5d5JTazXQ==}
+    peerDependencies:
+      '@simplewebauthn/browser': ^9.0.1
+      '@simplewebauthn/server': ^9.0.2
+      nodemailer: ^6.8.0
+    peerDependenciesMeta:
+      '@simplewebauthn/browser':
+        optional: true
+      '@simplewebauthn/server':
+        optional: true
+      nodemailer:
+        optional: true
+
+  '@auth/prisma-adapter@2.11.0':
+    resolution: {integrity: sha512-gp1vpO7R7HxqQIDVFG4FXpjd9WsXg+vZsaqXOYyNCWugcx0scU2XNfhEiw3FnGyIaqRD4fexBf40LMJH8HmZ8A==}
+    peerDependencies:
+      '@prisma/client': '>=2.26.0 || >=3 || >=4 || >=5 || >=6'
 
   '@babel/code-frame@7.27.1':
     resolution: {integrity: sha512-cjQ7ZlQ0Mv3b47hABuTevyTuYN4i+loJKGeV9flcCgIK37cCXRh+L1bd3iBHlynerhQ7BhCkn2BPbQUL+rGqFg==}
@@ -726,6 +754,12 @@ packages:
     peerDependencies:
       hono: '>=3.9.0'
       zod: ^3.19.1
+
+  '@hono/zod-validator@0.7.4':
+    resolution: {integrity: sha512-biKGn3BRJVaftZlIPMyK+HCe/UHAjJ6sH0UyXe3+v0OcgVr9xfImDROTJFLtn9e3XEEAHGZIM9U6evu85abm8Q==}
+    peerDependencies:
+      hono: '>=3.9.0'
+      zod: ^3.25.0 || ^4.0.0
 
   '@isaacs/cliui@8.0.2':
     resolution: {integrity: sha512-O8jcjabXaleOG9DQ0+ARXWZBTfnP4WNAqzuiJK7ll44AmxGKv/J2M4TPjxjY3znBCfvBXFzucm1twdyFybFqEA==}
@@ -1501,6 +1535,9 @@ packages:
 
   jose@5.10.0:
     resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
+
+  jose@6.1.0:
+    resolution: {integrity: sha512-TTQJyoEoKcC1lscpVDCSsVgYzUDg/0Bt3WE//WiTPK6uOCQC2KZS4MpugbMWt/zyjkopgZoXhZuCi00gLudfUA==}
 
   joycon@3.1.1:
     resolution: {integrity: sha512-34wB/Y7MW7bzjKRjUKTa46I2Z7eV62Rkhva+KkopW7Qvv/OSWBqvkSY7vusOPrNuZcUG3tApvdVgNB8POj3SPw==}
@@ -2359,6 +2396,23 @@ snapshots:
       preact: 10.24.3
       preact-render-to-string: 6.5.11(preact@10.24.3)
 
+  '@auth/core@0.41.0':
+    dependencies:
+      '@panva/hkdf': 1.2.1
+      jose: 6.1.0
+      oauth4webapi: 3.8.2
+      preact: 10.24.3
+      preact-render-to-string: 6.5.11(preact@10.24.3)
+
+  '@auth/prisma-adapter@2.11.0(@prisma/client@6.17.1(prisma@6.17.1(typescript@5.9.3))(typescript@5.9.3))':
+    dependencies:
+      '@auth/core': 0.41.0
+      '@prisma/client': 6.17.1(prisma@6.17.1(typescript@5.9.3))(typescript@5.9.3)
+    transitivePeerDependencies:
+      - '@simplewebauthn/browser'
+      - '@simplewebauthn/server'
+      - nodemailer
+
   '@babel/code-frame@7.27.1':
     dependencies:
       '@babel/helper-validator-identifier': 7.27.1
@@ -2665,6 +2719,11 @@ snapshots:
       zod: 3.25.76
 
   '@hono/zod-validator@0.4.3(hono@4.10.0)(zod@3.25.76)':
+    dependencies:
+      hono: 4.10.0
+      zod: 3.25.76
+
+  '@hono/zod-validator@0.7.4(hono@4.10.0)(zod@3.25.76)':
     dependencies:
       hono: 4.10.0
       zod: 3.25.76
@@ -3478,6 +3537,8 @@ snapshots:
   jiti@2.6.1: {}
 
   jose@5.10.0: {}
+
+  jose@6.1.0: {}
 
   joycon@3.1.1: {}
 

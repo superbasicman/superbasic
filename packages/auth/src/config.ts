@@ -1,0 +1,80 @@
+/**
+ * Auth.js core configuration
+ * Provides JWT-based session management with credentials provider
+ */
+
+import type { AuthConfig } from "@auth/core";
+import Credentials from "@auth/core/providers/credentials";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { prisma } from "@repo/database";
+import { verifyPassword } from "./password.js";
+import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
+
+export const authConfig: AuthConfig = {
+  basePath: "/v1/auth",
+  adapter: PrismaAdapter(prisma), // For future OAuth; unused with JWT strategy
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          return null;
+        }
+
+        // Normalize email to lowercase
+        const email = String(credentials.email).trim().toLowerCase();
+
+        const user = await prisma.user.findUnique({
+          where: { email },
+        });
+
+        if (!user || !user.password) {
+          return null;
+        }
+
+        const isValid = await verifyPassword(
+          credentials.password as string,
+          user.password
+        );
+
+        if (!isValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name ?? null,
+        };
+      },
+    }),
+  ],
+  session: {
+    strategy: "jwt", // Stateless sessions; no database session rows created
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  },
+  secret: process.env.AUTH_SECRET || "",
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+        token.email = user.email ?? null;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.email = token.email as string;
+      }
+      return session;
+    },
+  },
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
+};
