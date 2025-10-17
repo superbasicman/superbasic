@@ -752,8 +752,8 @@ These concerns span multiple phases and should be addressed continuously:
 
 - **Plaid account**: Required for Phase 4 (bank connections)
 - **Stripe account**: Required for Phase 7 (billing)
-- **Upstash account**: Required for Phase 5 (background jobs) and Phase 13 (rate limiting)
-- **Neon database**: Required for all phases (already set up)
+- **Upstash account**: Required for Phase 5 (background jobs) - ✅ Already configured for rate limiting
+- **Neon database**: Required for all phases - ✅ Already set up
 - **Email service**: Required for Phase 14 (notifications)
 - **Apple Developer account**: Required for Phase 15 (iOS app)
 - **Google Play Developer account**: Required for Phase 15 (Android app)
