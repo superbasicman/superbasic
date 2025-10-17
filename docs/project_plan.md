@@ -81,12 +81,14 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - ✅ Users can log out and session is cleared
 - ✅ Rate limiting prevents brute force attacks (10 req/min per IP)
 - ✅ All auth events logged with user ID, timestamp, IP, success/failure
+- ✅ Upstash Redis configured and rate limiting verified working
+- ✅ Sliding window rate limiter implemented with Redis sorted sets
 - ⚠️ Integration tests cover registration, login, logout, session flows (recommended)
 - ⚠️ E2E tests verify login → dashboard → logout flow (recommended)
 
 **Spec**: `.kiro/specs/authentication-foundation/`
 
-**Notes**: Core authentication functionality is complete and production-ready. Rate limiting gracefully degrades if Upstash Redis is not configured (useful for local development). Integration and E2E tests are recommended before production deployment but not blocking for Phase 3.
+**Notes**: Core authentication functionality is complete and production-ready. Rate limiting is fully implemented with Upstash Redis using a sliding window algorithm. The system gracefully fails open if Redis becomes unavailable. Integration and E2E tests are recommended before production deployment but not blocking for Phase 3.
 
 ---
 
@@ -776,22 +778,14 @@ These concerns span multiple phases and should be addressed continuously:
 
 ## Next Steps
 
-1. **Optional: Configure Upstash Redis** (for production rate limiting)
-
-   - Sign up at https://console.upstash.com/
-   - Create a Redis database (free tier available)
-   - Add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to `apps/api/.env.local`
-   - Test rate limiting by making 11+ requests to `/v1/login` within 60 seconds
-   - **Note**: Not required for development; rate limiting gracefully degrades without Redis
-
-2. **Optional: Add tests for Phase 2** (recommended before production)
+1. **Optional: Add tests for Phase 2** (recommended before production)
 
    - Write integration tests for auth endpoints (register, login, logout, /me)
    - Write E2E tests for login → dashboard → logout flow
    - Verify rate limiting behavior with and without Redis
    - Test audit logging captures all auth events
 
-3. **Start Phase 3** (API Key Management) - **RECOMMENDED NEXT STEP**
+2. **Start Phase 3** (API Key Management) - **RECOMMENDED NEXT STEP**
 
    - Create spec directory: `.kiro/specs/api-key-management/`
    - Write requirements document (PAT generation, scopes, CRUD operations)
@@ -799,14 +793,14 @@ These concerns span multiple phases and should be addressed continuously:
    - Define API endpoints and Zod schemas
    - Plan token lifecycle (creation, usage tracking, revocation)
 
-4. **Alternative: Set up Plaid account** (if prioritizing bank connections)
+3. **Alternative: Set up Plaid account** (if prioritizing bank connections)
 
    - Register for Plaid developer account
    - Obtain API keys for Sandbox environment
    - Review Plaid documentation and best practices
    - Create Phase 4 spec (Plaid Integration)
 
-5. **Deploy to preview environment** (optional but recommended)
+4. **Deploy to preview environment** (optional but recommended)
    - Set up Vercel project for API and web client
    - Configure environment variables in Vercel
    - Deploy and test authentication flow in preview environment

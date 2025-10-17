@@ -54,20 +54,55 @@ export function createRateLimiter(redis: Redis) {
    * @returns Rate limit result
    */
   async function checkLimit(key: string, config: RateLimitConfig): Promise<RateLimitResult> {
-    // Placeholder implementation
-    // TODO: Implement sliding window rate limiting with Upstash Redis
     const rateLimitKey = `ratelimit:${key}`;
-    const now = Math.floor(Date.now() / 1000);
+    const now = Date.now();
+    const windowStart = now - config.window * 1000;
 
-    // For now, just return a permissive result
-    // Real implementation will use Redis sorted sets for sliding window
-    void rateLimitKey; // Acknowledge key usage for placeholder
+    // Use Redis sorted set for sliding window
+    // Score is timestamp, member is unique request ID
+    const requestId = `${now}:${Math.random()}`;
 
-    return {
-      allowed: true,
-      remaining: config.limit - 1,
-      reset: now + config.window,
-    };
+    try {
+      // Remove old entries outside the window
+      await redis.zremrangebyscore(rateLimitKey, 0, windowStart);
+
+      // Count current requests in window
+      const currentCount = await redis.zcard(rateLimitKey);
+
+      if (currentCount >= config.limit) {
+        // Rate limit exceeded
+        const oldestEntry = await redis.zrange(rateLimitKey, 0, 0, { withScores: true });
+        const resetTime = oldestEntry.length > 0 
+          ? Math.ceil((Number(oldestEntry[1]) + config.window * 1000) / 1000)
+          : Math.ceil((now + config.window * 1000) / 1000);
+
+        return {
+          allowed: false,
+          remaining: 0,
+          reset: resetTime,
+        };
+      }
+
+      // Add current request
+      await redis.zadd(rateLimitKey, { score: now, member: requestId });
+
+      // Set expiration on the key (cleanup)
+      await redis.expire(rateLimitKey, config.window + 10);
+
+      return {
+        allowed: true,
+        remaining: config.limit - (currentCount + 1),
+        reset: Math.ceil((now + config.window * 1000) / 1000),
+      };
+    } catch (error) {
+      // On Redis error, fail open (allow request) but log the error
+      console.error('Rate limit check failed:', error);
+      return {
+        allowed: true,
+        remaining: config.limit - 1,
+        reset: Math.ceil((now + config.window * 1000) / 1000),
+      };
+    }
   }
 
   /**
