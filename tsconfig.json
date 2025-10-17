@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    // Type Checking
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Module Resolution
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+
+    // Interop
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+
+    // Language and Environment
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "useDefineForClassFields": true,
+
+    // Emit
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // Path Aliases
+    "baseUrl": ".",
+    "paths": {
+      "@repo/auth": ["./packages/auth/src"],
+      "@repo/core": ["./packages/core/src"],
+      "@repo/database": ["./packages/database/src"],
+      "@repo/design-system": ["./packages/design-system/src"],
+      "@repo/observability": ["./packages/observability/src"],
+      "@repo/rate-limit": ["./packages/rate-limit/src"],
+      "@repo/sdk": ["./packages/sdk/src"],
+      "@repo/types": ["./packages/types/src"]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "dist",
+    "build",
+    ".next",
+    "coverage",
+    "**/*.config.ts",
+    "**/*.config.js"
+  ]
+}

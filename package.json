@@ -1,0 +1,35 @@
+{
+  "name": "superbasic-finance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:prod": "NODE_ENV=production turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "test:unit": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "db:generate": "turbo run generate --filter=@repo/database",
+    "db:migrate": "turbo run migrate --filter=@repo/database",
+    "db:studio": "turbo run studio --filter=@repo/database"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@playwright/test": "^1.48.0",
+    "@types/node": "^20.17.0",
+    "tsup": "^8.3.0",
+    "turbo": "^2.2.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
