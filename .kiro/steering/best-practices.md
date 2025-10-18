@@ -15,6 +15,14 @@ Guidelines to keep work focused, production-ready, and simple while we reshape t
 - Favor composable Hono middlewares for CORS, rate limits, and auth; avoid bespoke wrappers unless necessary.
 - Centralize secrets in `apps/api` env parsing; never load them in `apps/web`.
 
+## Database Reference Patterns
+
+- **Authentication tables** (api_keys, sessions): Reference `users.id` from Auth.js
+- **Business logic tables** (connections, workspaces, budgets): Reference `profiles.id`
+- **Middleware**: Auth middleware attaches both `userId` (for authentication) and `profileId` (for business logic) to request context
+- **Why the split**: Auth.js manages identity; profiles store user preferences and own business data
+- **Migration path**: Existing code uses `userId` from JWT; new code should use `profileId` for domain operations
+
 ## Code Quality
 
 - Write DRY, modular code—extract repeated logic into small, focused functions.

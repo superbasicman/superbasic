@@ -12,6 +12,7 @@ import {
   CLOCK_SKEW_TOLERANCE_SECONDS,
   COOKIE_NAME,
 } from "@repo/auth";
+import { prisma } from "@repo/database";
 
 /**
  * Auth middleware that validates JWT session tokens from httpOnly cookies
@@ -64,6 +65,17 @@ export async function authMiddleware(c: Context, next: Next) {
     c.set("userId", decoded.id as string);
     c.set("userEmail", decoded.email as string);
     c.set("jti", decoded.jti as string); // For future token revocation
+
+    // Fetch profile and attach profileId for business logic
+    // Authentication uses userId; business logic uses profileId
+    const profile = await prisma.profile.findUnique({
+      where: { userId: decoded.id as string },
+      select: { id: true },
+    });
+
+    if (profile) {
+      c.set("profileId", profile.id);
+    }
 
     await next();
   } catch (error) {

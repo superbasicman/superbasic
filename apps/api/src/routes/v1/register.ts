@@ -21,20 +21,34 @@ registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
     return c.json({ error: 'Email already in use' }, 409); // 409 Conflict
   }
 
-  // Hash password and create user
+  // Hash password and create user with profile in a transaction
   const hashedPassword = await hashPassword(password);
-  const user = await prisma.user.create({
-    data: {
-      email: normalizedEmail,
-      password: hashedPassword,
-      name: name ?? null,
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      createdAt: true,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    // Create user
+    const newUser = await tx.user.create({
+      data: {
+        email: normalizedEmail,
+        password: hashedPassword,
+        name: name ?? null,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+      },
+    });
+
+    // Create profile with default settings
+    await tx.profile.create({
+      data: {
+        userId: newUser.id,
+        timezone: 'UTC',
+        currency: 'USD',
+      },
+    });
+
+    return newUser;
   });
 
   // Emit user.registered event

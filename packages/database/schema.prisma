@@ -22,6 +22,7 @@ model User {
   
   accounts      Account[]
   sessions      Session[]
+  profile       Profile?
   
   @@map("users")
 }
@@ -63,4 +64,17 @@ model VerificationToken {
   
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timezone  String   @default("UTC")
+  currency  String   @default("USD")
+  settings  Json?    // JSONB for flexible user preferences
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("profiles")
 }

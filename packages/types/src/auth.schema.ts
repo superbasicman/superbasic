@@ -2,8 +2,8 @@ import { z } from 'zod';
 
 // Registration schema with email, password (min 8 chars), optional name
 export const RegisterSchema = z.object({
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  email: z.string().trim().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required').min(8, 'Password must be at least 8 characters'),
   name: z.string().optional(),
 });
 
@@ -11,7 +11,7 @@ export type RegisterInput = z.infer<typeof RegisterSchema>;
 
 // Login schema with email and password
 export const LoginSchema = z.object({
-  email: z.string().email('Invalid email address'),
+  email: z.string().trim().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
 });
 

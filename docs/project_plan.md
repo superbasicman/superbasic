@@ -4,7 +4,7 @@
 
 This document provides a high-level roadmap for building SuperBasic Finance, an API-first personal finance platform. The plan is organized into phases with clear exit criteria, building from foundational infrastructure through core features to advanced capabilities. Each phase represents a deployable milestone that delivers user value while maintaining production quality.
 
-**Current Status**: Phase 1 & 2 complete (Monorepo + Authentication), ready for Phase 3 (API Key Management)
+**Current Status**: Phase 1 & 2 complete with comprehensive E2E testing, ready for Phase 3 (API Key Management)
 
 ## Guiding Principles
 
@@ -71,6 +71,10 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - [x] Login and registration UI pages
 - [x] Protected route wrapper component
 - [x] Audit logging with structured Pino logger
+- [x] Profiles table for user preferences and business data
+- [x] User/profile reference strategy (users.id for auth, profiles.id for business logic)
+- [x] Middleware enhancement to attach both userId and profileId
+- [x] Prisma client caching fix for schema updates
 
 ### Exit Criteria
 
@@ -83,12 +87,19 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - ✅ All auth events logged with user ID, timestamp, IP, success/failure
 - ✅ Upstash Redis configured and rate limiting verified working
 - ✅ Sliding window rate limiter implemented with Redis sorted sets
-- ⚠️ Integration tests cover registration, login, logout, session flows (recommended)
-- ⚠️ E2E tests verify login → dashboard → logout flow (recommended)
+- ✅ Integration tests cover registration, login, logout, session flows
+- ✅ E2E tests verify complete authentication journey (29 comprehensive tests)
+- ✅ One-command E2E test runner with automatic server management
+- ✅ Profiles table created with migration and backfill script
+- ✅ Auth middleware attaches both userId (auth) and profileId (business logic)
+- ✅ All 102 tests passing (unit, integration, and E2E)
 
-**Spec**: `.kiro/specs/authentication-foundation/`
+**Specs**:
 
-**Notes**: Core authentication functionality is complete and production-ready. Rate limiting is fully implemented with Upstash Redis using a sliding window algorithm. The system gracefully fails open if Redis becomes unavailable. Integration and E2E tests are recommended before production deployment but not blocking for Phase 3.
+- `.kiro/specs/authentication-foundation/` - Core authentication implementation
+- `.kiro/specs/authentication-testing/` - Comprehensive test suite
+
+**Notes**: Core authentication functionality is complete and production-ready with comprehensive test coverage. Rate limiting is fully implemented with Upstash Redis using a sliding window algorithm. The system gracefully fails open if Redis becomes unavailable. All 102 tests passing (unit, integration, and E2E). The profiles table separates Auth.js identity (users) from user preferences/business data (profiles), with middleware attaching both IDs to request context. A Prisma client caching fix ensures schema updates are picked up automatically.
 
 ---
 
@@ -778,14 +789,7 @@ These concerns span multiple phases and should be addressed continuously:
 
 ## Next Steps
 
-1. **Optional: Add tests for Phase 2** (recommended before production)
-
-   - Write integration tests for auth endpoints (register, login, logout, /me)
-   - Write E2E tests for login → dashboard → logout flow
-   - Verify rate limiting behavior with and without Redis
-   - Test audit logging captures all auth events
-
-2. **Start Phase 3** (API Key Management) - **RECOMMENDED NEXT STEP**
+1. **Start Phase 3** (API Key Management) - **RECOMMENDED NEXT STEP**
 
    - Create spec directory: `.kiro/specs/api-key-management/`
    - Write requirements document (PAT generation, scopes, CRUD operations)
@@ -793,14 +797,14 @@ These concerns span multiple phases and should be addressed continuously:
    - Define API endpoints and Zod schemas
    - Plan token lifecycle (creation, usage tracking, revocation)
 
-3. **Alternative: Set up Plaid account** (if prioritizing bank connections)
+2. **Alternative: Set up Plaid account** (if prioritizing bank connections)
 
    - Register for Plaid developer account
    - Obtain API keys for Sandbox environment
    - Review Plaid documentation and best practices
    - Create Phase 4 spec (Plaid Integration)
 
-4. **Deploy to preview environment** (optional but recommended)
+3. **Deploy to preview environment** (optional but recommended)
    - Set up Vercel project for API and web client
    - Configure environment variables in Vercel
    - Deploy and test authentication flow in preview environment

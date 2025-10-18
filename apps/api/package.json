@@ -5,9 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "dotenv -e .env.local -- tsx watch src/index.ts",
+    "dev:test": "dotenv -e .env.test -- tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "dotenv -e .env.test -- vitest --run",
+    "test:watch": "dotenv -e .env.test -- vitest",
+    "test:coverage": "dotenv -e .env.test -- vitest --run --coverage"
   },
   "dependencies": {
     "@auth/core": "^0.37.0",
@@ -25,8 +29,10 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@vitest/coverage-v8": "^2.1.8",
     "dotenv-cli": "^10.0.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

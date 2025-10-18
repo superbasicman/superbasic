@@ -38,6 +38,14 @@ class AuthEventEmitter {
       console.error("Auth event handler error:", err);
     });
   }
+
+  /**
+   * Clear all event handlers
+   * Useful for testing to prevent handler accumulation
+   */
+  clearHandlers() {
+    this.handlers = [];
+  }
 }
 
 export const authEvents = new AuthEventEmitter();
