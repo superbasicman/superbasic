@@ -76,8 +76,10 @@ This document defines the requirements for Personal Access Token (PAT) managemen
 1. THE Authentication System SHALL expose a DELETE /v1/tokens/:id endpoint that requires valid session authentication
 2. WHEN a user requests token deletion, THE Authentication System SHALL verify the token belongs to the authenticated user
 3. IF the token belongs to a different user, THEN THE Authentication System SHALL return a 404 Not Found response
-4. THE Authentication System SHALL permanently delete the token record from the database
-5. THE Audit Logger SHALL record token revocation events with user ID, token ID, token name, IP address, and timestamp
+4. THE Authentication System SHALL soft-delete the token by setting the revokedAt timestamp (preserves audit trail)
+5. THE Authentication System SHALL make the DELETE operation idempotent (calling twice returns 204)
+6. THE Audit Logger SHALL record token revocation events with user ID, profile ID, token ID, token name, IP address, and timestamp
+7. THE Authentication System SHALL NOT hard-delete tokens except for GDPR/compliance requests via explicit scripts
 
 ### Requirement 6: Bearer Token Authentication
 
@@ -150,7 +152,9 @@ This document defines the requirements for Personal Access Token (PAT) managemen
 2. THE Authentication System SHALL include last_used_at in the token list response
 3. THE Web Client SHALL display last used timestamps in human-readable format (e.g., "2 hours ago", "Never used")
 4. THE Web Client SHALL highlight tokens that have not been used in 30+ days with a warning indicator
-5. THE Web Client SHALL provide a "Delete Unused Tokens" bulk action for tokens unused in 90+ days
+5. THE Web Client SHALL display a visual indicator for tokens that have never been used
+
+**Note**: Bulk operations (e.g., "Delete Unused Tokens") are deferred to Phase 3.1 (post-launch enhancements) to keep Phase 3 scope focused on core CRUD operations.
 
 ### Requirement 12: Token Naming and Organization
 
@@ -170,11 +174,11 @@ This document defines the requirements for Personal Access Token (PAT) managemen
 
 #### Acceptance Criteria
 
-1. THE Audit Logger SHALL record token creation events with user ID, token ID, token name, scopes, IP address, user agent, and timestamp
-2. THE Audit Logger SHALL record token authentication events with token ID, endpoint, HTTP method, response status, IP address, and timestamp
-3. THE Audit Logger SHALL record token revocation events with user ID, token ID, token name, IP address, and timestamp
-4. THE Audit Logger SHALL record failed authentication attempts with provided token prefix, IP address, and timestamp
-5. THE Audit Logger SHALL record scope enforcement failures with token ID, required scope, endpoint, and timestamp
+1. THE Audit Logger SHALL record token creation events with user ID, profile ID, token ID, token name, scopes, expiration date, IP address, user agent, and timestamp (ISO 8601 format)
+2. THE Audit Logger SHALL record token authentication events with token ID, endpoint, HTTP method, response status code, IP address, user agent, and timestamp (ISO 8601 format)
+3. THE Audit Logger SHALL record token revocation events with user ID, profile ID, token ID, token name, IP address, user agent, and timestamp (ISO 8601 format)
+4. THE Audit Logger SHALL record failed authentication attempts with provided token prefix, IP address, and timestamp (ISO 8601 format)
+5. THE Audit Logger SHALL record scope enforcement failures with token ID, required scope, endpoint, IP address, and timestamp (ISO 8601 format)
 
 ### Requirement 14: Token Security Best Practices
 

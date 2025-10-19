@@ -127,9 +127,8 @@ const keyHash = crypto.createHash('sha256').update(token).digest('hex');
 - **Full Roadmap**: `docs/project_plan.md` - Complete 18-phase plan with all details
 - **Phase Summaries**: `docs/phase-1-readme.md`, `docs/phase-2-readme.md`
 - **Database Schema**: `.kiro/steering/database-schema.md` - Complete schema reference
-- **File Reference**: `docs/open-files.md` - Key files to track for context
 
 ---
 
-**Last Updated**: 2025-01-18  
+**Last Updated**: 2025-10-19  
 **Update Trigger**: Update this file at the start of each new phase or when phase status changes significantly

@@ -18,7 +18,8 @@ docs/
 ├─ architecture/          # System design and architecture decisions
 ├─ guides/                # How-to guides and tutorials
 ├─ api/                   # API documentation (if not auto-generated)
-└─ operations/            # Deployment, monitoring, runbooks
+└─ operations/            # Deployment, monitoring, 
+└─ archived/              # Archived docs we no longer need
 ```
 
 ### When to Keep Package-Level Docs
@@ -66,6 +67,8 @@ When finishing a task:
 - [ ] Remove any debug code, console.logs, or commented-out experiments
 - [ ] Clean up any test fixtures or mock data that aren't needed
 - [ ] Verify no orphaned files or directories were left behind
+- [ ] Refresh /steering/current-phase.md to reflect the current task or subtask status
+- [ ] Refresh /docs/project_plan.md to reflect the current task or subtask status
 
 ## Rationale
 
