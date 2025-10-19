@@ -4,7 +4,7 @@ This document tracks key files that should be kept in context during development
 
 ## Purpose
 
-- **Prevent drift**: Ensure all relevant files are refreshed after completing tasks
+- **Prevent drift**: Ensure all relevant files are refreshed after completing tasks if needed
 - **Maintain context**: Keep important configuration and implementation files visible
 - **Spec consistency**: Reference this list when creating new specs to include relevant files
 - **Quick refresh**: Use "refresh all files in open-files.md" to sync context
@@ -146,8 +146,8 @@ These files provide project-wide context and should be referenced in most specs:
 - `.kiro/specs/authentication-testing/tasks.md`
 
 ### Phase 3: API Key Management (In Progress)
-- `.kiro/specs/api-key-management/requirements.md`
-- `.kiro/specs/api-key-management/design.md` (to be created)
+- `.kiro/specs/api-key-management/requirements.md` ✅
+- `.kiro/specs/api-key-management/design.md` ✅
 - `.kiro/specs/api-key-management/tasks.md` (to be created)
 
 ---
@@ -255,6 +255,6 @@ After completing a task:
 
 ---
 
-**Last Updated**: 2025-01-XX (update this date when making changes)
+**Last Updated**: 2025-01-18 (updated after aligning Phase 3 specs with current steering)
 **Current Phase**: Phase 3 - API Key Management
 **Next Review**: After Phase 3 completion

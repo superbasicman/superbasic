@@ -92,38 +92,54 @@ Add `ApiKey` model to `packages/database/schema.prisma`:
 
 ```prisma
 model ApiKey {
-  id          String    @id @default(cuid())
-  userId      String
+  id          String    @id @default(uuid())
+  userId      String    // Auth.js user reference (for authentication)
+  profileId   String?   // Business logic owner (personal tokens)
+  workspaceId String?   // Workspace-scoped tokens (future use)
   name        String    // User-provided description (e.g., "CI/CD Pipeline", "Mobile App")
-  tokenHash   String    @unique // SHA-256 hash of the plaintext token
-  scopes      String[]  // Array of permission scopes
-  createdAt   DateTime  @default(now())
+  keyHash     String    @unique // SHA-256 hash of the plaintext token
+  scopes      Json      @default("[]") // Array of permission strings
   lastUsedAt  DateTime? // Updated on each successful authentication
-  expiresAt   DateTime  // Token expiration timestamp
+  expiresAt   DateTime? // Token expiration timestamp
+  revokedAt   DateTime? // Soft delete timestamp
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
   
   @@index([userId])
-  @@index([tokenHash]) // Fast lookup during authentication
+  @@index([profileId])
+  @@index([workspaceId])
+  @@index([keyHash]) // Fast lookup during authentication
+  @@index([revokedAt]) // Partial index for active tokens
   @@unique([userId, name]) // Prevent duplicate names per user
   @@map("api_keys")
 }
 ```
 
-Update `User` model to include relation:
+Update `User` and `Profile` models to include relations:
 
 ```prisma
 model User {
   // ... existing fields
   apiKeys ApiKey[]
 }
+
+model Profile {
+  // ... existing fields
+  apiKeys ApiKey[]
+}
 ```
 
 **Migration Notes**:
-- `tokenHash` is indexed for fast authentication lookups
-- `userId` is indexed for efficient user token listing
-- Unique constraint on `[userId, name]` prevents duplicate token names per user
-- `onDelete: Cascade` ensures tokens are deleted when user is deleted
+- Uses `uuid()` for ID generation (consistent with project standard)
+- `keyHash` (not `tokenHash`) matches database-schema.md naming
+- `Json` type for scopes (not `String[]`) matches Prisma conventions
+- `profileId` and `workspaceId` support user/profile separation pattern
+- Database constraint: `CHECK (profileId IS NOT NULL OR workspaceId IS NOT NULL)` enforced at DB level
+- `revokedAt` enables soft deletes for audit trail
+- `onDelete: Cascade` ensures tokens are deleted when user/profile is deleted
 
 ### 2. Token Generation Service
 
@@ -334,6 +350,7 @@ createTokenRoute.post(
   zValidator("json", CreateTokenSchema),
   async (c) => {
     const userId = c.get("userId")
+    const profileId = c.get("profileId") // Business logic reference
     const { name, scopes, expiresInDays } = c.req.valid("json")
     
     // Validate scopes
@@ -352,18 +369,19 @@ createTokenRoute.post(
     
     // Generate token and hash
     const token = generateToken()
-    const tokenHash = hashToken(token)
+    const keyHash = hashToken(token)
     
     // Calculate expiration
     const expiresAt = new Date()
     expiresAt.setDate(expiresAt.getDate() + expiresInDays)
     
-    // Create token record
+    // Create token record (personal token via profileId)
     const apiKey = await prisma.apiKey.create({
       data: {
         userId,
+        profileId, // Personal token ownership
         name,
-        tokenHash,
+        keyHash,
         scopes,
         expiresAt,
       },
@@ -375,6 +393,7 @@ createTokenRoute.post(
       userId,
       metadata: {
         tokenId: apiKey.id,
+        profileId,
         tokenName: name,
         scopes,
         expiresAt: expiresAt.toISOString(),
@@ -389,7 +408,7 @@ createTokenRoute.post(
       scopes: apiKey.scopes,
       createdAt: apiKey.createdAt.toISOString(),
       lastUsedAt: null,
-      expiresAt: apiKey.expiresAt.toISOString(),
+      expiresAt: apiKey.expiresAt?.toISOString() ?? null,
       maskedToken: `sbf_****${token.slice(-4)}`,
     }, 201)
   }
@@ -411,7 +430,10 @@ listTokensRoute.get("/", authMiddleware, async (c) => {
   const userId = c.get("userId")
   
   const tokens = await prisma.apiKey.findMany({
-    where: { userId },
+    where: { 
+      userId,
+      revokedAt: null, // Only show active tokens
+    },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -420,7 +442,7 @@ listTokensRoute.get("/", authMiddleware, async (c) => {
       createdAt: true,
       lastUsedAt: true,
       expiresAt: true,
-      tokenHash: true, // Only for masking
+      keyHash: true, // Only for masking
     },
   })
   
@@ -431,8 +453,8 @@ listTokensRoute.get("/", authMiddleware, async (c) => {
     scopes: token.scopes,
     createdAt: token.createdAt.toISOString(),
     lastUsedAt: token.lastUsedAt?.toISOString() ?? null,
-    expiresAt: token.expiresAt.toISOString(),
-    maskedToken: `sbf_****${token.tokenHash.slice(-4)}`,
+    expiresAt: token.expiresAt?.toISOString() ?? null,
+    maskedToken: `sbf_****${token.keyHash.slice(-4)}`,
   }))
   
   return c.json({ tokens: maskedTokens })
@@ -468,9 +490,14 @@ revokeTokenRoute.delete("/:id", authMiddleware, async (c) => {
     return c.json({ error: "Token not found" }, 404) // Don't leak existence
   }
   
-  // Delete token
-  await prisma.apiKey.delete({
+  if (token.revokedAt) {
+    return c.json({ error: "Token already revoked" }, 410)
+  }
+  
+  // Soft delete token (set revokedAt timestamp)
+  await prisma.apiKey.update({
     where: { id: tokenId },
+    data: { revokedAt: new Date() },
   })
   
   // Emit audit event
@@ -514,7 +541,7 @@ updateTokenRoute.patch(
       where: { id: tokenId },
     })
     
-    if (!token || token.userId !== userId) {
+    if (!token || token.userId !== userId || token.revokedAt) {
       return c.json({ error: "Token not found" }, 404)
     }
     
@@ -539,8 +566,8 @@ updateTokenRoute.patch(
       scopes: updated.scopes,
       createdAt: updated.createdAt.toISOString(),
       lastUsedAt: updated.lastUsedAt?.toISOString() ?? null,
-      expiresAt: updated.expiresAt.toISOString(),
-      maskedToken: `sbf_****${updated.tokenHash.slice(-4)}`,
+      expiresAt: updated.expiresAt?.toISOString() ?? null,
+      maskedToken: `sbf_****${updated.keyHash.slice(-4)}`,
     })
   }
 )
@@ -555,13 +582,13 @@ Located in `apps/api/src/middleware/pat.ts`:
 
 ```typescript
 import type { Context, Next } from "hono"
-import { hashToken, isValidTokenFormat, verifyToken } from "@repo/auth"
+import { hashToken, isValidTokenFormat } from "@repo/auth"
 import { prisma } from "@repo/database"
 
 /**
  * PAT authentication middleware
  * Extracts Bearer token from Authorization header, verifies against database
- * Attaches user context and token scopes to request
+ * Attaches user context, profile context, and token scopes to request
  */
 export async function patMiddleware(c: Context, next: Next) {
   try {
@@ -580,19 +607,27 @@ export async function patMiddleware(c: Context, next: Next) {
     }
     
     // Hash token and lookup in database
-    const tokenHash = hashToken(token)
+    const keyHash = hashToken(token)
     
     const apiKey = await prisma.apiKey.findUnique({
-      where: { tokenHash },
-      include: { user: true },
+      where: { keyHash },
+      include: { 
+        user: true,
+        profile: true,
+      },
     })
     
     if (!apiKey) {
       return c.json({ error: "Invalid token" }, 401)
     }
     
+    // Check revocation
+    if (apiKey.revokedAt) {
+      return c.json({ error: "Token revoked" }, 401)
+    }
+    
     // Check expiration
-    if (apiKey.expiresAt < new Date()) {
+    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
       return c.json({ error: "Token expired" }, 401)
     }
     
@@ -605,7 +640,9 @@ export async function patMiddleware(c: Context, next: Next) {
     })
     
     // Attach user context and token metadata
+    // Following user/profile reference pattern: userId for auth, profileId for business logic
     c.set("userId", apiKey.userId)
+    c.set("profileId", apiKey.profileId)
     c.set("userEmail", apiKey.user.email)
     c.set("authType", "pat")
     c.set("tokenId", apiKey.id)
@@ -621,9 +658,10 @@ export async function patMiddleware(c: Context, next: Next) {
 
 **Design Notes**:
 - Token format validation before database lookup (prevents injection)
-- Constant-time comparison via `verifyToken` (prevents timing attacks)
+- Checks both revocation and expiration status
 - Last used timestamp updated asynchronously (doesn't block request)
 - Generic error messages (prevents user enumeration)
+- Follows user/profile reference pattern: attaches both userId and profileId to context
 
 ### 7. Unified Authentication Middleware
 
@@ -776,14 +814,18 @@ app.post(
 
 ```typescript
 interface ApiKey {
-  id: string              // CUID
-  userId: string          // Owner user ID
+  id: string              // UUID
+  userId: string          // Auth.js user reference (for authentication)
+  profileId: string | null // Business logic owner (personal tokens)
+  workspaceId: string | null // Workspace-scoped tokens (future)
   name: string            // User-provided description
-  tokenHash: string       // SHA-256 hash of plaintext token
-  scopes: string[]        // Permission scopes
+  keyHash: string         // SHA-256 hash of plaintext token
+  scopes: string[]        // Permission scopes (stored as JSON)
   createdAt: Date         // Creation timestamp
+  updatedAt: Date         // Last modification timestamp
   lastUsedAt: Date | null // Last authentication timestamp
-  expiresAt: Date         // Expiration timestamp
+  expiresAt: Date | null  // Expiration timestamp (optional)
+  revokedAt: Date | null  // Soft delete timestamp
 }
 ```
 

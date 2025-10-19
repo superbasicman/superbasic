@@ -35,11 +35,12 @@ This document defines the requirements for Personal Access Token (PAT) managemen
 
 #### Acceptance Criteria
 
-1. THE Authentication System SHALL store token hashes in a dedicated `api_keys` table with columns for hash, user_id, name, scopes, created_at, last_used_at, and expires_at
-2. WHEN verifying an incoming token, THE Authentication System SHALL compute the SHA-256 hash of the provided token and compare it to stored hashes using constant-time comparison
-3. THE Authentication System SHALL NOT store plaintext tokens in any database, log file, or cache
-4. THE Authentication System SHALL index the token hash column for efficient lookup during authentication
-5. IF a token hash matches multiple records, THEN THE Authentication System SHALL reject the request with a 401 Unauthorized response
+1. THE Authentication System SHALL store token hashes in a dedicated `api_keys` table with columns for hash, user_id, profile_id, workspace_id, name, scopes, created_at, last_used_at, expires_at, and revoked_at
+2. THE Authentication System SHALL enforce that each token references either profile_id OR workspace_id (not both, not neither) via database constraint
+3. WHEN verifying an incoming token, THE Authentication System SHALL compute the SHA-256 hash of the provided token and compare it to stored hashes using constant-time comparison
+4. THE Authentication System SHALL NOT store plaintext tokens in any database, log file, or cache
+5. THE Authentication System SHALL index the token hash column for efficient lookup during authentication
+6. IF a token hash matches multiple records, THEN THE Authentication System SHALL reject the request with a 401 Unauthorized response
 
 ### Requirement 3: Token Creation API
 
@@ -49,9 +50,10 @@ This document defines the requirements for Personal Access Token (PAT) managemen
 
 1. THE Authentication System SHALL expose a POST /v1/tokens endpoint that requires valid session authentication
 2. WHEN a user submits a token creation request, THE Authentication System SHALL validate the request body contains a name (string, 1-100 characters) and scopes (array of valid scope strings)
-3. THE Authentication System SHALL create a new token record associated with the authenticated user's ID
-4. THE Authentication System SHALL return a response containing the plaintext token, token ID, name, scopes, and creation timestamp
-5. THE Audit Logger SHALL record token creation events with user ID, token ID, token name, scopes, IP address, and timestamp
+3. THE Authentication System SHALL create a new token record associated with the authenticated user's ID and profile ID (personal tokens reference profileId, workspace tokens reference workspaceId)
+4. THE Authentication System SHALL default to creating personal tokens (profileId) unless workspace context is explicitly provided
+5. THE Authentication System SHALL return a response containing the plaintext token, token ID, name, scopes, and creation timestamp
+6. THE Audit Logger SHALL record token creation events with user ID, profile ID, token ID, token name, scopes, IP address, and timestamp
 
 ### Requirement 4: Token Listing API
 
@@ -85,9 +87,10 @@ This document defines the requirements for Personal Access Token (PAT) managemen
 
 1. THE Authentication System SHALL accept tokens in the `Authorization: Bearer <token>` HTTP header on all /v1 endpoints
 2. WHEN a request includes a Bearer token, THE Authentication System SHALL extract the token, compute its SHA-256 hash, and query the database for a matching record
-3. IF a matching token is found and not expired, THEN THE Authentication System SHALL authenticate the request with the token's associated user ID
-4. IF no matching token is found or the token is expired, THEN THE Authentication System SHALL return a 401 Unauthorized response with error code `invalid_token`
-5. THE Authentication System SHALL update the token's last_used_at timestamp on each successful authentication
+3. IF a matching token is found and not expired or revoked, THEN THE Authentication System SHALL authenticate the request with the token's associated user ID and profile ID
+4. THE Authentication System SHALL attach both userId (for authentication) and profileId (for business logic) to the request context, following the established user/profile reference pattern
+5. IF no matching token is found, the token is expired, or the token is revoked, THEN THE Authentication System SHALL return a 401 Unauthorized response with error code `invalid_token`
+6. THE Authentication System SHALL update the token's last_used_at timestamp on each successful authentication
 
 ### Requirement 7: Token Scope Enforcement
 
