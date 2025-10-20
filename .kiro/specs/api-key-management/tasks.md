@@ -176,9 +176,9 @@
     - Test token still works after name change
     - _Requirements: 12.1-12.5_
 
-- [ ] 8. Rate limiting for token operations
+- [x] 8. Rate limiting for token operations
 
-  - [ ] 8.1 Add rate limit middleware to token endpoints
+  - [x] 8.1 Add rate limit middleware to token endpoints
 
     - Apply 10 tokens/hour limit to POST /v1/tokens (per userId)
     - Apply 100 failed auth/hour limit to bearer auth middleware (per IP)
@@ -186,7 +186,7 @@
     - Return 429 with Retry-After header when limit exceeded
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
 
-  - [ ] 8.2 Write integration tests for rate limiting
+  - [x] 8.2 Write integration tests for rate limiting
     - Test token creation rate limit enforcement
     - Test failed auth rate limit enforcement
     - Test successful auth not rate limited

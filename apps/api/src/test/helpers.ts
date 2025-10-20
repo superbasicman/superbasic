@@ -154,7 +154,7 @@ export async function createTestUser(
   const hashedPassword = await hashPassword(credentials.password);
 
   // Create user and profile in a transaction (matching register endpoint behavior)
-  const user = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const newUser = await tx.user.create({
       data: {
         email: credentials.email,
@@ -164,7 +164,7 @@ export async function createTestUser(
     });
 
     // Create profile with default settings
-    await tx.profile.create({
+    const newProfile = await tx.profile.create({
       data: {
         userId: newUser.id,
         timezone: 'UTC',
@@ -172,11 +172,11 @@ export async function createTestUser(
       },
     });
 
-    return newUser;
+    return { user: newUser, profile: newProfile };
   });
 
   return {
-    user,
+    user: { ...result.user, profile: result.profile },
     credentials, // Return plaintext password for testing login
   };
 }

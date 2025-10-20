@@ -42,6 +42,10 @@ export async function authRateLimitMiddleware(c: Context, next: Next) {
   c.header('X-RateLimit-Reset', result.reset.toString());
 
   if (!result.allowed) {
+    // Calculate Retry-After in seconds
+    const retryAfter = result.reset - Math.floor(Date.now() / 1000);
+    c.header('Retry-After', retryAfter.toString());
+
     return c.json(
       {
         error: 'Too many requests',
@@ -85,6 +89,10 @@ export async function tokenCreationRateLimitMiddleware(c: Context, next: Next) {
   c.header('X-RateLimit-Reset', result.reset.toString());
 
   if (!result.allowed) {
+    // Calculate Retry-After in seconds
+    const retryAfter = result.reset - Math.floor(Date.now() / 1000);
+    c.header('Retry-After', retryAfter.toString());
+
     return c.json(
       {
         error: 'Too many tokens created',
@@ -95,4 +103,57 @@ export async function tokenCreationRateLimitMiddleware(c: Context, next: Next) {
   }
 
   await next();
+}
+
+/**
+ * Track failed authentication attempt for rate limiting
+ * Should be called when authentication fails (401 response)
+ * 
+ * @param ip - IP address of the request
+ * @returns Promise that resolves when tracking is complete
+ */
+export async function trackFailedAuth(ip: string): Promise<void> {
+  // Skip if Redis is not configured
+  if (!limiter) {
+    return;
+  }
+
+  try {
+    // Increment failed auth counter (100 per hour per IP)
+    await limiter.checkLimit(`failed-auth:${ip}`, {
+      limit: 100,
+      window: 3600, // 1 hour in seconds
+    });
+  } catch (error) {
+    // Log error but don't throw - tracking failures shouldn't block auth
+    console.error('Failed to track failed auth attempt:', error);
+  }
+}
+
+/**
+ * Check if IP has exceeded failed authentication rate limit
+ * Returns true if rate limit is exceeded, false otherwise
+ * 
+ * @param ip - IP address to check
+ * @returns Promise<boolean> - true if rate limited, false otherwise
+ */
+export async function checkFailedAuthRateLimit(ip: string): Promise<boolean> {
+  // Skip if Redis is not configured
+  if (!limiter) {
+    return false;
+  }
+
+  try {
+    // Check rate limit (100 failed attempts per hour per IP)
+    const result = await limiter.checkLimit(`failed-auth:${ip}`, {
+      limit: 100,
+      window: 3600, // 1 hour in seconds
+    });
+
+    return !result.allowed;
+  } catch (error) {
+    // On error, fail open (don't block legitimate requests)
+    console.error('Failed to check failed auth rate limit:', error);
+    return false;
+  }
 }

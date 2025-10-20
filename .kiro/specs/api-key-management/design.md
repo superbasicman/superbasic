@@ -734,7 +734,10 @@ export async function patMiddleware(c: Context, next: Next) {
         type: "token.auth_failed",
         reason: "invalid_format",
         tokenPrefix: token.substring(0, 8), // Only log prefix for security
-        ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
+        ip:
+          c.req.header("x-forwarded-for") ||
+          c.req.header("x-real-ip") ||
+          "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
         timestamp: new Date().toISOString(),
       });
@@ -758,7 +761,10 @@ export async function patMiddleware(c: Context, next: Next) {
         type: "token.auth_failed",
         reason: "not_found",
         tokenPrefix: token.substring(0, 8),
-        ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
+        ip:
+          c.req.header("x-forwarded-for") ||
+          c.req.header("x-real-ip") ||
+          "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
         timestamp: new Date().toISOString(),
       });
@@ -773,7 +779,10 @@ export async function patMiddleware(c: Context, next: Next) {
         reason: "revoked",
         tokenId: apiKey.id,
         userId: apiKey.userId,
-        ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
+        ip:
+          c.req.header("x-forwarded-for") ||
+          c.req.header("x-real-ip") ||
+          "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
         timestamp: new Date().toISOString(),
       });
@@ -789,7 +798,10 @@ export async function patMiddleware(c: Context, next: Next) {
         tokenId: apiKey.id,
         userId: apiKey.userId,
         expiresAt: apiKey.expiresAt.toISOString(),
-        ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
+        ip:
+          c.req.header("x-forwarded-for") ||
+          c.req.header("x-real-ip") ||
+          "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
         timestamp: new Date().toISOString(),
       });

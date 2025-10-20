@@ -11,6 +11,7 @@ import {
   authEvents,
 } from "@repo/auth";
 import { prisma } from "@repo/database";
+import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit.js";
 
 /**
  * PAT authentication middleware that validates Bearer tokens
@@ -28,26 +29,45 @@ import { prisma } from "@repo/database";
  * Emits audit events for all authentication failures and successful usage.
  */
 export async function patMiddleware(c: Context, next: Next) {
+  // Extract IP address for rate limiting
+  const ip =
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
+    c.req.header("x-real-ip") ||
+    "unknown";
+
+  // Check if IP has exceeded failed auth rate limit (100 per hour)
+  const isRateLimited = await checkFailedAuthRateLimit(ip);
+  if (isRateLimited) {
+    return c.json(
+      {
+        error: "Too many failed authentication attempts",
+        message: "Rate limit exceeded. Please try again later.",
+      },
+      429
+    );
+  }
+
   try {
     // Extract Bearer token from Authorization header
     const token = extractTokenFromHeader(c.req.header("Authorization"));
 
     if (!token) {
+      await trackFailedAuth(ip);
       return c.json({ error: "Missing or invalid Authorization header" }, 401);
     }
 
     // Validate token format before database lookup (prevents injection)
     if (!isValidTokenFormat(token)) {
+      // Track failed auth attempt
+      await trackFailedAuth(ip);
+
       // Emit audit event for invalid format
       authEvents.emit({
         type: "token.auth_failed",
         metadata: {
           reason: "invalid_format",
           tokenPrefix: token.substring(0, 8), // Only log prefix for security
-          ip:
-            c.req.header("x-forwarded-for") ||
-            c.req.header("x-real-ip") ||
-            "unknown",
+          ip,
           userAgent: c.req.header("user-agent") || "unknown",
         },
       });
@@ -76,16 +96,16 @@ export async function patMiddleware(c: Context, next: Next) {
     });
 
     if (!apiKey) {
+      // Track failed auth attempt
+      await trackFailedAuth(ip);
+
       // Emit audit event for token not found
       authEvents.emit({
         type: "token.auth_failed",
         metadata: {
           reason: "not_found",
           tokenPrefix: token.substring(0, 8),
-          ip:
-            c.req.header("x-forwarded-for") ||
-            c.req.header("x-real-ip") ||
-            "unknown",
+          ip,
           userAgent: c.req.header("user-agent") || "unknown",
         },
       });
@@ -95,6 +115,9 @@ export async function patMiddleware(c: Context, next: Next) {
 
     // Check revocation status
     if (apiKey.revokedAt) {
+      // Track failed auth attempt
+      await trackFailedAuth(ip);
+
       // Emit audit event for revoked token
       authEvents.emit({
         type: "token.auth_failed",
@@ -103,10 +126,7 @@ export async function patMiddleware(c: Context, next: Next) {
           reason: "revoked",
           tokenId: apiKey.id,
           revokedAt: apiKey.revokedAt.toISOString(),
-          ip:
-            c.req.header("x-forwarded-for") ||
-            c.req.header("x-real-ip") ||
-            "unknown",
+          ip,
           userAgent: c.req.header("user-agent") || "unknown",
         },
       });
@@ -116,6 +136,9 @@ export async function patMiddleware(c: Context, next: Next) {
 
     // Check expiration status
     if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
+      // Track failed auth attempt
+      await trackFailedAuth(ip);
+
       // Emit audit event for expired token
       authEvents.emit({
         type: "token.auth_failed",
@@ -124,10 +147,7 @@ export async function patMiddleware(c: Context, next: Next) {
           reason: "expired",
           tokenId: apiKey.id,
           expiresAt: apiKey.expiresAt.toISOString(),
-          ip:
-            c.req.header("x-forwarded-for") ||
-            c.req.header("x-real-ip") ||
-            "unknown",
+          ip,
           userAgent: c.req.header("user-agent") || "unknown",
         },
       });
@@ -165,15 +185,14 @@ export async function patMiddleware(c: Context, next: Next) {
         endpoint: c.req.path,
         method: c.req.method,
         status: c.res.status,
-        ip:
-          c.req.header("x-forwarded-for") ||
-          c.req.header("x-real-ip") ||
-          "unknown",
+        ip,
         userAgent: c.req.header("user-agent") || "unknown",
       },
     });
   } catch (error) {
     console.error("PAT middleware error:", error);
+    // Track failed auth attempt on unexpected errors
+    await trackFailedAuth(ip);
     return c.json({ error: "Unauthorized" }, 401);
   }
 }
