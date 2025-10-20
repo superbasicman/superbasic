@@ -157,9 +157,9 @@
     - Test revoked tokens can't authenticate
     - _Requirements: 5.1-5.6, 13.3_
 
-- [ ] 7. Token name update endpoint (PATCH /v1/tokens/:id)
+- [x] 7. Token name update endpoint (PATCH /v1/tokens/:id)
 
-  - [ ] 7.1 Implement token name update handler
+  - [x] 7.1 Implement token name update handler
 
     - Require session authentication
     - Validate token ID parameter and new name (1-100 chars)
@@ -169,7 +169,7 @@
     - Return updated token metadata
     - _Requirements: 12.1, 12.2, 12.3, 12.5_
 
-  - [ ] 7.2 Write integration tests for name updates
+  - [x] 7.2 Write integration tests for name updates
     - Test successful name update
     - Test duplicate name rejection
     - Test ownership verification
