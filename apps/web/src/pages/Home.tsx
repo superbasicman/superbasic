@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Button } from '@repo/design-system';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -20,13 +21,24 @@ function Home() {
               )}
             </div>
             
-            <Button
-              variant="secondary"
-              onClick={() => logout()}
-              className="mx-auto"
-            >
-              Sign out
-            </Button>
+            <div className="flex flex-col gap-3">
+              <Link to="/settings/api-keys">
+                <Button
+                  variant="primary"
+                  className="w-full"
+                >
+                  Manage API Keys
+                </Button>
+              </Link>
+              
+              <Button
+                variant="secondary"
+                onClick={() => logout()}
+                className="w-full"
+              >
+                Sign out
+              </Button>
+            </div>
           </div>
         )}
       </div>

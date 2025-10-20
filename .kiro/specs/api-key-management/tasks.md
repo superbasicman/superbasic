@@ -214,9 +214,9 @@
     - Test requestId is included
     - _Requirements: 13.1-13.5_
 
-- [ ] 10. Web UI for token management
+- [x] 10. Web UI for token management
 
-  - [ ] 10.1 Create API Keys settings page
+  - [x] 10.1 Create API Keys settings page
 
     - Add route at /settings/api-keys
     - Add navigation link in user settings menu
@@ -226,7 +226,7 @@
     - Highlight tokens never used with distinct indicator
     - _Requirements: 10.1, 10.2, 11.3, 11.4, 11.5_
 
-  - [ ] 10.2 Implement token creation modal
+  - [x] 10.2 Implement token creation modal
 
     - Add "Create API Key" button that opens modal
     - Form fields: name (required), scopes (multi-select), expiration (optional date picker)
@@ -236,7 +236,7 @@
     - Close modal after user confirms they've saved the token
     - _Requirements: 10.3, 10.4_
 
-  - [ ] 10.3 Implement token revocation flow
+  - [x] 10.3 Implement token revocation flow
 
     - Add "Revoke" button for each token in list
     - Show confirmation dialog: "Are you sure? This action cannot be undone."
@@ -245,7 +245,7 @@
     - Show success toast notification
     - _Requirements: 10.5_
 
-  - [ ] 10.4 Implement token name editing
+  - [x] 10.4 Implement token name editing
 
     - Add inline edit button for token names
     - Show input field with current name
@@ -254,7 +254,7 @@
     - Show error if duplicate name
     - _Requirements: 12.5_
 
-  - [ ] 10.5 Write E2E tests for web UI
+  - [x] 10.5 Write E2E tests for web UI
     - Test full token creation flow (form → API → display plaintext)
     - Test token list displays correctly
     - Test token revocation flow with confirmation

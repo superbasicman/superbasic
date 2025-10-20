@@ -99,3 +99,52 @@ export const authApi = {
     });
   },
 };
+
+/**
+ * Token API methods
+ */
+export const tokenApi = {
+  /**
+   * List all API tokens for the authenticated user
+   */
+  async list(): Promise<import('@repo/types').ListTokensResponse> {
+    return apiFetch('/v1/tokens', {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Create a new API token
+   * Returns plaintext token (shown once only)
+   */
+  async create(
+    data: import('@repo/types').CreateTokenRequest
+  ): Promise<import('@repo/types').CreateTokenResponse> {
+    return apiFetch('/v1/tokens', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Revoke an API token
+   */
+  async revoke(tokenId: string): Promise<void> {
+    return apiFetch(`/v1/tokens/${tokenId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Update token name
+   */
+  async update(
+    tokenId: string,
+    data: import('@repo/types').UpdateTokenRequest
+  ): Promise<import('@repo/types').TokenResponse> {
+    return apiFetch(`/v1/tokens/${tokenId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  },
+};

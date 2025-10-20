@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ApiKeys from './pages/Settings/ApiKeys';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
 function App() {
@@ -18,6 +19,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/api-keys"
+          element={
+            <ProtectedRoute>
+              <ApiKeys />
             </ProtectedRoute>
           }
         />
