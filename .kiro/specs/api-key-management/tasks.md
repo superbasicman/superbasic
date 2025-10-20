@@ -24,7 +24,7 @@
     - Export from `@repo/auth/scopes.ts`
     - _Requirements: 7.1, 7.2_
   
-  - [ ]* 2.3 Write unit tests for token utilities
+  - [ ] 2.3 Write unit tests for token utilities
     - Test token generation format (prefix, length, uniqueness)
     - Test hash determinism (same input = same hash)
     - Test format validation (valid/invalid tokens)
@@ -59,7 +59,7 @@
     - Ensure both paths set userId and profileId in context
     - _Requirements: 6.1, 6.2_
   
-  - [ ]* 3.4 Write integration tests for authentication
+  - [ ] 3.4 Write integration tests for authentication
     - Test valid token authentication
     - Test invalid token format rejection
     - Test token not found rejection
@@ -91,7 +91,7 @@
     - Validate expiresAt is between 1-365 days from now
     - _Requirements: 3.2, 7.2, 8.4_
   
-  - [ ]* 4.3 Write integration tests for token creation
+  - [ ] 4.3 Write integration tests for token creation
     - Test successful token creation
     - Test duplicate name rejection
     - Test invalid scope rejection
@@ -114,7 +114,7 @@
     - Define ListTokensResponse schema (array of TokenListItem)
     - _Requirements: 4.3, 4.4_
   
-  - [ ]* 5.3 Write integration tests for token listing
+  - [ ] 5.3 Write integration tests for token listing
     - Test listing returns user's tokens only
     - Test tokens are sorted by creation date
     - Test token values are properly masked
@@ -133,7 +133,7 @@
     - Return 204 No Content on success
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 13.3_
   
-  - [ ]* 6.2 Write integration tests for token revocation
+  - [ ] 6.2 Write integration tests for token revocation
     - Test successful revocation
     - Test ownership verification (can't revoke other user's tokens)
     - Test idempotency (revoking twice works)
@@ -151,7 +151,7 @@
     - Return updated token metadata
     - _Requirements: 12.1, 12.2, 12.3, 12.5_
   
-  - [ ]* 7.2 Write integration tests for name updates
+  - [ ] 7.2 Write integration tests for name updates
     - Test successful name update
     - Test duplicate name rejection
     - Test ownership verification
@@ -166,7 +166,7 @@
     - Return 429 with Retry-After header when limit exceeded
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
   
-  - [ ]* 8.2 Write integration tests for rate limiting
+  - [ ] 8.2 Write integration tests for rate limiting
     - Test token creation rate limit enforcement
     - Test failed auth rate limit enforcement
     - Test successful auth not rate limited
@@ -185,7 +185,7 @@
     - Add requestId to all audit events
     - _Requirements: 13.1-13.5, 14.2_
   
-  - [ ]* 9.3 Write tests for audit logging
+  - [ ] 9.3 Write tests for audit logging
     - Test all event types are emitted correctly
     - Test sensitive data is redacted
     - Test requestId is included
@@ -226,7 +226,7 @@
     - Show error if duplicate name
     - _Requirements: 12.5_
   
-  - [ ]* 10.5 Write E2E tests for web UI
+  - [ ] 10.5 Write E2E tests for web UI
     - Test full token creation flow (form → API → display plaintext)
     - Test token list displays correctly
     - Test token revocation flow with confirmation
@@ -266,7 +266,7 @@
     - Document required scopes in endpoint comments
     - _Requirements: 7.3, 7.4_
   
-  - [ ]* 12.2 Write integration tests for scope enforcement
+  - [ ] 12.2 Write integration tests for scope enforcement
     - Test read-only token can GET but not POST
     - Test write token can POST
     - Test session auth bypasses scope checks
