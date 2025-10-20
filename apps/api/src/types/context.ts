@@ -5,6 +5,7 @@
 /**
  * Context variables set by auth middleware
  * 
+ * - requestId: Unique request identifier for log correlation
  * - userId: Auth.js user ID (for authentication concerns)
  * - userEmail: User's email address
  * - jti: JWT ID (for token revocation) - only set for session auth
@@ -15,6 +16,7 @@
  */
 export type AuthContext = {
   Variables: {
+    requestId: string;
     userId: string;
     userEmail: string;
     jti?: string; // Only for session auth

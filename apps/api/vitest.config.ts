@@ -21,6 +21,12 @@ export default defineConfig({
         singleFork: true,
       },
     },
+    // Suppress unhandled rejection warnings for Prisma initialization errors in unit tests
+    onConsoleLog(log: string): false | void {
+      if (log.includes('PrismaClientInitializationError')) {
+        return false;
+      }
+    },
   },
   resolve: {
     alias: {

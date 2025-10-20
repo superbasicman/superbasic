@@ -34,6 +34,7 @@ export function requireScope(requiredScope: Scope) {
       const tokenScopes = (c.get("tokenScopes") as string[]) || [];
       const tokenId = c.get("tokenId") as string;
       const userId = c.get("userId") as string;
+      const requestId = c.get("requestId") || "unknown";
 
       if (!hasScope(tokenScopes, requiredScope)) {
         // Emit audit event for scope denial
@@ -53,6 +54,8 @@ export function requireScope(requiredScope: Scope) {
             providedScopes: tokenScopes,
             ip,
             userAgent: c.req.header("user-agent") || "unknown",
+            requestId,
+            timestamp: new Date().toISOString(),
           },
         });
 

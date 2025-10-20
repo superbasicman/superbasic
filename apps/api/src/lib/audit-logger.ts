@@ -4,7 +4,7 @@ import { logger } from '@repo/observability';
 /**
  * Initialize audit logging for authentication events
  * Logs all authentication events to structured logging service
- * Never logs passwords or JWT tokens
+ * Automatically redacts sensitive data (tokens, passwords, Authorization headers)
  */
 export function initializeAuditLogging() {
   authEvents.on(handleAuthEvent);
@@ -13,9 +13,13 @@ export function initializeAuditLogging() {
 
 /**
  * Handle authentication events and log them to structured logging
+ * All sensitive data is automatically redacted by the logger
  */
 async function handleAuthEvent(event: AuthEvent) {
   const { type, userId, email, ip, timestamp, metadata } = event;
+
+  // Extract requestId from metadata if present
+  const requestId = metadata?.requestId as string | undefined;
 
   // Create structured log entry
   const logEntry = {
@@ -25,6 +29,7 @@ async function handleAuthEvent(event: AuthEvent) {
     ip: ip || 'unknown',
     timestamp: timestamp.toISOString(),
     success: type.includes('success') || type === 'user.registered',
+    ...(requestId && { requestId }),
     ...(metadata && { metadata }),
   };
 
@@ -44,6 +49,26 @@ async function handleAuthEvent(event: AuthEvent) {
 
     case 'user.logout':
       logger.info(logEntry, 'User logged out');
+      break;
+
+    case 'token.created':
+      logger.info(logEntry, 'API token created');
+      break;
+
+    case 'token.used':
+      logger.info(logEntry, 'API token used successfully');
+      break;
+
+    case 'token.revoked':
+      logger.info(logEntry, 'API token revoked');
+      break;
+
+    case 'token.auth_failed':
+      logger.warn(logEntry, 'API token authentication failed');
+      break;
+
+    case 'token.scope_denied':
+      logger.warn(logEntry, 'API token scope denied');
       break;
 
     default:

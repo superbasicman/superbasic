@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors.js';
+import { requestIdMiddleware } from './middleware/request-id.js';
 import { authRateLimitMiddleware } from './middleware/rate-limit.js';
 import { healthRoute } from './routes/v1/health.js';
 import { registerRoute } from './routes/v1/register.js';
@@ -9,6 +10,9 @@ import { meRoute } from './routes/v1/me.js';
 import { tokensRoute } from './routes/v1/tokens/index.js';
 
 const app = new Hono();
+
+// Apply request ID middleware first for log correlation
+app.use('*', requestIdMiddleware);
 
 // Apply CORS middleware globally for cross-origin cookie support
 app.use('*', corsMiddleware);

@@ -15,7 +15,16 @@ export { hashPassword, verifyPassword } from "./password.js";
 
 // Authentication events
 export { authEvents } from "./events.js";
-export type { AuthEvent, AuthEventType, AuthEventHandler } from "./events.js";
+export type {
+  AuthEvent,
+  AuthEventType,
+  AuthEventHandler,
+  TokenCreatedEvent,
+  TokenUsedEvent,
+  TokenRevokedEvent,
+  TokenAuthFailedEvent,
+  TokenScopeDeniedEvent,
+} from "./events.js";
 
 // Constants
 export {

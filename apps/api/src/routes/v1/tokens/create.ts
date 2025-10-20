@@ -28,6 +28,7 @@ createTokenRoute.post(
   async (c) => {
     const userId = c.get("userId") as string;
     const profileId = c.get("profileId") as string | undefined;
+    const requestId = c.get("requestId") || "unknown";
     const { name, scopes, expiresInDays } = c.req.valid("json");
 
     // Validate scopes (defense in depth - Zod already validates enum)
@@ -86,6 +87,8 @@ createTokenRoute.post(
           c.req.header("x-real-ip") ||
           "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
+        requestId,
+        timestamp: new Date().toISOString(),
       },
     });
 

@@ -15,6 +15,7 @@ const revokeTokenRoute = new Hono();
 
 revokeTokenRoute.delete("/:id", authMiddleware, async (c) => {
   const userId = c.get("userId") as string;
+  const requestId = c.get("requestId") || "unknown";
   const tokenId = c.req.param("id");
 
   // Find token and verify ownership
@@ -48,6 +49,8 @@ revokeTokenRoute.delete("/:id", authMiddleware, async (c) => {
           c.req.header("x-real-ip") ||
           "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
+        requestId,
+        timestamp: new Date().toISOString(),
       },
     });
   }

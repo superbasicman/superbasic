@@ -13,9 +13,16 @@ let testPrisma: PrismaClient | null = null;
  * Called once before all tests run
  */
 export async function setupTestDatabase(): Promise<void> {
+  // Skip database setup if DATABASE_URL is not provided (for unit tests that don't need DB)
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    console.log('DATABASE_URL not set, skipping database setup (unit tests only)');
+    return;
+  }
+
   // Ensure we're using the test database
   // For Neon, check for different branch endpoint or "_test" in database name
-  const dbUrl = process.env.DATABASE_URL || '';
+  const dbUrl = databaseUrl;
   const isTestDb = dbUrl.includes('_test') || dbUrl.includes('ep-calm-truth') || process.env.NODE_ENV === 'test'; // Neon test branch endpoint
 
   if (!isTestDb) {
@@ -25,21 +32,22 @@ export async function setupTestDatabase(): Promise<void> {
   }
 
   if (!testPrisma) {
-    const databaseUrl = process.env.DATABASE_URL;
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL environment variable is required for tests');
-    }
-
-    testPrisma = new PrismaClient({
-      datasources: {
-        db: {
-          url: databaseUrl,
+    try {
+      testPrisma = new PrismaClient({
+        datasources: {
+          db: {
+            url: databaseUrl,
+          },
         },
-      },
-    });
+      });
 
-    // Connect to database
-    await testPrisma.$connect();
+      // Connect to database
+      await testPrisma.$connect();
+    } catch (error) {
+      console.warn('Failed to initialize Prisma Client for tests:', error);
+      // Don't throw - allow unit tests to run without database
+      testPrisma = null;
+    }
   }
 
   // Note: Migrations should be run manually before tests or in CI

@@ -29,6 +29,9 @@ import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit.js";
  * Emits audit events for all authentication failures and successful usage.
  */
 export async function patMiddleware(c: Context, next: Next) {
+  // Get request ID for log correlation
+  const requestId = c.get("requestId") || "unknown";
+
   // Extract IP address for rate limiting
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
@@ -69,6 +72,8 @@ export async function patMiddleware(c: Context, next: Next) {
           tokenPrefix: token.substring(0, 8), // Only log prefix for security
           ip,
           userAgent: c.req.header("user-agent") || "unknown",
+          requestId,
+          timestamp: new Date().toISOString(),
         },
       });
 
@@ -107,6 +112,8 @@ export async function patMiddleware(c: Context, next: Next) {
           tokenPrefix: token.substring(0, 8),
           ip,
           userAgent: c.req.header("user-agent") || "unknown",
+          requestId,
+          timestamp: new Date().toISOString(),
         },
       });
 
@@ -128,6 +135,8 @@ export async function patMiddleware(c: Context, next: Next) {
           revokedAt: apiKey.revokedAt.toISOString(),
           ip,
           userAgent: c.req.header("user-agent") || "unknown",
+          requestId,
+          timestamp: new Date().toISOString(),
         },
       });
 
@@ -149,6 +158,8 @@ export async function patMiddleware(c: Context, next: Next) {
           expiresAt: apiKey.expiresAt.toISOString(),
           ip,
           userAgent: c.req.header("user-agent") || "unknown",
+          requestId,
+          timestamp: new Date().toISOString(),
         },
       });
 
@@ -187,6 +198,8 @@ export async function patMiddleware(c: Context, next: Next) {
         status: c.res.status,
         ip,
         userAgent: c.req.header("user-agent") || "unknown",
+        requestId,
+        timestamp: new Date().toISOString(),
       },
     });
   } catch (error) {

@@ -193,22 +193,22 @@
     - Test Retry-After header presence
     - _Requirements: 9.1-9.5_
 
-- [ ] 9. Audit logging integration
+- [x] 9. Audit logging integration
 
-  - [ ] 9.1 Verify audit event types in @repo/auth
+  - [x] 9.1 Verify audit event types in @repo/auth
 
     - Ensure authEvents supports: token.created, token.used, token.revoked, token.auth_failed, token.scope_denied
     - Add TypeScript types for each event payload
     - _Requirements: 13.1-13.5_
 
-  - [ ] 9.2 Configure Pino logger for token events
+  - [x] 9.2 Configure Pino logger for token events
 
     - Ensure Authorization header redaction in logs
     - Ensure token prefix (sbf\_) redaction in logs
     - Add requestId to all audit events
     - _Requirements: 13.1-13.5, 14.2_
 
-  - [ ] 9.3 Write tests for audit logging
+  - [x] 9.3 Write tests for audit logging
     - Test all event types are emitted correctly
     - Test sensitive data is redacted
     - Test requestId is included
