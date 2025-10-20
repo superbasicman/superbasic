@@ -135,9 +135,9 @@
     - Test lastUsedAt is included
     - _Requirements: 4.1-4.5_
 
-- [ ] 6. Token revocation endpoint (DELETE /v1/tokens/:id)
+- [x] 6. Token revocation endpoint (DELETE /v1/tokens/:id)
 
-  - [ ] 6.1 Implement token revocation handler
+  - [x] 6.1 Implement token revocation handler
 
     - Require session authentication
     - Validate token ID parameter
@@ -149,7 +149,7 @@
     - Return 204 No Content on success
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 13.3_
 
-  - [ ] 6.2 Write integration tests for token revocation
+  - [x] 6.2 Write integration tests for token revocation
     - Test successful revocation
     - Test ownership verification (can't revoke other user's tokens)
     - Test idempotency (revoking twice works)
