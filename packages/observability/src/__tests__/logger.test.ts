@@ -36,7 +36,8 @@ describe("Logger Redaction", () => {
       logger.info({
         req: {
           headers: {
-            authorization: "Bearer sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
+            authorization:
+              "Bearer sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
           },
         },
       });
@@ -66,7 +67,8 @@ describe("Logger Redaction", () => {
 
       logger.info({
         headers: {
-          Authorization: "Bearer sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
+          Authorization:
+            "Bearer sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
         },
       });
 
@@ -89,8 +91,15 @@ describe("Logger Redaction", () => {
           level: "info",
           hooks: {
             logMethod(args, method) {
-              if (args.length > 0 && typeof args[0] === 'object' && args[0].msg) {
-                args[0].msg = args[0].msg.replace(/sbf_[A-Za-z0-9_-]+/g, 'sbf_[REDACTED]');
+              if (
+                args.length > 0 &&
+                typeof args[0] === "object" &&
+                args[0].msg
+              ) {
+                args[0].msg = args[0].msg.replace(
+                  /sbf_[A-Za-z0-9_-]+/g,
+                  "sbf_[REDACTED]"
+                );
               }
               method.apply(this, args);
             },
@@ -120,8 +129,15 @@ describe("Logger Redaction", () => {
           level: "info",
           hooks: {
             logMethod(args, method) {
-              if (args.length > 0 && typeof args[0] === 'object' && args[0].msg) {
-                args[0].msg = args[0].msg.replace(/sbf_[A-Za-z0-9_-]+/g, 'sbf_[REDACTED]');
+              if (
+                args.length > 0 &&
+                typeof args[0] === "object" &&
+                args[0].msg
+              ) {
+                args[0].msg = args[0].msg.replace(
+                  /sbf_[A-Za-z0-9_-]+/g,
+                  "sbf_[REDACTED]"
+                );
               }
               method.apply(this, args);
             },
@@ -151,8 +167,15 @@ describe("Logger Redaction", () => {
           level: "info",
           hooks: {
             logMethod(args, method) {
-              if (args.length > 0 && typeof args[0] === 'object' && args[0].msg) {
-                args[0].msg = args[0].msg.replace(/sbf_[A-Za-z0-9_-]+/g, 'sbf_[REDACTED]');
+              if (
+                args.length > 0 &&
+                typeof args[0] === "object" &&
+                args[0].msg
+              ) {
+                args[0].msg = args[0].msg.replace(
+                  /sbf_[A-Za-z0-9_-]+/g,
+                  "sbf_[REDACTED]"
+                );
               }
               method.apply(this, args);
             },
@@ -257,7 +280,8 @@ describe("Logger Redaction", () => {
           method: "GET",
           url: "/v1/transactions",
           headers: {
-            authorization: "Bearer sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
+            authorization:
+              "Bearer sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
             "user-agent": "curl/7.88.1",
           },
         },
@@ -321,7 +345,9 @@ describe("Logger Redaction", () => {
       expect(logEntry.time).toBeDefined();
       expect(typeof logEntry.time).toBe("string");
       // ISO 8601 format: YYYY-MM-DDTHH:mm:ss.sssZ
-      expect(logEntry.time).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(logEntry.time).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+      );
     });
   });
 });

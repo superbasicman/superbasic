@@ -262,9 +262,9 @@
     - Test unused token indicators
     - _Requirements: 10.1-10.5, 11.3-11.5, 12.5_
 
-- [ ] 11. API documentation
+- [x] 11. API documentation
 
-  - [ ] 11.1 Document authentication methods
+  - [x] 11.1 Document authentication methods
 
     - Add section to API docs explaining Bearer token auth
     - Include example requests with Authorization header
@@ -272,7 +272,7 @@
     - Explain scope system and available scopes
     - _Requirements: 14.5_
 
-  - [ ] 11.2 Document token management endpoints
+  - [x] 11.2 Document token management endpoints
 
     - Document POST /v1/tokens (creation)
     - Document GET /v1/tokens (listing)
@@ -281,7 +281,7 @@
     - Include request/response examples for each
     - _Requirements: 3.1, 4.1, 5.1, 12.5_
 
-  - [ ] 11.3 Document security best practices
+  - [x] 11.3 Document security best practices
     - Token storage recommendations (environment variables, secret managers)
     - Token rotation guidance (create new, test, revoke old)
     - Least privilege scope selection

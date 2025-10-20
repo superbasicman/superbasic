@@ -14,7 +14,7 @@ An API-first personal finance platform built as a monorepo. The web client is a 
 
 ✅ **Phase 1 Complete**: Monorepo infrastructure with pnpm workspaces, Turborepo, TypeScript, Biome, Vitest, and Playwright ([Phase 1 Guide](docs/phase-1-readme.md))  
 ✅ **Phase 2 Complete**: Authentication with Auth.js, JWT sessions, httpOnly cookies, rate limiting, audit logging, and comprehensive E2E tests ([Phase 2 Guide](docs/phase-2-readme.md))  
-🚧 **Phase 3 In Progress**: API Key Management - Core token utilities complete (SHA-256 hashing, base64url encoding, scope validation)
+🚧 **Phase 3 In Progress**: API Key Management - Documentation complete, implementation in progress ([API Authentication Guide](docs/api-authentication.md))
 
 See [Project Plan](docs/project_plan.md) for detailed roadmap.
 
@@ -137,9 +137,18 @@ The API will be available at `http://localhost:3000` and the web client at `http
 - `POST /v1/logout` - Clear session cookie
 - `GET /v1/me` - Get current user profile (requires authentication)
 
+**API Key Management:**
+
+- `POST /v1/tokens` - Create new API key (session auth required)
+- `GET /v1/tokens` - List all API keys (session auth required)
+- `DELETE /v1/tokens/:id` - Revoke API key (session auth required)
+- `PATCH /v1/tokens/:id` - Update API key name (session auth required)
+
 **Health:**
 
 - `GET /v1/health` - API health check
+
+See the [API Authentication Guide](docs/api-authentication.md) for detailed documentation on Bearer token authentication and token management.
 
 ## Common Commands
 
@@ -337,7 +346,10 @@ See `apps/web/e2e/README.md` for detailed E2E testing documentation.
 - ✅ Structured audit logging for all auth events (registration, login, logout)
 - ✅ CORS configured for cross-origin cookie support
 - ✅ Comprehensive E2E test coverage for authentication flows
-- 🔄 Personal access tokens (PATs) - Phase 3 in progress (core utilities complete)
+- ✅ Personal access tokens (PATs) with SHA-256 hashing and scope-based permissions
+- ✅ Bearer token authentication for programmatic API access
+- ✅ Token lifecycle management (creation, listing, revocation, expiration)
+- ✅ Comprehensive API documentation with security best practices
 - 🚧 Row-level security policies in Postgres - Phase 6
 - 🚧 Stripe webhook signatures - Phase 7
 
@@ -357,6 +369,7 @@ Future environments: `preview`, `prod` with isolated databases
 - [Project Plan](docs/project_plan.md) - Complete roadmap and phase breakdown
 - [Phase 1 Guide](docs/phase-1-readme.md) - Foundation & Infrastructure setup
 - [Phase 2 Guide](docs/phase-2-readme.md) - Authentication & Session Management
+- [API Authentication Guide](docs/api-authentication.md) - Bearer token authentication and API key management
 - [E2E Testing Guide](apps/web/e2e/README.md) - Running end-to-end tests
 
 ## Contributing

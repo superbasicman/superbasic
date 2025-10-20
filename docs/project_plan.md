@@ -229,6 +229,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - [ ] Workspace settings page
 - [ ] Member management UI
 - [ ] Invitation acceptance flow
+- [ ] **Update API documentation** (docs/api-authentication.md) to add workspace scopes (`read:workspaces`, `write:workspaces`)
 
 ### Exit Criteria
 
@@ -456,6 +457,8 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - [ ] Input sanitization (prevent XSS, SQL injection)
 - [ ] Dependency vulnerability scanning (Snyk or similar)
 - [ ] Security audit checklist
+- [ ] IP address tracking for token usage (security monitoring)
+- [ ] **Update API documentation** (docs/api-authentication.md) to document per-token rate limits and IP-based security features
 
 ### Exit Criteria
 
@@ -664,6 +667,26 @@ These concerns span multiple phases and should be addressed continuously:
 - **Developer guides**: Authentication, webhooks, rate limiting
 - **User guides**: Getting started, connecting banks, creating budgets
 - **Runbooks**: Deployment, incident response, database operations
+
+### Documentation Maintenance
+
+Documentation should be updated when implementing features that were marked as "future" in earlier phases:
+
+- **Phase 6** (Workspace Multi-Tenancy):
+  - Update `docs/api-authentication.md` to add workspace scopes (`read:workspaces`, `write:workspaces`)
+  - Update scope enforcement table with workspace endpoints
+  
+- **Phase 13** (Rate Limiting & Security):
+  - Update `docs/api-authentication.md` to document per-token rate limits
+  - Add IP address tracking and security monitoring features
+  - Update rate limiting section with tier-based limits
+  
+- **Phase 11** (OpenAPI Spec):
+  - Migrate manual API documentation to auto-generated OpenAPI docs
+  - Ensure `docs/api-authentication.md` links to interactive Swagger UI
+  - Add error code standardization (ERR_INVALID_TOKEN, etc.)
+
+**Best Practice**: When marking a feature as "future" in documentation, add a TODO comment with the phase number where it should be implemented. Example: `<!-- TODO: Phase 6 - Add workspace scopes -->`
 
 ### CI/CD Pipeline
 
