@@ -111,9 +111,9 @@
     - Test audit event emission
     - _Requirements: 3.1-3.6, 9.1, 12.2, 12.3, 13.1_
 
-- [ ] 5. Token listing endpoint (GET /v1/tokens)
+- [x] 5. Token listing endpoint (GET /v1/tokens)
 
-  - [ ] 5.1 Implement token list handler
+  - [x] 5.1 Implement token list handler
 
     - Require session authentication
     - Query ApiKey records for authenticated user
@@ -122,13 +122,13 @@
     - Return array of token metadata: id, name, last4 (masked as `sbf_****abcd`), scopes, createdAt, lastUsedAt, expiresAt
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [ ] 5.2 Add Zod schema for response validation
+  - [x] 5.2 Add Zod schema for response validation
 
     - Define TokenListItem schema (id, name, maskedValue, scopes, createdAt, lastUsedAt, expiresAt)
     - Define ListTokensResponse schema (array of TokenListItem)
     - _Requirements: 4.3, 4.4_
 
-  - [ ] 5.3 Write integration tests for token listing
+  - [x] 5.3 Write integration tests for token listing
     - Test listing returns user's tokens only
     - Test tokens are sorted by creation date
     - Test token values are properly masked
