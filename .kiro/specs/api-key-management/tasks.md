@@ -35,9 +35,9 @@
     - Test scope validation and checking
     - _Requirements: 1.1, 1.2, 1.3, 7.1, 7.2, 14.1_
 
-- [ ] 3. Bearer token authentication middleware
+- [x] 3. Bearer token authentication middleware
 
-  - [ ] 3.1 Implement bearerAuth middleware in apps/api
+  - [x] 3.1 Implement bearerAuth middleware in apps/api
 
     - Extract token from `Authorization: Bearer <token>` header
     - Validate token format using `isValidTokenFormat()`
@@ -51,7 +51,7 @@
     - Return 401 with generic error messages for all failures
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 13.2, 13.4, 14.4_
 
-  - [ ] 3.2 Implement requireScope middleware
+  - [x] 3.2 Implement requireScope middleware
 
     - Check authType from context (session vs PAT)
     - If session auth, allow request (full access)
@@ -60,14 +60,14 @@
     - Return 403 with required scope in error message if insufficient
     - _Requirements: 7.3, 7.4, 7.5, 13.5_
 
-  - [ ] 3.3 Update auth middleware priority
+  - [x] 3.3 Update auth middleware priority
 
     - Check Bearer header first before session cookie
     - Fall back to session auth if no Bearer token present
     - Ensure both paths set userId and profileId in context
     - _Requirements: 6.1, 6.2_
 
-  - [ ] 3.4 Write integration tests for authentication
+  - [x] 3.4 Write integration tests for authentication
     - Test valid token authentication
     - Test invalid token format rejection
     - Test token not found rejection

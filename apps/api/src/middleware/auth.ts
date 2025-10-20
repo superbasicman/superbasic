@@ -65,6 +65,7 @@ export async function authMiddleware(c: Context, next: Next) {
     c.set("userId", decoded.id as string);
     c.set("userEmail", decoded.email as string);
     c.set("jti", decoded.jti as string); // For future token revocation
+    c.set("authType", "session"); // Mark as session authentication
 
     // Fetch profile and attach profileId for business logic
     // Authentication uses userId; business logic uses profileId

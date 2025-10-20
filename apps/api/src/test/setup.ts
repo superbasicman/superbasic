@@ -16,7 +16,7 @@ export async function setupTestDatabase(): Promise<void> {
   // Ensure we're using the test database
   // For Neon, check for different branch endpoint or "_test" in database name
   const dbUrl = process.env.DATABASE_URL || '';
-  const isTestDb = dbUrl.includes('_test') || dbUrl.includes('ep-calm-truth'); // Neon test branch endpoint
+  const isTestDb = dbUrl.includes('_test') || dbUrl.includes('ep-calm-truth') || process.env.NODE_ENV === 'test'; // Neon test branch endpoint
 
   if (!isTestDb) {
     throw new Error(
@@ -63,7 +63,10 @@ export async function resetDatabase(): Promise<void> {
   // Delete all data in reverse order of foreign key dependencies
   // This ensures referential integrity is maintained during cleanup
   
-  // Delete profiles first (child of users)
+  // Delete API keys first (child of users and profiles)
+  await testPrisma.apiKey.deleteMany();
+  
+  // Delete profiles (child of users)
   await testPrisma.profile.deleteMany();
   
   // Then delete users

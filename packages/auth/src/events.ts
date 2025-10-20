@@ -7,7 +7,12 @@ export type AuthEventType =
   | "user.registered"
   | "user.login.success"
   | "user.login.failed"
-  | "user.logout";
+  | "user.logout"
+  | "token.created"
+  | "token.used"
+  | "token.revoked"
+  | "token.auth_failed"
+  | "token.scope_denied";
 
 export interface AuthEvent {
   type: AuthEventType;
