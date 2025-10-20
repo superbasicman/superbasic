@@ -107,10 +107,14 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 **Goal**: Enable programmatic API access with Personal Access Tokens
 
+**Status**: Task 2 complete (Core token utilities) - Token generation, SHA-256 hashing, and scope validation implemented with 64 passing tests
+
 ### Deliverables
 
-- [ ] PAT generation with secure random tokens
-- [ ] Token hashing (SHA-256) before database storage
+- [x] PAT generation with secure random tokens (sbf_ prefix + base64url encoding)
+- [x] Token hashing (SHA-256) before database storage
+- [x] Token format validation and scope utilities
+- [x] Unit tests for token generation, hashing, and scope validation (64 tests passing)
 - [ ] PAT CRUD endpoints (POST /v1/tokens, GET /v1/tokens, DELETE /v1/tokens/:id)
 - [ ] Bearer token authentication middleware (separate from session auth)
 - [ ] Token scopes and permissions (read:transactions, write:budgets, etc.)

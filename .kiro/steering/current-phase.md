@@ -1,7 +1,7 @@
 # Current Phase Context
 
 **Active Phase**: Phase 3 - API Key Management  
-**Status**: Requirements complete, design and implementation pending  
+**Status**: Task 2 complete (Core token utilities) - Token generation, hashing, and scope validation implemented  
 **Spec Location**: `.kiro/specs/api-key-management/`
 
 ## Phase 3 Overview
@@ -68,6 +68,25 @@ model ApiKey {
 - [ ] Audit log records token creation, usage, and revocation
 - [ ] Integration tests cover full token lifecycle
 - [ ] Documentation includes API authentication guide with examples
+
+## Implementation Progress
+
+### ✅ Task 2: Core Token Utilities (COMPLETE)
+
+**Location**: `packages/auth/src/`
+
+**Implemented**:
+- `generateToken()` - Generates cryptographically secure tokens with sbf_ prefix and base64url encoding
+- `hashToken()` - SHA-256 hashing for secure storage
+- `verifyToken()` - Constant-time comparison to prevent timing attacks
+- `isValidTokenFormat()` - Validates token structure (sbf_ + 43 base64url chars)
+- `extractTokenFromHeader()` - Extracts Bearer tokens from Authorization headers
+- Scope validation utilities: `isValidScope()`, `validateScopes()`, `hasScope()`, `hasAllScopes()`, `hasAnyScope()`
+- Comprehensive test suite: 64 tests passing (30 for PAT utilities, 34 for scope validation)
+
+**Token Format**: `sbf_` + 43 base64url characters = 47 total characters (256 bits of entropy)
+
+**Next Task**: Task 3 - Prisma schema updates for ApiKey model
 
 ## Implementation Notes
 

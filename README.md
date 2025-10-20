@@ -14,7 +14,7 @@ An API-first personal finance platform built as a monorepo. The web client is a 
 
 ✅ **Phase 1 Complete**: Monorepo infrastructure with pnpm workspaces, Turborepo, TypeScript, Biome, Vitest, and Playwright ([Phase 1 Guide](docs/phase-1-readme.md))  
 ✅ **Phase 2 Complete**: Authentication with Auth.js, JWT sessions, httpOnly cookies, rate limiting, audit logging, and comprehensive E2E tests ([Phase 2 Guide](docs/phase-2-readme.md))  
-🚧 **Phase 3 Next**: API Key Management (Personal Access Tokens)
+🚧 **Phase 3 In Progress**: API Key Management - Core token utilities complete (SHA-256 hashing, base64url encoding, scope validation)
 
 See [Project Plan](docs/project_plan.md) for detailed roadmap.
 
@@ -318,6 +318,7 @@ All data is scoped to workspaces with row-level security policies. Users can bel
 - **Run**: `pnpm --filter=@repo/web test:e2e:run`
 
 The E2E test script automatically:
+
 - Starts API server with test database
 - Starts web dev server
 - Waits for both to be ready
@@ -336,7 +337,7 @@ See `apps/web/e2e/README.md` for detailed E2E testing documentation.
 - ✅ Structured audit logging for all auth events (registration, login, logout)
 - ✅ CORS configured for cross-origin cookie support
 - ✅ Comprehensive E2E test coverage for authentication flows
-- 🚧 Personal access tokens (PATs) - Phase 3
+- 🔄 Personal access tokens (PATs) - Phase 3 in progress (core utilities complete)
 - 🚧 Row-level security policies in Postgres - Phase 6
 - 🚧 Stripe webhook signatures - Phase 7
 

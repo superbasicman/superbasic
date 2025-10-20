@@ -26,6 +26,24 @@ export {
   CLOCK_SKEW_TOLERANCE_SECONDS,
 } from "./constants.js";
 
-// PAT and RBAC (existing exports)
-export * from "./pat.js";
-export * from "./rbac.js";
+// PAT utilities
+export {
+  generateToken,
+  hashToken,
+  verifyToken,
+  isValidTokenFormat,
+  extractTokenFromHeader,
+} from "./pat.js";
+
+// RBAC and scope utilities
+export {
+  VALID_SCOPES,
+  isValidScope,
+  validateScopes,
+  hasScope,
+  hasAllScopes,
+  hasAnyScope,
+  RBAC_SCOPES,
+  RBAC_ROLES,
+} from "./rbac.js";
+export type { Scope, RBACScope, RBACRole } from "./rbac.js";

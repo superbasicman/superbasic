@@ -23,6 +23,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   profile       Profile?
+  apiKeys       ApiKey[]
   
   @@map("users")
 }
@@ -76,5 +77,34 @@ model Profile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
+  apiKeys   ApiKey[]
+  
   @@map("profiles")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String    // Auth.js user reference (for authentication)
+  profileId   String?   // Business logic owner (personal tokens)
+  workspaceId String?   // Workspace-scoped tokens (future use)
+  name        String    // User-provided description
+  keyHash     String    @unique // SHA-256 hash of the plaintext token
+  last4       String    // Last 4 chars of plaintext token (for display)
+  scopes      Json      @default("[]") // Array of permission strings
+  lastUsedAt  DateTime? // Updated on each successful authentication
+  expiresAt   DateTime? // Token expiration timestamp
+  revokedAt   DateTime? // Soft delete timestamp
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, name]) // Prevent duplicate names per user
+  @@index([userId])
+  @@index([profileId])
+  @@index([workspaceId])
+  @@index([keyHash])
+  @@index([revokedAt]) // Partial index for active tokens
+  @@map("api_keys")
 }

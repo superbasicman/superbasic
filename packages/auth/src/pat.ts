@@ -2,78 +2,83 @@
  * Personal Access Token (PAT) utilities
  *
  * Handles secure generation, hashing, and verification of API keys.
- * PATs are hashed using bcrypt before storage; plaintext is shown only once on creation.
+ * PATs are hashed using SHA-256 before storage; plaintext is shown only once on creation.
  */
 
-import bcrypt from 'bcrypt';
-import { randomBytes } from 'node:crypto';
+import crypto from 'node:crypto';
 
 /**
- * Number of bcrypt salt rounds for PAT hashing
- * Higher values increase security but slow down hashing
- */
-const SALT_ROUNDS = 10;
-
-/**
- * PAT prefix for easy identification
+ * PAT prefix for easy identification and secret scanning
  */
 const PAT_PREFIX = 'sbf_';
 
 /**
  * Length of the random token portion (in bytes)
+ * 32 bytes = 256 bits of entropy (NIST recommendation)
  */
 const TOKEN_LENGTH = 32;
 
 /**
  * Generate a new Personal Access Token
  *
- * @returns Object containing the plaintext token (show once) and its hash (store in DB)
+ * Token format: sbf_<base64url>
+ * - sbf_ prefix enables secret scanning in code repositories
+ * - 32 bytes of entropy = 256 bits (cryptographically secure)
+ * - base64url encoding (URL-safe, no padding)
+ *
+ * @returns Plaintext token (show once to user)
  */
-export async function generatePAT(): Promise<{ token: string; hash: string }> {
-  // Generate cryptographically secure random bytes
-  const randomToken = randomBytes(TOKEN_LENGTH).toString('hex');
+export function generateToken(): string {
+  const bytes = crypto.randomBytes(TOKEN_LENGTH);
+  const base64url = bytes
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
 
-  // Create token with prefix for easy identification
-  const token = `${PAT_PREFIX}${randomToken}`;
-
-  // Hash the token for storage
-  const hash = await bcrypt.hash(token, SALT_ROUNDS);
-
-  return { token, hash };
+  return `${PAT_PREFIX}${base64url}`;
 }
 
 /**
- * Verify a PAT against its stored hash
+ * Hash token using SHA-256
+ * Stored in database for verification
+ *
+ * @param token - The plaintext token
+ * @returns SHA-256 hash as hex string
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+/**
+ * Verify token against stored hash using constant-time comparison
+ * Prevents timing attacks
  *
  * @param token - The plaintext token from the Authorization header
- * @param hash - The stored bcrypt hash from the database
+ * @param hash - The stored SHA-256 hash from the database
  * @returns True if the token matches the hash
  */
-export async function verifyPAT(token: string, hash: string): Promise<boolean> {
+export function verifyToken(token: string, hash: string): boolean {
+  const tokenHash = hashToken(token);
   try {
-    return await bcrypt.compare(token, hash);
+    return crypto.timingSafeEqual(Buffer.from(tokenHash), Buffer.from(hash));
   } catch (error) {
-    // bcrypt.compare can throw on invalid hash format
+    // timingSafeEqual throws if buffers have different lengths
     return false;
   }
 }
 
 /**
- * Validate PAT format (prefix and length check)
+ * Validate token format
+ * Returns true if token matches sbf_<base64url> pattern
  *
  * @param token - The token to validate
  * @returns True if the token has the correct format
  */
-export function isValidPATFormat(token: string): boolean {
-  if (!token.startsWith(PAT_PREFIX)) {
-    return false;
-  }
-
-  // Remove prefix and check hex length
-  const tokenBody = token.slice(PAT_PREFIX.length);
-  const expectedLength = TOKEN_LENGTH * 2; // hex encoding doubles the length
-
-  return tokenBody.length === expectedLength && /^[0-9a-f]+$/.test(tokenBody);
+export function isValidTokenFormat(token: string): boolean {
+  // Token should be: sbf_ (4 chars) + 43 base64url chars = 47 total
+  // 32 bytes base64url encoded = 43 characters (no padding)
+  return /^sbf_[A-Za-z0-9_-]{43}$/.test(token);
 }
 
 /**
