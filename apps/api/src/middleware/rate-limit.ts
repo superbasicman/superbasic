@@ -53,3 +53,46 @@ export async function authRateLimitMiddleware(c: Context, next: Next) {
 
   await next();
 }
+
+/**
+ * Rate limiting middleware for token creation
+ * Limits token creation to 10 per hour per user
+ */
+export async function tokenCreationRateLimitMiddleware(c: Context, next: Next) {
+  // Skip rate limiting if Redis is not configured (development)
+  if (!limiter) {
+    console.warn('Rate limiting disabled: UPSTASH_REDIS_REST_URL not configured');
+    await next();
+    return;
+  }
+
+  // Extract userId from context (set by authMiddleware)
+  const userId = c.get('userId') as string;
+
+  if (!userId) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  // Check rate limit (10 tokens per hour per user)
+  const result = await limiter.checkLimit(`token-create:${userId}`, {
+    limit: 10,
+    window: 3600, // 1 hour in seconds
+  });
+
+  // Set rate limit headers
+  c.header('X-RateLimit-Limit', '10');
+  c.header('X-RateLimit-Remaining', result.remaining.toString());
+  c.header('X-RateLimit-Reset', result.reset.toString());
+
+  if (!result.allowed) {
+    return c.json(
+      {
+        error: 'Too many tokens created',
+        message: 'Rate limit exceeded. Please try again later.',
+      },
+      429
+    );
+  }
+
+  await next();
+}

@@ -6,6 +6,7 @@ import { registerRoute } from './routes/v1/register.js';
 import { loginRoute } from './routes/v1/login.js';
 import { logoutRoute } from './routes/v1/logout.js';
 import { meRoute } from './routes/v1/me.js';
+import { tokensRoute } from './routes/v1/tokens/index.js';
 
 const app = new Hono();
 
@@ -27,6 +28,7 @@ v1.route('/register', registerRoute);
 v1.route('/login', loginRoute);
 v1.route('/logout', logoutRoute);
 v1.route('/me', meRoute);
+v1.route('/tokens', tokensRoute);
 
 app.route('/v1', v1);
 

@@ -5,6 +5,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     globalSetup: ['./src/test/global-setup.ts'],
+    setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
     coverage: {
@@ -25,8 +26,5 @@ export default defineConfig({
     alias: {
       '@prisma/client': '@prisma/client',
     },
-  },
-  ssr: {
-    noExternal: ['@prisma/client'],
   },
 });

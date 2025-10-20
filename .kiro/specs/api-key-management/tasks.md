@@ -79,9 +79,9 @@
     - Test audit event emission for all scenarios
     - _Requirements: 6.1-6.6, 7.3-7.5, 13.2, 13.4, 13.5_
 
-- [ ] 4. Token creation endpoint (POST /v1/tokens)
+- [x] 4. Token creation endpoint (POST /v1/tokens)
 
-  - [ ] 4.1 Implement token creation handler
+  - [x] 4.1 Implement token creation handler
 
     - Require session authentication (no PAT creation via PAT)
     - Validate request body: name (1-100 chars), scopes (array of valid scopes), expiresAt (optional, 1-365 days)
@@ -94,7 +94,7 @@
     - Return response with plaintext token, tokenId, name, scopes, createdAt, expiresAt
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 9.1, 12.1_
 
-  - [ ] 4.2 Add Zod schema for request/response validation
+  - [x] 4.2 Add Zod schema for request/response validation
 
     - Define CreateTokenRequest schema (name, scopes, expiresAt)
     - Define CreateTokenResponse schema (token, id, name, scopes, createdAt, expiresAt)
@@ -102,7 +102,7 @@
     - Validate expiresAt is between 1-365 days from now
     - _Requirements: 3.2, 7.2, 8.4_
 
-  - [ ] 4.3 Write integration tests for token creation
+  - [x] 4.3 Write integration tests for token creation
     - Test successful token creation
     - Test duplicate name rejection
     - Test invalid scope rejection
