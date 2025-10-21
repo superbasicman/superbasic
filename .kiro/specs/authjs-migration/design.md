@@ -16,6 +16,7 @@
 - OAuth flow uses browser redirects, client polls `/v1/auth/session` after callback
 - CORS must allow both web client and API origins for OAuth redirects
 - No `@auth/react` - preserves thin client pattern and Capacitor compatibility
+- Provider configuration remains additive—future providers (Apple, Microsoft, etc.) can be appended without touching client architecture
 
 ---
 
@@ -197,6 +198,7 @@ export const authConfig: AuthConfig = {
       server: process.env.EMAIL_SERVER!,
       from: process.env.EMAIL_FROM!,
     }),
+    // Future providers (e.g., Apple) can be added here without refactoring
   ],
   session: {
     strategy: 'jwt',
@@ -1105,7 +1107,7 @@ If critical issues arise:
 
 5. **Apple OAuth Support**
    - Requires Apple Developer account ($99/year)
-   - **Recommendation**: Add if user demand exists
+   - **Recommendation**: Defer for now; current provider configuration allows Apple (and others) to be added later without redesign once the account is available
 
 ## Success Criteria
 

@@ -19,7 +19,8 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 
 **What We're Missing:**
 - Auth.js request handlers (using custom routes instead)
-- OAuth providers (Google, GitHub, Apple)
+- OAuth providers (Google, GitHub) implemented using Auth.js handlers
+- Extensible configuration to add additional providers (e.g., Apple) later
 - Magic link authentication (passwordless email)
 - Automatic account linking by email
 - OAuth callback handling
@@ -27,7 +28,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 
 ### Why Migrate?
 
-1. **OAuth Support**: Enable social login (Google, GitHub, Apple) without building custom OAuth flows
+1. **OAuth Support**: Enable social login (Google, GitHub) now, while keeping configuration pluggable for future providers (Apple, Microsoft, etc.) without rebuilding flows
 2. **Magic Links**: Passwordless authentication for better UX
 3. **Standardization**: Use Auth.js patterns instead of custom implementations
 4. **Future-Proofing**: Easier to add new providers (Microsoft, Twitter, etc.)
@@ -41,7 +42,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 1. **Enable OAuth Authentication**
    - Users can sign in with Google
    - Users can sign in with GitHub
-   - Users can sign in with Apple (optional, requires Apple Developer account)
+   - Architecture supports dropping in additional providers (e.g., Apple) with minimal changes
    - OAuth accounts automatically linked to existing users by email
 
 2. **Enable Magic Link Authentication**
@@ -506,9 +507,9 @@ AUTH_SECRET=... (already configured)
    - Options: SendGrid, Postmark, Resend
    - Decision: TBD based on pricing and reliability
 
-2. **Should we support Apple OAuth?**
+2. **Should we support Apple OAuth now?**
    - Requires Apple Developer account ($99/year)
-   - Decision: Optional, add if user demand exists
+   - **Decision**: Defer. Current implementation keeps providers extensible so Apple (or others) can be added later without code churn once we invest in the account.
 
 3. **How long should we keep custom routes?**
    - Proposal: 1 week after successful migration
@@ -529,6 +530,7 @@ Phase 2.1 is complete when:
 - [ ] Auth.js Hono adapter installed and configured
 - [ ] Google OAuth working end-to-end
 - [ ] GitHub OAuth working end-to-end
+- [ ] OAuth provider configuration documented to allow drop-in providers (e.g., Apple)
 - [ ] Magic link authentication working end-to-end
 - [ ] Existing email/password authentication still works
 - [ ] Existing JWT sessions remain valid

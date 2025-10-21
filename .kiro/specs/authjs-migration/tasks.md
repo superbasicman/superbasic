@@ -214,6 +214,7 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Email account linking enabled
 - [ ] No TypeScript errors
 - [ ] Config builds successfully
+- [ ] Code comments/documentation note how to append future providers (e.g., Apple) without additional refactor
 
 ---
 

@@ -113,13 +113,13 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 **Status**: NOT STARTED
 
-**Context**: Phase 2 implemented a hybrid approach using Auth.js utilities (`encode`/`decode`) with custom Hono routes. This phase completes the Auth.js migration to enable OAuth (Google, GitHub, Apple) and magic link authentication while maintaining backward compatibility with existing sessions and PAT tokens.
+**Context**: Phase 2 implemented a hybrid approach using Auth.js utilities (`encode`/`decode`) with custom Hono routes. This phase completes the Auth.js migration to enable OAuth (Google, GitHub) and magic link authentication while maintaining backward compatibility with existing sessions and PAT tokens. The implementation keeps the provider architecture extensible so additional providers (for example, Apple) can be dropped in once we secure the required accounts.
 
 ### Deliverables
 
 - [ ] Install Auth.js Hono adapter (`@auth/hono`)
 - [ ] Replace custom auth routes with Auth.js request handlers
-- [ ] Configure OAuth providers (Google, GitHub, Apple)
+- [ ] Configure OAuth providers (Google, GitHub) with pluggable setup for future providers (e.g., Apple)
 - [ ] Configure Email provider for magic links
 - [ ] Migrate existing Credentials provider to Auth.js handlers
 - [ ] Update auth middleware to support Auth.js session format
@@ -139,7 +139,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 - [ ] Users can log in with Google OAuth
 - [ ] Users can log in with GitHub OAuth
-- [ ] Users can log in with Apple OAuth (optional, requires Apple Developer account)
+- [ ] Architecture supports adding additional OAuth providers (e.g., Apple) without refactor
 - [ ] Users can request magic link via email
 - [ ] Magic link logs user in without password
 - [ ] Existing email/password authentication still works
@@ -163,7 +163,8 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 **Phase 2.1.2: OAuth Provider Setup (Week 1-2)**
 
-1. Register OAuth apps (Google, GitHub, Apple)
+1. Register OAuth apps (Google, GitHub)  
+   _Note_: Apple OAuth intentionally deferred until we invest in the developer program
 2. Configure OAuth providers in Auth.js config
 3. Add OAuth callback handling
 4. Test OAuth flows in development
@@ -230,8 +231,9 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
-APPLE_CLIENT_ID=... (optional)
-APPLE_CLIENT_SECRET=... (optional)
+# Future providers (e.g., Apple) can be added later without code changes
+# APPLE_CLIENT_ID=...
+# APPLE_CLIENT_SECRET=...
 
 # Email Provider (for magic links)
 EMAIL_SERVER=smtp://...
@@ -248,9 +250,9 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - ✅ Auth.js config file exists (`packages/auth/src/config.ts`)
 - ✅ Database schema has Auth.js tables
 
-**External Dependencies:**
-
-- OAuth provider accounts (Google, GitHub, Apple)
+- **External Dependencies:**
+- OAuth provider accounts (Google, GitHub)  
+  _Future_: Apple Developer account when we turn on Apple Sign-In
 - Email service account (SendGrid, Postmark, or Resend)
 - Domain for OAuth callbacks (can use localhost for development)
 
