@@ -31,6 +31,17 @@ Estimated Duration: 3 weeks
 - [x] No dependency conflicts
 - [x] Dependencies verified (pre-existing TypeScript errors are unrelated)
 
+**Sanity Check**:
+```bash
+# Verify @auth/core is installed
+pnpm list @auth/core --filter=@repo/api
+# Should show: @auth/core 0.37.4
+
+# Verify no dependency conflicts
+pnpm install --filter=@repo/api
+# Should complete without errors
+```
+
 ---
 
 ### Task 2: Create Auth.js Handler File
@@ -58,6 +69,18 @@ Estimated Duration: 3 weeks
 - [x] No TypeScript errors
 - [x] File exports `authApp`
 
+**Sanity Check**:
+```bash
+# Verify file exists
+ls -la apps/api/src/auth.ts
+
+# Check for TypeScript errors
+pnpm typecheck --filter=@repo/api
+
+# Verify exports
+grep "export.*authApp" apps/api/src/auth.ts
+```
+
 ---
 
 ### Task 3: Mount Auth.js Handler in Main App
@@ -81,6 +104,20 @@ Estimated Duration: 3 weeks
 - [ ] Handler responds to requests
 - [ ] Existing routes still functional
 - [ ] No route conflicts
+
+**Sanity Check**:
+```bash
+# Start dev server
+pnpm dev --filter=@repo/api
+
+# Test Auth.js handler responds (in another terminal)
+curl -i http://localhost:3000/v1/auth/providers
+# Should return 200 with JSON list of providers
+
+# Test existing health endpoint still works
+curl -i http://localhost:3000/v1/health
+# Should return 200 with {"status":"ok"}
+```
 
 ---
 
@@ -107,6 +144,25 @@ Estimated Duration: 3 weeks
 - [ ] Session data matches expected format
 - [ ] Sign-out clears session
 - [ ] Session format compatible with existing middleware
+
+**Sanity Check**:
+```bash
+# Test credentials sign-in
+curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=test@example.com&password=password123"
+# Should return 302 redirect with Set-Cookie header
+
+# Extract session cookie and test session endpoint
+curl -i http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token_from_above>"
+# Should return 200 with user data JSON
+
+# Test sign-out
+curl -i -X POST http://localhost:3000/v1/auth/signout \
+  -H "Cookie: authjs.session-token=<token>"
+# Should return 302 redirect and clear cookie
+```
 
 ---
 
@@ -142,6 +198,17 @@ EMAIL_SERVER=smtp://username:password@smtp.example.com:587
 EMAIL_FROM=noreply@superbasicfinance.com
 ```
 
+**Sanity Check**:
+```bash
+# Verify .env.example has new variables
+grep "GOOGLE_CLIENT_ID" apps/api/.env.example
+grep "GITHUB_CLIENT_ID" apps/api/.env.example
+grep "EMAIL_SERVER" apps/api/.env.example
+
+# Verify .env.local exists with placeholders
+test -f apps/api/.env.local && echo "✓ .env.local exists"
+```
+
 ---
 
 ## Sub-Phase 2: OAuth Provider Setup (Week 1, Days 4-7)
@@ -170,6 +237,20 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Redirect URI configured
 - [ ] Credentials added to `.env.local`
 
+**Sanity Check**:
+```bash
+# Verify credentials are in .env.local
+grep "GOOGLE_CLIENT_ID=" apps/api/.env.local | grep -v "your_google"
+# Should show actual client ID (not placeholder)
+
+grep "GOOGLE_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_google"
+# Should show actual secret (not placeholder)
+
+# Verify redirect URI in Google Cloud Console
+# Navigate to: https://console.cloud.google.com/apis/credentials
+# Check that http://localhost:3000/v1/auth/callback/google is listed
+```
+
 ---
 
 ### Task 7: Register GitHub OAuth App
@@ -193,6 +274,20 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Client ID and secret obtained
 - [ ] Callback URL configured
 - [ ] Credentials added to `.env.local`
+
+**Sanity Check**:
+```bash
+# Verify credentials are in .env.local
+grep "GITHUB_CLIENT_ID=" apps/api/.env.local | grep -v "your_github"
+# Should show actual client ID (not placeholder)
+
+grep "GITHUB_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_github"
+# Should show actual secret (not placeholder)
+
+# Verify callback URL in GitHub
+# Navigate to: https://github.com/settings/developers
+# Check that http://localhost:3000/v1/auth/callback/github is configured
+```
 
 ---
 
@@ -220,6 +315,23 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Config builds successfully
 - [ ] Code comments/documentation note how to append future providers (e.g., Apple) without additional refactor
 
+**Sanity Check**:
+```bash
+# Verify providers in config
+grep -A 5 "Google\|GitHub" packages/auth/src/config.ts
+
+# Check for email account linking
+grep "allowDangerousEmailAccountLinking" packages/auth/src/config.ts
+
+# Verify TypeScript builds
+pnpm build --filter=@repo/auth
+# Should complete without errors
+
+# Test providers endpoint
+curl http://localhost:3000/v1/auth/providers | jq
+# Should show: {"google": {...}, "github": {...}, "credentials": {...}}
+```
+
 ---
 
 ### Task 9: Create Profile Creation Helper
@@ -246,6 +358,22 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Function exported from package
 - [ ] Unit tests added
 
+**Sanity Check**:
+```bash
+# Verify file exists
+ls -la packages/auth/src/profile.ts
+
+# Check function is exported
+grep "ensureProfileExists" packages/auth/src/index.ts
+
+# Run unit tests
+pnpm test --filter=@repo/auth -- profile
+# Should show passing tests for ensureProfileExists
+
+# Verify TypeScript types
+pnpm typecheck --filter=@repo/auth
+```
+
 ---
 
 ### Task 10: Add signIn Callback for Profile Creation
@@ -268,6 +396,20 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Profile created for new OAuth users
 - [ ] Existing users not affected
 - [ ] Callback doesn't block sign-in
+
+**Sanity Check**:
+```bash
+# Verify signIn callback in config
+grep -A 10 "signIn.*async" packages/auth/src/config.ts
+
+# Check it calls ensureProfileExists
+grep "ensureProfileExists" packages/auth/src/config.ts
+
+# Test with OAuth flow (after Task 11/12)
+# Sign in with new OAuth user and verify profile created:
+psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oauth_user_id>';"
+# Should return 1 row
+```
 
 ---
 
@@ -297,6 +439,27 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Profile record created
 - [ ] Account record created with Google provider
 
+**Sanity Check**:
+```bash
+# Start OAuth flow (in browser)
+open http://localhost:3000/v1/auth/signin/google
+
+# After completing Google consent, verify database records:
+psql $DATABASE_URL -c "SELECT id, email, name FROM users WHERE email = '<your_google_email>';"
+# Should return 1 user
+
+psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<user_id_from_above>';"
+# Should return 1 profile
+
+psql $DATABASE_URL -c "SELECT provider, provider_account_id FROM accounts WHERE user_id = '<user_id>';"
+# Should show: provider = 'google'
+
+# Verify session works
+curl http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token_from_browser>"
+# Should return user data with email
+```
+
 ---
 
 ### Task 12: Test GitHub OAuth Flow
@@ -325,6 +488,27 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] Profile record created
 - [ ] Account record created with GitHub provider
 
+**Sanity Check**:
+```bash
+# Start OAuth flow (in browser)
+open http://localhost:3000/v1/auth/signin/github
+
+# After completing GitHub authorization, verify database records:
+psql $DATABASE_URL -c "SELECT id, email, name FROM users WHERE email = '<your_github_email>';"
+# Should return 1 user
+
+psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<user_id_from_above>';"
+# Should return 1 profile
+
+psql $DATABASE_URL -c "SELECT provider, provider_account_id FROM accounts WHERE user_id = '<user_id>';"
+# Should show: provider = 'github'
+
+# Verify session works
+curl http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token_from_browser>"
+# Should return user data with email
+```
+
 ---
 
 ### Task 13: Test OAuth Account Linking
@@ -348,6 +532,30 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] No duplicate user created
 - [ ] Both auth methods work
 - [ ] Profile data preserved
+
+**Sanity Check**:
+```bash
+# Create user with email/password first
+curl -X POST http://localhost:3000/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
+
+# Get user ID
+psql $DATABASE_URL -c "SELECT id FROM users WHERE email = 'test@example.com';"
+# Note the user_id
+
+# Sign in with Google using same email (in browser)
+open http://localhost:3000/v1/auth/signin/google
+# Use test@example.com Google account
+
+# Verify only one user exists
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM users WHERE email = 'test@example.com';"
+# Should return: count = 1
+
+# Verify two accounts linked to same user
+psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>';"
+# Should show: credentials, google (2 rows)
+```
 
 ---
 
@@ -377,6 +585,26 @@ EMAIL_FROM=noreply@superbasicfinance.com
 
 **Recommendation**: Resend (best pricing, modern API)
 
+**Sanity Check**:
+```bash
+# Verify EMAIL_SERVER in .env.local
+grep "EMAIL_SERVER=" apps/api/.env.local | grep -v "smtp.example.com"
+# Should show actual SMTP URL
+
+# Test SMTP connection with Node.js
+node -e "
+const nodemailer = require('nodemailer');
+const transport = nodemailer.createTransport(process.env.EMAIL_SERVER);
+transport.verify().then(() => console.log('✓ SMTP connection successful')).catch(console.error);
+"
+
+# Or send test email
+curl -X POST http://localhost:3000/v1/auth/signin/email \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=your-test-email@example.com"
+# Check inbox for magic link email
+```
+
 ---
 
 ### Task 15: Add Email Provider to Auth.js Config
@@ -400,6 +628,22 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - [ ] SMTP server configured
 - [ ] From address configured
 - [ ] No TypeScript errors
+
+**Sanity Check**:
+```bash
+# Verify Email provider in config
+grep -A 5 "Email" packages/auth/src/config.ts
+
+# Check SMTP configuration
+grep "EMAIL_SERVER\|EMAIL_FROM" packages/auth/src/config.ts
+
+# Verify TypeScript builds
+pnpm build --filter=@repo/auth
+
+# Test providers endpoint includes email
+curl http://localhost:3000/v1/auth/providers | jq '.email'
+# Should show email provider config
+```
 
 ---
 
@@ -446,6 +690,24 @@ If you didn't request this email, you can safely ignore it.
 Need help? Contact us at support@superbasicfinance.com
 ```
 
+**Sanity Check**:
+```bash
+# Verify email template file exists
+ls -la packages/auth/src/email-template.ts  # or .html
+
+# Request magic link and check email
+curl -X POST http://localhost:3000/v1/auth/signin/email \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=your-test-email@example.com"
+
+# Check inbox for email with:
+# - Subject line matches
+# - Magic link button present
+# - Plain text link present
+# - Expiration notice present (24 hours)
+# - Support contact present
+```
+
 ---
 
 ### Task 17: Test Magic Link Flow
@@ -474,6 +736,35 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] User logged in
 - [ ] Token cannot be reused
 
+**Sanity Check**:
+```bash
+# Request magic link
+curl -X POST http://localhost:3000/v1/auth/signin/email \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=test@example.com"
+# Should return 200 or 302
+
+# Check email inbox for magic link
+# Extract token from link: http://localhost:3000/v1/auth/callback/email?token=...
+
+# Click magic link (or curl it)
+curl -i "http://localhost:3000/v1/auth/callback/email?token=<token>"
+# Should return 302 redirect with Set-Cookie header
+
+# Verify session works
+curl http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token_from_above>"
+# Should return user data
+
+# Try to reuse the same magic link token
+curl -i "http://localhost:3000/v1/auth/callback/email?token=<same_token>"
+# Should return error (token already used)
+
+# Verify verification_tokens table
+psql $DATABASE_URL -c "SELECT identifier, expires FROM verification_tokens WHERE identifier = 'test@example.com';"
+# Token should be marked as used or deleted
+```
+
 ---
 
 ### Task 18: Implement Magic Link Rate Limiting
@@ -497,6 +788,37 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] 3 requests per hour per email enforced
 - [ ] 429 response returned when exceeded
 - [ ] Rate limit resets after 1 hour
+
+**Sanity Check**:
+```bash
+# Request magic link 3 times
+for i in {1..3}; do
+  curl -i -X POST http://localhost:3000/v1/auth/signin/email \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "email=test@example.com"
+  echo "Request $i"
+done
+# First 3 should return 200 or 302
+
+# 4th request should be rate limited
+curl -i -X POST http://localhost:3000/v1/auth/signin/email \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=test@example.com"
+# Should return 429 Too Many Requests
+
+# Verify rate limit in Redis
+redis-cli GET "magic-link-rate-limit:test@example.com"
+# Should show count = 3
+
+# Wait 1 hour or manually clear Redis key
+redis-cli DEL "magic-link-rate-limit:test@example.com"
+
+# Verify rate limit reset
+curl -i -X POST http://localhost:3000/v1/auth/signin/email \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=test@example.com"
+# Should return 200 or 302 again
+```
 
 ---
 
@@ -526,6 +848,28 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Existing sessions still work
 - [ ] No breaking changes
 
+**Sanity Check**:
+```bash
+# Test PAT authentication (should work unchanged)
+curl -i http://localhost:3000/v1/tokens \
+  -H "Authorization: Bearer sbf_<your_test_token>"
+# Should return 200 with token list
+
+# Test Auth.js session authentication
+curl -i http://localhost:3000/v1/tokens \
+  -H "Cookie: authjs.session-token=<session_token>"
+# Should return 200 with token list
+
+# Test protected endpoint without auth
+curl -i http://localhost:3000/v1/tokens
+# Should return 401 Unauthorized
+
+# Verify context has userId and profileId
+# Add temporary logging in middleware and check logs:
+pnpm dev --filter=@repo/api
+# Logs should show: { userId: '...', profileId: '...' }
+```
+
 ---
 
 ### Task 20: Migrate Integration Tests
@@ -550,6 +894,26 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] All tests passing
 - [ ] Test helpers updated
 - [ ] No test regressions
+
+**Sanity Check**:
+```bash
+# Run all integration tests
+pnpm test --filter=@repo/api
+# Should show 225+ tests passing (all Phase 3 tests + new ones)
+
+# Run specific test suites
+pnpm test --filter=@repo/api -- auth
+pnpm test --filter=@repo/api -- tokens
+pnpm test --filter=@repo/api -- middleware
+
+# Check test coverage
+pnpm test --filter=@repo/api -- --coverage
+# Should show >80% coverage for auth and middleware
+
+# Verify no skipped tests
+pnpm test --filter=@repo/api | grep "skipped"
+# Should return no results (or only intentionally skipped tests)
+```
 
 ---
 
@@ -577,6 +941,30 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Account linking tested
 - [ ] Error cases tested
 
+**Sanity Check**:
+```bash
+# Run OAuth tests
+pnpm test --filter=@repo/api -- oauth
+# Should show 10+ tests passing
+
+# Check test file exists
+ls -la apps/api/src/__tests__/oauth.test.ts
+
+# Verify test coverage
+pnpm test --filter=@repo/api -- oauth --coverage
+# Should show >80% coverage for OAuth flows
+
+# List test cases
+grep "it\|test" apps/api/src/__tests__/oauth.test.ts
+# Should show tests for:
+# - Google OAuth flow
+# - GitHub OAuth flow
+# - Account linking
+# - Invalid provider
+# - Missing credentials
+# - OAuth errors
+```
+
 ---
 
 ### Task 22: Add Magic Link Tests
@@ -603,6 +991,25 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Expiration tested
 - [ ] Rate limiting tested
 
+**Sanity Check**:
+```bash
+# Run magic link tests
+pnpm test --filter=@repo/api -- magic-link
+# Should show 5+ tests passing
+
+# Check test file exists
+ls -la apps/api/src/__tests__/magic-link.test.ts
+
+# List test cases
+grep "it\|test" apps/api/src/__tests__/magic-link.test.ts
+# Should show tests for:
+# - Magic link request
+# - Token validation
+# - Token expiration
+# - Rate limiting (3 per hour)
+# - Invalid email format
+```
+
 ---
 
 ### Task 23: Update E2E Tests
@@ -626,6 +1033,24 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] OAuth flows tested (or documented as manual test)
 - [ ] Magic link flows tested
 - [ ] All E2E tests passing
+
+**Sanity Check**:
+```bash
+# Run E2E tests
+pnpm test:e2e
+
+# Or run Playwright tests
+pnpm exec playwright test
+
+# Check E2E test files
+ls -la apps/web/e2e/*.spec.ts
+
+# Run specific auth E2E tests
+pnpm exec playwright test auth
+
+# View test report
+pnpm exec playwright show-report
+```
 
 ---
 
@@ -659,6 +1084,23 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] No build errors
 
 **Key Technical Detail**: Auth.js credential and email sign-in endpoints expect `application/x-www-form-urlencoded`, not JSON. The `apiFormPost()` helper handles this conversion.
+
+**Sanity Check**:
+```bash
+# Verify apiFormPost helper exists
+grep "apiFormPost" apps/web/src/lib/api.ts
+
+# Check authApi methods updated
+grep -A 3 "login\|loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/lib/api.ts
+
+# Verify TypeScript builds
+pnpm build --filter=@repo/web
+# Should complete without errors
+
+# Test in browser dev tools
+# Open http://localhost:5173 and check Network tab
+# Login request should show Content-Type: application/x-www-form-urlencoded
+```
 
 ---
 
@@ -696,6 +1138,25 @@ Need help? Contact us at support@superbasicfinance.com
 
 **Key Technical Detail**: After OAuth redirect, the SPA must poll `/v1/auth/session` to get user data, then clear the `callbackUrl` query param to avoid re-triggering the callback handler.
 
+**Sanity Check**:
+```bash
+# Verify handleOAuthCallback function exists
+grep "handleOAuthCallback" apps/web/src/contexts/AuthContext.tsx
+
+# Check for error handling
+grep "error.*query" apps/web/src/contexts/AuthContext.tsx
+
+# Verify new methods in context
+grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/AuthContext.tsx
+
+# Test in browser
+# 1. Start OAuth flow: click "Sign in with Google"
+# 2. After redirect, check URL has ?callbackUrl=...
+# 3. Verify query params cleared after 1-2 seconds
+# 4. Check console for any errors
+# 5. Verify user is logged in (check AuthContext state)
+```
+
 ---
 
 ### Task 26: Add OAuth Buttons and Magic Link UI to Login Page
@@ -726,6 +1187,31 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] UI is clean and organized
 - [ ] No console errors
 
+**Sanity Check**:
+```bash
+# Start web dev server
+pnpm dev --filter=@repo/web
+
+# Open browser to login page
+open http://localhost:5173/login
+
+# Manual UI checks:
+# 1. Verify "Sign in with Google" button visible
+# 2. Verify "Sign in with GitHub" button visible
+# 3. Verify magic link email input and submit button
+# 4. Verify "or" separators between auth methods
+# 5. Verify existing email/password form still present
+
+# Test OAuth button click
+# Click "Sign in with Google" → should redirect to Google OAuth
+
+# Test magic link form
+# Enter email → click submit → should show "Check your email" message
+
+# Check browser console
+# Should have no errors (open DevTools → Console tab)
+```
+
 ---
 
 ### Task 27: Update CORS Configuration for OAuth Callbacks
@@ -754,6 +1240,31 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] OAuth redirects work without CORS errors
 - [ ] Existing API calls still work
 
+**Sanity Check**:
+```bash
+# Check CORS configuration
+grep -A 10 "cors" apps/api/src/app.ts
+
+# Verify origins include localhost:5173 and localhost:3000
+grep "localhost:5173\|localhost:3000" apps/api/src/app.ts
+
+# Test CORS with preflight request
+curl -i -X OPTIONS http://localhost:3000/v1/auth/session \
+  -H "Origin: http://localhost:5173" \
+  -H "Access-Control-Request-Method: GET"
+# Should return 200 with Access-Control-Allow-Origin header
+
+# Test OAuth flow in browser
+# Open http://localhost:5173/login
+# Click "Sign in with Google"
+# Check browser console for CORS errors (should be none)
+
+# Test existing API calls
+curl -i http://localhost:3000/v1/health \
+  -H "Origin: http://localhost:5173"
+# Should return 200 with CORS headers
+```
+
 ---
 
 ### Task 28: Update API Documentation
@@ -780,6 +1291,25 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Setup instructions clear
 - [ ] Examples provided
 
+**Sanity Check**:
+```bash
+# Verify documentation file updated
+ls -la docs/api-authentication.md
+
+# Check for OAuth sections
+grep -i "oauth\|google\|github" docs/api-authentication.md
+
+# Check for magic link section
+grep -i "magic link\|email" docs/api-authentication.md
+
+# Verify setup instructions present
+grep -i "setup\|configuration" docs/api-authentication.md
+
+# Check for code examples
+grep "```" docs/api-authentication.md | wc -l
+# Should show multiple code blocks (5+)
+```
+
 ---
 
 ### Task 29: Deprecate Custom Auth Routes
@@ -803,6 +1333,23 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Warnings added
 - [ ] Web client uses Auth.js only
 - [ ] Usage monitored
+
+**Sanity Check**:
+```bash
+# Check for deprecation comments
+grep -i "deprecated" apps/api/src/routes/v1/auth/*.ts
+
+# Verify console warnings added
+grep "console.warn\|logger.warn" apps/api/src/routes/v1/auth/*.ts
+
+# Check web client doesn't call custom routes
+grep -r "/v1/auth/login\|/v1/auth/register" apps/web/src/
+# Should return no results (or only in comments)
+
+# Monitor API logs for custom route usage
+pnpm dev --filter=@repo/api | grep "DEPRECATED"
+# Should show warnings if custom routes are called
+```
 
 ---
 
@@ -828,6 +1375,32 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Tests still passing
 - [ ] Production deployment successful
 
+**Sanity Check**:
+```bash
+# Verify custom auth route files deleted
+ls apps/api/src/routes/v1/auth/login.ts 2>/dev/null
+# Should return: No such file or directory
+
+ls apps/api/src/routes/v1/auth/register.ts 2>/dev/null
+# Should return: No such file or directory
+
+# Check route registrations removed
+grep "auth/login\|auth/register" apps/api/src/app.ts
+# Should return no results
+
+# Run all tests
+pnpm test
+# Should show all tests passing (225+)
+
+# Verify production build
+pnpm build
+# Should complete without errors
+
+# Check production deployment
+curl https://api.superbasicfinance.com/v1/auth/providers
+# Should return provider list (Auth.js working)
+```
+
 ---
 
 ### Task 31: Update Current Phase Documentation
@@ -850,6 +1423,22 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] Current phase document updated
 - [ ] Phase 2.1 marked complete
 - [ ] Achievements documented
+
+**Sanity Check**:
+```bash
+# Verify current-phase.md updated
+grep "Phase 2.1" .kiro/steering/current-phase.md
+
+# Check for completion status
+grep "COMPLETE\|✅" .kiro/steering/current-phase.md | grep "Phase 2.1"
+
+# Verify next phase mentioned
+grep "Phase 4\|Plaid" .kiro/steering/current-phase.md
+
+# Check last updated date
+grep "Last Updated" .kiro/steering/current-phase.md
+# Should show recent date
+```
 
 ---
 
@@ -878,6 +1467,34 @@ Need help? Contact us at support@superbasicfinance.com
 - [ ] OAuth setup guide included
 - [ ] Magic link setup guide included
 - [ ] Architecture decision documented
+
+**Sanity Check**:
+```bash
+# Verify readme file created
+ls -la docs/phase-2.1-readme.md
+
+# Check for required sections
+grep "## " docs/phase-2.1-readme.md
+# Should show sections for:
+# - Overview
+# - What Was Built
+# - Sanity Checks
+# - OAuth Setup
+# - Magic Link Setup
+# - Architecture Decisions
+
+# Verify sanity checks section has curl commands
+grep -A 5 "Sanity Checks" docs/phase-2.1-readme.md | grep "curl"
+
+# Check OAuth setup instructions
+grep -A 10 "OAuth Setup\|Google\|GitHub" docs/phase-2.1-readme.md
+
+# Check magic link setup
+grep -A 10 "Magic Link\|Email" docs/phase-2.1-readme.md
+
+# Verify architecture decision documented
+grep -i "REST\|API-first\|Capacitor" docs/phase-2.1-readme.md
+```
 
 ---
 
