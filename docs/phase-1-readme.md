@@ -34,6 +34,7 @@ superbasic-monorepo-scratch/
 ### Technology Stack
 
 **Build & Tooling:**
+
 - pnpm workspaces for package management
 - Turborepo for build orchestration
 - TypeScript 5.7+ with strict mode
@@ -41,6 +42,7 @@ superbasic-monorepo-scratch/
 - tsup for package bundling
 
 **Backend:**
+
 - Hono 4 web framework
 - @hono/node-server adapter
 - Zod for validation
@@ -48,6 +50,7 @@ superbasic-monorepo-scratch/
 - Pino structured logging
 
 **Frontend:**
+
 - Vite 5 build tool
 - React 19
 - React Router for routing
@@ -55,14 +58,17 @@ superbasic-monorepo-scratch/
 - TanStack Query for data fetching
 
 **Testing:**
+
 - Vitest for unit/integration tests
 - Playwright for E2E tests
 
 **Database:**
+
 - PostgreSQL (Neon-hosted)
 - Prisma migrations
 
 **Infrastructure:**
+
 - Neon Postgres (serverless)
 - Upstash Redis (rate limiting)
 
@@ -71,14 +77,16 @@ superbasic-monorepo-scratch/
 ### 1. Workspace Configuration
 
 **pnpm-workspace.yaml**
+
 ```yaml
 packages:
-  - 'apps/*'
-  - 'packages/*'
-  - 'tooling/*'
+  - "apps/*"
+  - "packages/*"
+  - "tooling/*"
 ```
 
 **turbo.json**
+
 - Build pipeline: `lint → typecheck → test → build`
 - Caching for faster rebuilds
 - Parallel execution where possible
@@ -86,12 +94,14 @@ packages:
 ### 2. TypeScript Configuration
 
 **Root tsconfig.json**
+
 - Strict mode enabled
 - Path aliases for workspace packages
 - ES2022 target
 - ESM module resolution
 
 **Package-specific configs**
+
 - Extend root config
 - Custom compiler options per package
 - Proper declaration file generation
@@ -99,6 +109,7 @@ packages:
 ### 3. Code Quality Tools
 
 **Biome Configuration**
+
 - Consistent formatting rules
 - Linting for common issues
 - Import sorting
@@ -107,6 +118,7 @@ packages:
 ### 4. API Server Skeleton
 
 **apps/api/src/app.ts**
+
 - Hono app instance
 - CORS middleware
 - JSON body parser
@@ -114,6 +126,7 @@ packages:
 - Health check endpoint
 
 **apps/api/src/index.ts**
+
 - Server startup
 - Port configuration
 - Graceful shutdown (future)
@@ -121,31 +134,37 @@ packages:
 ### 5. Web Client Skeleton
 
 **apps/web/src/main.tsx**
+
 - React 19 root
 - Router setup
 - Query client provider
 
 **apps/web/src/App.tsx**
+
 - Route definitions
 - Layout structure
 
 ### 6. Shared Packages
 
 **@repo/database**
+
 - Prisma schema with User model
 - Migration scripts
 - Client exports
 
 **@repo/types**
+
 - Shared Zod schemas
 - Type exports
 
 **@repo/design-system**
+
 - Button component
 - Tailwind configuration
 - Component exports
 
 **@repo/observability**
+
 - Pino logger setup
 - Log levels
 - Structured logging utilities
@@ -153,6 +172,7 @@ packages:
 ### 7. Development Scripts
 
 **Root package.json**
+
 ```json
 {
   "scripts": {
@@ -174,27 +194,32 @@ packages:
 ### Initial Setup
 
 1. **Install dependencies:**
+
    ```bash
    pnpm install
    ```
 
 2. **Set up environment variables:**
+
    ```bash
    cp apps/api/.env.example apps/api/.env.local
    cp packages/database/.env.example packages/database/.env.local
    ```
 
 3. **Configure database:**
+
    - Get Neon Postgres connection string
    - Add to `packages/database/.env.local`
    - Add to `apps/api/.env.local`
 
 4. **Generate Prisma client:**
+
    ```bash
    pnpm db:generate
    ```
 
 5. **Run migrations:**
+
    ```bash
    pnpm db:migrate
    ```
@@ -207,25 +232,30 @@ packages:
 ### Development Workflow
 
 **Start all services:**
+
 ```bash
 pnpm dev
 ```
+
 - API: http://localhost:3000
 - Web: http://localhost:5173
 
 **Start specific service:**
+
 ```bash
 pnpm dev --filter=api
 pnpm dev --filter=web
 ```
 
 **Run tests:**
+
 ```bash
 pnpm test                    # All tests
 pnpm test --filter=@repo/core  # Specific package
 ```
 
 **Lint and format:**
+
 ```bash
 pnpm lint                    # Check for issues
 pnpm format                  # Auto-fix formatting
@@ -233,6 +263,7 @@ pnpm typecheck               # Type checking
 ```
 
 **Database operations:**
+
 ```bash
 pnpm db:generate             # Generate Prisma client
 pnpm db:migrate              # Run migrations
@@ -242,11 +273,13 @@ pnpm db:studio               # Open Prisma Studio
 ### Adding New Packages
 
 1. **Create package directory:**
+
    ```bash
    mkdir -p packages/my-package/src
    ```
 
 2. **Add package.json:**
+
    ```json
    {
      "name": "@repo/my-package",
@@ -264,6 +297,7 @@ pnpm db:studio               # Open Prisma Studio
    ```
 
 3. **Add tsconfig.json:**
+
    ```json
    {
      "extends": "../../tsconfig.json",
@@ -282,6 +316,7 @@ pnpm db:studio               # Open Prisma Studio
 ## Sanity Checks
 
 ### ✅ Installation Check
+
 ```bash
 pnpm install
 # Should complete without errors
@@ -289,6 +324,7 @@ pnpm install
 ```
 
 ### ✅ Build Check
+
 ```bash
 pnpm build
 # All packages should build successfully
@@ -296,18 +332,21 @@ pnpm build
 ```
 
 ### ✅ Type Check
+
 ```bash
 pnpm typecheck
 # Should pass with no errors
 ```
 
 ### ✅ Lint Check
+
 ```bash
 pnpm lint
 # Should pass or show fixable issues
 ```
 
 ### ✅ API Health Check
+
 ```bash
 pnpm dev --filter=api
 # In another terminal:
@@ -316,6 +355,7 @@ curl http://localhost:3000/v1/health
 ```
 
 ### ✅ Web Client Check
+
 ```bash
 pnpm dev --filter=web
 # Open http://localhost:5173
@@ -323,6 +363,7 @@ pnpm dev --filter=web
 ```
 
 ### ✅ Database Check
+
 ```bash
 pnpm db:generate
 pnpm db:migrate
@@ -331,6 +372,7 @@ pnpm db:migrate
 ```
 
 ### ✅ Package Resolution Check
+
 ```bash
 # In apps/api/src/app.ts
 import { logger } from '@repo/observability';
@@ -343,6 +385,7 @@ import { logger } from '@repo/observability';
 ### Issue: pnpm install fails
 
 **Solution:**
+
 - Ensure Node.js 20+ is installed
 - Ensure pnpm 9+ is installed
 - Clear pnpm cache: `pnpm store prune`
@@ -351,6 +394,7 @@ import { logger } from '@repo/observability';
 ### Issue: TypeScript can't find workspace packages
 
 **Solution:**
+
 - Run `pnpm install` to link workspace packages
 - Check package.json has correct workspace reference
 - Restart TypeScript server in IDE
@@ -358,6 +402,7 @@ import { logger } from '@repo/observability';
 ### Issue: Database connection fails
 
 **Solution:**
+
 - Verify DATABASE_URL in .env.local
 - Check Neon dashboard for connection string
 - Ensure IP is whitelisted (Neon allows all by default)
@@ -366,6 +411,7 @@ import { logger } from '@repo/observability';
 ### Issue: Build fails with module errors
 
 **Solution:**
+
 - Ensure all packages have correct exports in package.json
 - Check tsconfig.json paths are correct
 - Build packages in dependency order: `pnpm build`
@@ -373,6 +419,7 @@ import { logger } from '@repo/observability';
 ### Issue: Vite dev server won't start
 
 **Solution:**
+
 - Check port 5173 is available
 - Clear Vite cache: `rm -rf apps/web/.vite`
 - Check for syntax errors in React components

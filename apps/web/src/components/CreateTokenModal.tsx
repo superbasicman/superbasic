@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Button } from '@repo/design-system';
 import { tokenApi, ApiError } from '../lib/api';
-import { VALID_SCOPES } from '@repo/auth';
+import { VALID_SCOPES } from '@repo/types';
 
 interface CreateTokenModalProps {
   onClose: () => void;

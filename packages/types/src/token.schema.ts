@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { VALID_SCOPES } from "@repo/auth";
+import { VALID_SCOPES } from "./scopes.js";
 
 /**
  * Request schema for creating a new API token

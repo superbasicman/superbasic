@@ -70,6 +70,61 @@ When finishing a task:
 - [ ] Refresh /steering/current-phase.md to reflect the current task or subtask status
 - [ ] Refresh /docs/project_plan.md to reflect the current task or subtask status
 
+## Phase Completion Checklist
+
+When finishing a phase:
+
+- [ ] Create phase readme document in `docs/phase-N-readme.md`
+- [ ] Include comprehensive "Sanity Checks" section with curl commands
+- [ ] Document all deliverables with file locations
+- [ ] List key learnings and architecture decisions
+- [ ] Include performance metrics and test results
+- [ ] Document migration steps (if any)
+- [ ] List next steps and preparation for next phase
+- [ ] Update `docs/project_plan.md` to mark phase as complete
+- [ ] Update `.kiro/steering/current-phase.md` with completion summary
+- [ ] Archive any debug/troubleshooting documents to `docs/archived/`
+
+### Sanity Checks Guidelines
+
+Every phase readme should include a "Sanity Checks" section with:
+
+- **Executable commands**: Use curl, pnpm, or bash commands that can be copy-pasted
+- **Expected outputs**: Show what success looks like
+- **Failure scenarios**: Test error cases (401, 403, 429, etc.)
+- **End-to-end flows**: Test complete user journeys
+- **Test suite verification**: Command to run all tests with expected results
+- **Web UI verification**: Steps to manually test in browser
+- **Log verification**: How to check audit logs and structured logging
+
+**Example Structure:**
+```markdown
+## Sanity Checks
+
+### ✅ Feature Creation Check
+\`\`\`bash
+# Command to test feature
+curl -X POST http://localhost:3000/v1/endpoint \
+  -H "Content-Type: application/json" \
+  -d '{"key":"value"}'
+
+# Should return:
+# {"success":true,"id":"..."}
+\`\`\`
+
+### ✅ Error Handling Check
+\`\`\`bash
+# Test error case
+curl -X POST http://localhost:3000/v1/endpoint \
+  -H "Content-Type: application/json" \
+  -d '{"invalid":"data"}'
+
+# Should return 400 with validation error
+\`\`\`
+```
+
+This ensures every phase can be quickly validated after deployment or when onboarding new developers.
+
 ## Rationale
 
 - **Centralized docs** make it easier for new developers to find information

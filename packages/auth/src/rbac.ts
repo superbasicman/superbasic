@@ -5,36 +5,9 @@
  * Scopes follow the pattern: {action}:{resource}
  */
 
-/**
- * Valid API scopes for token permissions
- * Format: <action>:<resource>
- */
-export const VALID_SCOPES = [
-  // Transaction scopes
-  'read:transactions',
-  'write:transactions',
-
-  // Budget scopes
-  'read:budgets',
-  'write:budgets',
-
-  // Account scopes
-  'read:accounts',
-  'write:accounts',
-
-  // Profile scopes
-  'read:profile',
-  'write:profile',
-
-  // Workspace scopes (future)
-  'read:workspaces',
-  'write:workspaces',
-
-  // Admin scope (full access)
-  'admin',
-] as const;
-
-export type Scope = (typeof VALID_SCOPES)[number];
+// Re-export scope constants from @repo/types to avoid circular dependencies
+import { VALID_SCOPES, type Scope } from '@repo/types';
+export { VALID_SCOPES, type Scope };
 
 /**
  * Check if a scope is valid

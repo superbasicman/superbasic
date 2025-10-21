@@ -103,11 +103,180 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 ---
 
-## Phase 3: API Key Management (PATs)
+## Phase 2.1: Full Auth.js Migration (OAuth + Magic Links) 🔄
+
+**Goal**: Migrate from hybrid Auth.js approach to full Auth.js implementation with OAuth providers and magic link support
+
+**Status**: NOT STARTED
+
+**Context**: Phase 2 implemented a hybrid approach using Auth.js utilities (`encode`/`decode`) with custom Hono routes. This phase completes the Auth.js migration to enable OAuth (Google, GitHub, Apple) and magic link authentication while maintaining backward compatibility with existing sessions and PAT tokens.
+
+### Deliverables
+
+- [ ] Install Auth.js Hono adapter (`@auth/hono`)
+- [ ] Replace custom auth routes with Auth.js request handlers
+- [ ] Configure OAuth providers (Google, GitHub, Apple)
+- [ ] Configure Email provider for magic links
+- [ ] Migrate existing Credentials provider to Auth.js handlers
+- [ ] Update auth middleware to support Auth.js session format
+- [ ] Ensure PAT authentication (Phase 3) remains functional
+- [ ] Update CORS configuration for OAuth callbacks
+- [ ] Add OAuth provider configuration to environment variables
+- [ ] Update web client to use Auth.js signIn/signOut methods
+- [ ] Add OAuth provider buttons to login/register pages
+- [ ] Add "Sign in with magic link" option
+- [ ] Migrate existing user sessions (JWT format compatibility)
+- [ ] Update all 102 existing tests for Auth.js handlers
+- [ ] Add OAuth flow tests (mock provider responses)
+- [ ] Add magic link flow tests
+- [ ] Update API documentation with OAuth and magic link flows
+
+### Exit Criteria
+
+- [ ] Users can log in with Google OAuth
+- [ ] Users can log in with GitHub OAuth
+- [ ] Users can log in with Apple OAuth (optional, requires Apple Developer account)
+- [ ] Users can request magic link via email
+- [ ] Magic link logs user in without password
+- [ ] Existing email/password authentication still works
+- [ ] Existing sessions remain valid (no forced logout)
+- [ ] PAT authentication (Bearer tokens) unaffected
+- [ ] OAuth accounts linked to existing users by email
+- [ ] New OAuth users automatically create profile records
+- [ ] All 102+ tests passing with Auth.js handlers
+- [ ] E2E tests cover OAuth and magic link flows
+- [ ] Documentation updated with OAuth setup instructions
+
+### Migration Strategy
+
+**Phase 2.1.1: Auth.js Handler Integration (Week 1)**
+1. Install `@auth/hono` adapter
+2. Create Auth.js handler at `/v1/auth/*` (parallel to existing routes)
+3. Configure Credentials provider (reuse existing logic)
+4. Test Auth.js handlers alongside custom routes
+5. Verify session format compatibility
+
+**Phase 2.1.2: OAuth Provider Setup (Week 1-2)**
+1. Register OAuth apps (Google, GitHub, Apple)
+2. Configure OAuth providers in Auth.js config
+3. Add OAuth callback handling
+4. Test OAuth flows in development
+5. Add OAuth buttons to web client
+
+**Phase 2.1.3: Magic Link Setup (Week 2)**
+1. Configure email service (SendGrid, Postmark, or Resend)
+2. Add Email provider to Auth.js config
+3. Create email templates for magic links
+4. Test magic link flow end-to-end
+5. Add "Sign in with email" UI
+
+**Phase 2.1.4: Migration and Cutover (Week 2-3)**
+1. Update auth middleware to handle Auth.js sessions
+2. Deprecate custom auth routes (keep for backward compatibility)
+3. Migrate existing tests to Auth.js handlers
+4. Update web client to use Auth.js methods
+5. Deploy to preview environment for testing
+6. Monitor for issues, rollback if needed
+7. Remove deprecated custom routes after 1 week
+
+**Phase 2.1.5: Testing and Documentation (Week 3)**
+1. Add OAuth flow integration tests
+2. Add magic link flow tests
+3. Update E2E tests for new auth flows
+4. Update API documentation
+5. Create OAuth setup guide for developers
+6. Document migration process
+
+### Technical Considerations
+
+**Backward Compatibility:**
+- Existing JWT sessions must remain valid during migration
+- PAT authentication (Phase 3) must continue working unchanged
+- Custom `/v1/login`, `/v1/register` routes kept temporarily for rollback
+
+**Session Format:**
+- Auth.js uses same JWT structure we implemented
+- `userId` and `profileId` still attached to context
+- No database schema changes required (tables already exist)
+
+**OAuth Account Linking:**
+- Match OAuth email to existing user accounts
+- Create new user + profile if email not found
+- Handle email verification status from OAuth providers
+
+**Magic Link Security:**
+- Tokens expire after 24 hours
+- One-time use only (stored in `verification_tokens` table)
+- Rate limit magic link requests (3 per hour per email)
+
+**Environment Variables:**
+```bash
+# OAuth Providers
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+APPLE_CLIENT_ID=... (optional)
+APPLE_CLIENT_SECRET=... (optional)
+
+# Email Provider (for magic links)
+EMAIL_SERVER=smtp://...
+EMAIL_FROM=noreply@superbasicfinance.com
+```
+
+### Dependencies
+
+**Completed Prerequisites:**
+- ✅ Phase 1: Monorepo infrastructure
+- ✅ Phase 2: Auth.js tables and utilities
+- ✅ Phase 3: PAT authentication (must not break)
+- ✅ Auth.js config file exists (`packages/auth/src/config.ts`)
+- ✅ Database schema has Auth.js tables
+
+**External Dependencies:**
+- OAuth provider accounts (Google, GitHub, Apple)
+- Email service account (SendGrid, Postmark, or Resend)
+- Domain for OAuth callbacks (can use localhost for development)
+
+**Blockers:**
+- None (can start immediately)
+
+### Success Metrics
+
+- [ ] 100% of existing tests passing after migration
+- [ ] 0 forced logouts during migration (session compatibility)
+- [ ] < 5 second OAuth flow completion time
+- [ ] < 30 second magic link delivery time
+- [ ] > 95% OAuth success rate (excluding user cancellations)
+- [ ] PAT authentication latency unchanged
+
+### Rollback Plan
+
+If issues arise during migration:
+1. Revert to custom auth routes (keep them during migration)
+2. Disable Auth.js handlers at `/v1/auth/*`
+3. Web client falls back to `/v1/login` and `/v1/register`
+4. Investigate issues in preview environment
+5. Fix and redeploy when ready
+
+### Post-Migration Cleanup
+
+After 1 week of successful Auth.js operation:
+- [ ] Remove custom `/v1/login`, `/v1/register`, `/v1/logout` routes
+- [ ] Remove custom JWT encoding logic (use Auth.js only)
+- [ ] Archive migration documentation
+- [ ] Update steering docs to reflect Auth.js as primary auth
+
+**Spec**: `.kiro/specs/authjs-migration/` (to be created)
+
+---
+
+
+## Phase 3: API Key Management (PATs) ✅
 
 **Goal**: Enable programmatic API access with Personal Access Tokens
 
-**Status**: Task 2 complete (Core token utilities) - Token generation, SHA-256 hashing, and scope validation implemented with 64 passing tests
+**Status**: COMPLETE - All 12 tasks implemented and tested with 225 passing tests
 
 ### Deliverables
 
@@ -115,29 +284,35 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - [x] Token hashing (SHA-256) before database storage
 - [x] Token format validation and scope utilities
 - [x] Unit tests for token generation, hashing, and scope validation (64 tests passing)
-- [ ] PAT CRUD endpoints (POST /v1/tokens, GET /v1/tokens, DELETE /v1/tokens/:id)
-- [ ] Bearer token authentication middleware (separate from session auth)
-- [ ] Token scopes and permissions (read:transactions, write:budgets, etc.)
-- [ ] Token expiration and revocation
-- [ ] Last used timestamp tracking
-- [ ] Web UI for managing API keys
-- [ ] Token creation flow (show plaintext once, then hash)
-- [ ] Token list with masked values and metadata
-- [ ] Token revocation with confirmation dialog
+- [x] PAT CRUD endpoints (POST /v1/tokens, GET /v1/tokens, DELETE /v1/tokens/:id, PATCH /v1/tokens/:id)
+- [x] Bearer token authentication middleware (separate from session auth)
+- [x] Token scopes and permissions (read:profile, write:profile, read:transactions, write:transactions, etc.)
+- [x] Token expiration and revocation
+- [x] Last used timestamp tracking
+- [x] Web UI for managing API keys
+- [x] Token creation flow (show plaintext once, then hash)
+- [x] Token list with masked values and metadata
+- [x] Token revocation with confirmation dialog
+- [x] Scope enforcement on protected endpoints (GET /v1/me, PATCH /v1/me)
+- [x] Rate limiting for token operations
+- [x] Audit logging for token lifecycle events
+- [x] API documentation (docs/api-authentication.md)
 
 ### Exit Criteria
 
-- [ ] Users can create API keys with custom names and scopes
-- [ ] Plaintext token shown once on creation, then never again
-- [ ] API requests with `Authorization: Bearer <token>` authenticate successfully
-- [ ] Invalid or expired tokens return 401
-- [ ] Token scopes enforced on protected endpoints
-- [ ] Users can list and revoke their tokens
-- [ ] Audit log records token creation, usage, and revocation
-- [ ] Integration tests cover token lifecycle
-- [ ] Documentation includes API authentication guide
+- ✅ Users can create API keys with custom names and scopes
+- ✅ Plaintext token shown once on creation, then never again
+- ✅ API requests with `Authorization: Bearer <token>` authenticate successfully
+- ✅ Invalid or expired tokens return 401
+- ✅ Token scopes enforced on protected endpoints (403 with required scope in error)
+- ✅ Users can list and revoke their tokens
+- ✅ Audit log records token creation, usage, and revocation
+- ✅ Integration tests cover token lifecycle (225 tests passing)
+- ✅ Documentation includes API authentication guide
 
-**Spec**: `.kiro/specs/api-key-management/` (to be created)
+**Spec**: `.kiro/specs/api-key-management/`
+
+**Notes**: Phase 3 is fully complete with comprehensive test coverage. All 225 API tests pass, including 13 scope enforcement tests. Test isolation issue was resolved by adding `vi.unmock('@repo/database')` to all integration test files. The system supports both session authentication (full access) and PAT authentication (scope-restricted access). See `docs/test-isolation-fix.md` for details on the test infrastructure improvements.
 
 ---
 
