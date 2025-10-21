@@ -4,7 +4,7 @@
 
 This document provides a high-level roadmap for building SuperBasic Finance, an API-first personal finance platform. The plan is organized into phases with clear exit criteria, building from foundational infrastructure through core features to advanced capabilities. Each phase represents a deployable milestone that delivers user value while maintaining production quality.
 
-**Current Status**: Phase 2.1 (Auth.js Migration) in progress - migrating to Auth.js Prisma adapter before continuing to Phase 4
+ **Current Status**: Phase 2.1 (Auth.js Migration) in progress - migrating to Auth.js Prisma adapter before continuing to Phase 4
 
 ## Guiding Principles
 
