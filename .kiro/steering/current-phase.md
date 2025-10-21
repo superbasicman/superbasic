@@ -1,12 +1,46 @@
 # Current Phase Context
 
-**Active Phase**: Phase 3 - API Key Management  
-**Status**: ✅ COMPLETE - All 12 tasks implemented and tested (225 tests passing)  
-**Spec Location**: `.kiro/specs/api-key-management/`
+**Active Phase**: Phase 2.1 - Auth.js Migration  
+**Status**: 🔄 IN PROGRESS - Migrating to Auth.js Prisma adapter with UUID users table  
+**Spec Location**: `.kiro/specs/authjs-migration/`  
+**Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, needs revalidation after migration)
 
-## Phase 3 Overview
+---
 
-Enable programmatic API access through Personal Access Tokens (PATs) with secure generation, storage, and lifecycle management.
+## Context: Why We're Stepping Back
+
+Phase 3 (API Key Management) was completed successfully with 225 passing tests. However, during planning for Phase 4 (Plaid Integration), we identified a misalignment between the implemented authentication system and the documented architecture in `database-schema.md`. 
+
+The schema document specifies Auth.js as the standard with a UUID-based `users` table, but the current implementation uses a custom auth system. To maintain architectural consistency and avoid technical debt, we're completing the Auth.js migration now before proceeding to Plaid integration.
+
+**What This Means:**
+- Phase 3 deliverables remain intact but will need retesting after migration
+- All 225 tests will be updated to work with Auth.js sessions
+- API key authentication (Bearer tokens) will continue working unchanged
+- This is a refactor, not a feature addition - no new user-facing functionality
+
+---
+
+## Phase 2.1 Overview
+
+Migrate from custom authentication to Auth.js Prisma adapter with proper UUID-based users table, ensuring compatibility with the existing profiles-based business logic and API key system.
+
+### Why This Phase Exists
+
+Phase 2 implemented a custom auth system, and Phase 3 built API key management on top of it. However, the database schema document specifies Auth.js as the standard, and we need to align the implementation with the documented architecture before proceeding to Plaid integration.
+
+### Migration Strategy
+
+1. **Add Auth.js Prisma adapter tables** (users, accounts, sessions, verification_tokens) with UUID primary keys
+2. **Preserve existing profiles table** - business logic continues to reference `profiles.id`
+3. **Update api_keys table** - add `userId` reference to Auth.js users table
+4. **Migrate auth middleware** - use Auth.js session management instead of custom JWT
+5. **Update all tests** - ensure 225 existing tests pass with new auth system
+6. **Revalidate Phase 3** - confirm API key management works with Auth.js
+
+## Phase 3 Context (Completed, Needs Revalidation)
+
+Phase 3 delivered a complete API key management system with PAT generation, Bearer auth, and scope enforcement. All 12 tasks were implemented and 225 tests were passing. After the Auth.js migration, we'll need to revalidate this functionality.
 
 ## Key Deliverables
 
@@ -178,18 +212,35 @@ None - Phase 3 is production-ready with no known issues.
 
 ---
 
+## Phase 2.1 Exit Criteria
+
+Before proceeding to Phase 4 (Plaid Integration):
+
+- [ ] Auth.js Prisma adapter fully integrated with UUID users table
+- [ ] All 225 existing tests passing with Auth.js sessions
+- [ ] API key authentication (Bearer tokens) working unchanged
+- [ ] OAuth flows implemented (Google, GitHub)
+- [ ] Magic link authentication working
+- [ ] Auth middleware updated to use Auth.js session management
+- [ ] Web client updated to use Auth.js methods
+- [ ] E2E tests updated for new auth flows
+- [ ] Documentation updated with OAuth setup guide
+
+---
+
 ## Next Phase Preview
 
 **Phase 4**: Plaid Integration - Bank Connections  
 **Goal**: Connect bank accounts via Plaid Link and sync account metadata  
-**Blocker**: Requires Plaid developer account setup (Sandbox environment)  
+**Blocker**: Requires Phase 2.1 completion + Plaid developer account setup  
 **Key Deliverables**: Link token creation, public token exchange, account sync, webhook handler
 
 **Preparation Steps:**
-1. Register for Plaid developer account (https://dashboard.plaid.com/signup)
-2. Obtain Sandbox API keys (client_id, secret)
-3. Review Plaid documentation (https://plaid.com/docs/)
-4. Create Phase 4 spec in `.kiro/specs/plaid-bank-connections/`
+1. Complete Phase 2.1 Auth.js migration
+2. Revalidate Phase 3 API key management with new auth system
+3. Register for Plaid developer account (https://dashboard.plaid.com/signup)
+4. Obtain Sandbox API keys (client_id, secret)
+5. Review Plaid documentation (https://plaid.com/docs/)
 
 ---
 

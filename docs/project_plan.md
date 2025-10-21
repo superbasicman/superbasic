@@ -4,7 +4,7 @@
 
 This document provides a high-level roadmap for building SuperBasic Finance, an API-first personal finance platform. The plan is organized into phases with clear exit criteria, building from foundational infrastructure through core features to advanced capabilities. Each phase represents a deployable milestone that delivers user value while maintaining production quality.
 
-**Current Status**: Phase 1 & 2 complete with comprehensive E2E testing, ready for Phase 3 (API Key Management)
+**Current Status**: Phase 2.1 (Auth.js Migration) in progress - migrating to Auth.js Prisma adapter before continuing to Phase 4
 
 ## Guiding Principles
 
@@ -103,9 +103,11 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 ---
 
-## Phase 2.1: Full Auth.js Migration (OAuth + Magic Links) 🔄
+## Phase 2.1: Full Auth.js Migration (OAuth + Magic Links) 🔄 **ACTIVE**
 
 **Goal**: Migrate from hybrid Auth.js approach to full Auth.js implementation with OAuth providers and magic link support
+
+**Status**: IN PROGRESS - Aligning implementation with documented Auth.js architecture before Phase 4
 
 **Status**: NOT STARTED
 
@@ -150,6 +152,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 ### Migration Strategy
 
 **Phase 2.1.1: Auth.js Handler Integration (Week 1)**
+
 1. Install `@auth/hono` adapter
 2. Create Auth.js handler at `/v1/auth/*` (parallel to existing routes)
 3. Configure Credentials provider (reuse existing logic)
@@ -157,6 +160,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 5. Verify session format compatibility
 
 **Phase 2.1.2: OAuth Provider Setup (Week 1-2)**
+
 1. Register OAuth apps (Google, GitHub, Apple)
 2. Configure OAuth providers in Auth.js config
 3. Add OAuth callback handling
@@ -164,6 +168,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 5. Add OAuth buttons to web client
 
 **Phase 2.1.3: Magic Link Setup (Week 2)**
+
 1. Configure email service (SendGrid, Postmark, or Resend)
 2. Add Email provider to Auth.js config
 3. Create email templates for magic links
@@ -171,6 +176,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 5. Add "Sign in with email" UI
 
 **Phase 2.1.4: Migration and Cutover (Week 2-3)**
+
 1. Update auth middleware to handle Auth.js sessions
 2. Deprecate custom auth routes (keep for backward compatibility)
 3. Migrate existing tests to Auth.js handlers
@@ -180,6 +186,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 7. Remove deprecated custom routes after 1 week
 
 **Phase 2.1.5: Testing and Documentation (Week 3)**
+
 1. Add OAuth flow integration tests
 2. Add magic link flow tests
 3. Update E2E tests for new auth flows
@@ -190,26 +197,31 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 ### Technical Considerations
 
 **Backward Compatibility:**
+
 - Existing JWT sessions must remain valid during migration
 - PAT authentication (Phase 3) must continue working unchanged
 - Custom `/v1/login`, `/v1/register` routes kept temporarily for rollback
 
 **Session Format:**
+
 - Auth.js uses same JWT structure we implemented
 - `userId` and `profileId` still attached to context
 - No database schema changes required (tables already exist)
 
 **OAuth Account Linking:**
+
 - Match OAuth email to existing user accounts
 - Create new user + profile if email not found
 - Handle email verification status from OAuth providers
 
 **Magic Link Security:**
+
 - Tokens expire after 24 hours
 - One-time use only (stored in `verification_tokens` table)
 - Rate limit magic link requests (3 per hour per email)
 
 **Environment Variables:**
+
 ```bash
 # OAuth Providers
 GOOGLE_CLIENT_ID=...
@@ -227,6 +239,7 @@ EMAIL_FROM=noreply@superbasicfinance.com
 ### Dependencies
 
 **Completed Prerequisites:**
+
 - ✅ Phase 1: Monorepo infrastructure
 - ✅ Phase 2: Auth.js tables and utilities
 - ✅ Phase 3: PAT authentication (must not break)
@@ -234,11 +247,13 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - ✅ Database schema has Auth.js tables
 
 **External Dependencies:**
+
 - OAuth provider accounts (Google, GitHub, Apple)
 - Email service account (SendGrid, Postmark, or Resend)
 - Domain for OAuth callbacks (can use localhost for development)
 
 **Blockers:**
+
 - None (can start immediately)
 
 ### Success Metrics
@@ -253,6 +268,7 @@ EMAIL_FROM=noreply@superbasicfinance.com
 ### Rollback Plan
 
 If issues arise during migration:
+
 1. Revert to custom auth routes (keep them during migration)
 2. Disable Auth.js handlers at `/v1/auth/*`
 3. Web client falls back to `/v1/login` and `/v1/register`
@@ -262,6 +278,7 @@ If issues arise during migration:
 ### Post-Migration Cleanup
 
 After 1 week of successful Auth.js operation:
+
 - [ ] Remove custom `/v1/login`, `/v1/register`, `/v1/logout` routes
 - [ ] Remove custom JWT encoding logic (use Auth.js only)
 - [ ] Archive migration documentation
@@ -271,16 +288,17 @@ After 1 week of successful Auth.js operation:
 
 ---
 
-
-## Phase 3: API Key Management (PATs) ✅
+## Phase 3: API Key Management (PATs) ✅ **NEEDS REVALIDATION**
 
 **Goal**: Enable programmatic API access with Personal Access Tokens
+
+**Status**: COMPLETE (225 tests passing) - Will be retested after Phase 2.1 Auth.js migration completes
 
 **Status**: COMPLETE - All 12 tasks implemented and tested with 225 passing tests
 
 ### Deliverables
 
-- [x] PAT generation with secure random tokens (sbf_ prefix + base64url encoding)
+- [x] PAT generation with secure random tokens (sbf\_ prefix + base64url encoding)
 - [x] Token hashing (SHA-256) before database storage
 - [x] Token format validation and scope utilities
 - [x] Unit tests for token generation, hashing, and scope validation (64 tests passing)
@@ -850,12 +868,10 @@ Documentation should be updated when implementing features that were marked as "
 - **Phase 6** (Workspace Multi-Tenancy):
   - Update `docs/api-authentication.md` to add workspace scopes (`read:workspaces`, `write:workspaces`)
   - Update scope enforcement table with workspace endpoints
-  
 - **Phase 13** (Rate Limiting & Security):
   - Update `docs/api-authentication.md` to document per-token rate limits
   - Add IP address tracking and security monitoring features
   - Update rate limiting section with tier-based limits
-  
 - **Phase 11** (OpenAPI Spec):
   - Migrate manual API documentation to auto-generated OpenAPI docs
   - Ensure `docs/api-authentication.md` links to interactive Swagger UI
