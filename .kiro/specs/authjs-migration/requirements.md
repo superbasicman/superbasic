@@ -14,7 +14,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 - Auth.js JWT utilities (`encode`, `decode`) for token management
 - Custom Hono routes (`/v1/login`, `/v1/register`, `/v1/logout`, `/v1/me`)
 - Manual JWT generation and validation
-- 102 passing tests (unit, integration, E2E)
+- 225 passing tests (unit, integration, E2E) after Phase 3 completion
 - PAT authentication system (Phase 3) using Bearer tokens
 
 **What We're Missing:**
@@ -54,7 +54,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
    - Existing JWT sessions remain valid (no forced logouts)
    - Email/password authentication continues working
    - PAT authentication (Phase 3) completely unaffected
-   - All 102 existing tests pass after migration
+   - All 225 existing tests pass after migration (includes Phase 3 PAT tests)
 
 4. **Seamless User Experience**
    - OAuth flow completes in < 5 seconds
@@ -255,7 +255,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 - PAT authentication still works
 - Both `userId` and `profileId` attached to context
 - Existing protected routes work with both auth types
-- All 102 existing tests pass
+- All 225 existing tests pass (includes Phase 3 PAT tests)
 
 ---
 
@@ -269,8 +269,9 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 - Add Google OAuth button to login page
 - Add GitHub OAuth button to login page
 - Add "Sign in with email" option for magic links
-- Use Auth.js `signIn()` method for OAuth flows
-- Handle OAuth redirects and callbacks
+- Redirect to `/v1/auth/signin/*` endpoints (REST pattern, no `@auth/react`)
+- Handle OAuth callback query params (`?error=...`, `?callbackUrl=...`)
+- Poll `/v1/auth/session` after OAuth redirect to fetch user data
 - Display loading state during OAuth flow
 - Show error messages for OAuth failures
 
@@ -287,7 +288,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 
 **Priority**: P0 (Critical)
 
-**Description**: Migrate all 102 existing tests to work with Auth.js handlers.
+**Description**: Migrate all 225 existing tests to work with Auth.js handlers (includes Phase 3 PAT tests).
 
 **Requirements:**
 - Update integration tests to use `/v1/auth/*` endpoints
@@ -297,11 +298,12 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 - Maintain 100% test pass rate
 
 **Success Criteria:**
-- All 102 existing tests passing
+- All 225 existing tests passing (includes Phase 3 PAT tests)
 - New OAuth flow tests added (10+ tests)
 - New magic link tests added (5+ tests)
 - E2E tests cover OAuth and magic link flows
 - Test coverage maintained or improved
+- PAT authentication tests continue passing unchanged
 
 ---
 
@@ -353,7 +355,7 @@ Migrate from hybrid Auth.js approach (using utilities only) to full Auth.js impl
 
 - Existing JWT sessions remain valid
 - PAT authentication unchanged
-- All 102 existing tests pass
+- All 225 existing tests pass (includes Phase 3 PAT tests)
 - No database schema changes required
 
 ### NFR-5: Observability
@@ -438,7 +440,7 @@ AUTH_SECRET=... (already configured)
 - OAuth success rate > 95% (excluding user cancellations)
 - Magic link delivery success rate > 99%
 - Zero forced logouts during migration
-- All 102+ tests passing
+- All 225 tests passing (includes Phase 3 PAT tests)
 
 ### Security Metrics
 
@@ -531,7 +533,7 @@ Phase 2.1 is complete when:
 - [ ] Existing email/password authentication still works
 - [ ] Existing JWT sessions remain valid
 - [ ] PAT authentication (Phase 3) unaffected
-- [ ] All 102+ existing tests passing
+- [ ] All 225 existing tests passing (includes Phase 3 PAT tests)
 - [ ] New OAuth and magic link tests added (15+ tests)
 - [ ] Web client has OAuth buttons and magic link option
 - [ ] Documentation updated with OAuth and magic link flows

@@ -1,5 +1,24 @@
 # Phase 2.1: Full Auth.js Migration - Design
 
+## Architecture Decision: REST-First Integration
+
+**Decision**: Keep web client as thin REST consumer. Auth.js lives entirely in API tier. No `@auth/react` dependency.
+
+**Rationale**:
+- ✅ Maintains API-first architecture (web client is just another API consumer)
+- ✅ Capacitor-ready (mobile apps use same REST endpoints)
+- ✅ Minimal changes (update endpoints, add OAuth redirects)
+- ✅ Testable (mock REST endpoints, not Auth.js internals)
+- ✅ Future-proof (easy to add more auth providers)
+
+**Key Technical Details**:
+- Auth.js expects `application/x-www-form-urlencoded` (not JSON) for credential/email sign-in
+- OAuth flow uses browser redirects, client polls `/v1/auth/session` after callback
+- CORS must allow both web client and API origins for OAuth redirects
+- No `@auth/react` - preserves thin client pattern and Capacitor compatibility
+
+---
+
 ## Architecture Overview
 
 This migration transforms our hybrid Auth.js approach into a full Auth.js implementation while maintaining backward compatibility with existing sessions and PAT authentication.
@@ -54,7 +73,7 @@ This migration transforms our hybrid Auth.js approach into a full Auth.js implem
 │  - OAuth provider buttons (Google, GitHub)                   │
 │  - Magic link email input                                    │
 │  - Traditional email/password form                           │
-│  - Uses Auth.js signIn() method                             │
+│  - Redirects to /v1/auth/* endpoints (REST pattern)         │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -293,26 +312,240 @@ export async function authMiddleware(c: Context, next: Next) {
 }
 ```
 
-### 5. Web Client OAuth Integration
+### 5. Web Client Integration (REST-First Pattern)
+
+**Architecture Decision**: Keep web client as thin REST consumer. Auth.js lives entirely in API tier. No `@auth/react` dependency - preserves API-first architecture and Capacitor compatibility.
+
+#### 5.1 Update API Client with Auth.js Endpoints
+
+**File**: `apps/web/src/lib/api.ts` (update existing)
+
+**Changes**: Update `authApi` to call Auth.js handlers, add OAuth redirect methods, add form-encoded POST helper
+
+```typescript
+/**
+ * Helper for form-encoded POST requests (Auth.js expects application/x-www-form-urlencoded)
+ */
+async function apiFormPost<T>(
+  endpoint: string,
+  data: Record<string, string>
+): Promise<T> {
+  const url = `${API_URL}${endpoint}`;
+  const formBody = new URLSearchParams(data).toString();
+
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: formBody,
+  });
+
+  if (response.status === 401) {
+    throw new ApiError('Unauthorized', 401);
+  }
+
+  const responseData = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new ApiError(
+      responseData.error || 'An error occurred',
+      response.status,
+      responseData.details
+    );
+  }
+
+  return responseData;
+}
+
+export const authApi = {
+  /**
+   * Credentials login - POST to Auth.js callback endpoint
+   * Auth.js expects form-encoded data, not JSON
+   */
+  async login(credentials: LoginInput): Promise<{ user: UserResponse }> {
+    return apiFormPost('/v1/auth/callback/credentials', {
+      email: credentials.email,
+      password: credentials.password,
+    });
+  },
+
+  /**
+   * OAuth login - redirect to Auth.js signin endpoint
+   * Auth.js handles OAuth flow and redirects back with session cookie
+   */
+  loginWithGoogle(): void {
+    window.location.href = `${API_URL}/v1/auth/signin/google`;
+  },
+
+  loginWithGitHub(): void {
+    window.location.href = `${API_URL}/v1/auth/signin/github`;
+  },
+
+  /**
+   * Magic link - POST email to Auth.js
+   * Auth.js sends email with verification link
+   */
+  async requestMagicLink(email: string): Promise<{ success: boolean }> {
+    return apiFormPost('/v1/auth/signin/email', { email });
+  },
+
+  /**
+   * Get current session - call Auth.js session endpoint
+   */
+  async me(): Promise<{ user: UserResponse }> {
+    return apiFetch('/v1/auth/session', { method: 'GET' });
+  },
+
+  /**
+   * Logout - POST to Auth.js signout endpoint
+   */
+  async logout(): Promise<void> {
+    return apiFetch('/v1/auth/signout', { method: 'POST' });
+  },
+
+  /**
+   * Register - keep existing endpoint (not part of Auth.js)
+   * After registration, call login() to establish session
+   */
+  async register(data: RegisterInput): Promise<{ user: UserResponse }> {
+    return apiFetch('/v1/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+```
+
+#### 5.2 Update AuthContext for OAuth Callback Handling
+
+**File**: `apps/web/src/contexts/AuthContext.tsx` (update existing)
+
+**Changes**: Add OAuth callback detection, handle error query params, add new auth methods
+
+```typescript
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [user, setUser] = useState<UserResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Check auth status on initialization AND after OAuth callback
+  useEffect(() => {
+    checkAuthStatus();
+  }, []);
+
+  // Handle OAuth callback on return from provider
+  useEffect(() => {
+    handleOAuthCallback();
+  }, [location]);
+
+  /**
+   * Detect OAuth callback and handle errors
+   * Auth.js redirects back with ?error=... on failure
+   */
+  async function handleOAuthCallback() {
+    const params = new URLSearchParams(location.search);
+    const error = params.get('error');
+    const callbackUrl = params.get('callbackUrl');
+
+    // If error param present, show error and clear URL
+    if (error) {
+      console.error('OAuth error:', error);
+      // TODO: Show error toast/notification
+      navigate(location.pathname, { replace: true }); // Clear query params
+      return;
+    }
+
+    // If returning from OAuth (has callbackUrl param), check session
+    if (callbackUrl) {
+      await checkAuthStatus();
+      navigate(callbackUrl, { replace: true }); // Clear query params and redirect
+    }
+  }
+
+  /**
+   * Check if user is authenticated by calling /v1/auth/session
+   */
+  async function checkAuthStatus() {
+    try {
+      const { user: currentUser } = await authApi.me();
+      setUser(currentUser);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        setUser(null);
+      } else {
+        console.error('Failed to check auth status:', error);
+        setUser(null);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  /**
+   * OAuth login methods - redirect to Auth.js
+   */
+  function loginWithGoogle(): void {
+    authApi.loginWithGoogle();
+  }
+
+  function loginWithGitHub(): void {
+    authApi.loginWithGitHub();
+  }
+
+  /**
+   * Magic link - request email with verification link
+   */
+  async function requestMagicLink(email: string): Promise<void> {
+    await authApi.requestMagicLink(email);
+    // Show success message: "Check your email for a magic link"
+  }
+
+  // ... existing login, register, logout methods stay the same
+
+  const value: AuthContextType = {
+    user,
+    login,
+    register,
+    logout,
+    loginWithGoogle,
+    loginWithGitHub,
+    requestMagicLink,
+    isLoading,
+    isAuthenticated: user !== null,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+```
+
+#### 5.3 Update Login Page with OAuth Buttons
 
 **File**: `apps/web/src/pages/Login.tsx` (update existing)
 
-**Changes**: Add OAuth buttons
+**Changes**: Add OAuth buttons and magic link form
 
 ```typescript
-import { signIn } from '@auth/react'; // or custom implementation
+import { useAuth } from '../contexts/AuthContext';
 
 export function Login() {
-  const handleGoogleLogin = async () => {
-    await signIn('google', { callbackUrl: '/' });
+  const { login, loginWithGoogle, loginWithGitHub, requestMagicLink } = useAuth();
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+
+  const handleGoogleLogin = () => {
+    loginWithGoogle(); // Redirects to /v1/auth/signin/google
   };
 
-  const handleGitHubLogin = async () => {
-    await signIn('github', { callbackUrl: '/' });
+  const handleGitHubLogin = () => {
+    loginWithGitHub(); // Redirects to /v1/auth/signin/github
   };
 
-  const handleMagicLink = async (email: string) => {
-    await signIn('email', { email, callbackUrl: '/' });
+  const handleMagicLink = async (e: FormEvent) => {
+    e.preventDefault();
+    await requestMagicLink(email);
+    setMagicLinkSent(true);
   };
 
   return (
@@ -325,16 +558,21 @@ export function Login() {
         Sign in with GitHub
       </button>
 
-      {/* Magic Link */}
-      <form onSubmit={(e) => {
-        e.preventDefault();
-        handleMagicLink(email);
-      }}>
-        <input type="email" placeholder="Enter your email" />
-        <button type="submit">Send magic link</button>
-      </form>
+      <div>or</div>
 
-      {/* Traditional Email/Password */}
+      {/* Magic Link */}
+      {!magicLinkSent ? (
+        <form onSubmit={handleMagicLink}>
+          <input type="email" placeholder="Enter your email" required />
+          <button type="submit">Send magic link</button>
+        </form>
+      ) : (
+        <p>Check your email for a magic link!</p>
+      )}
+
+      <div>or</div>
+
+      {/* Traditional Email/Password (existing) */}
       <form onSubmit={handleCredentialsLogin}>
         {/* Existing form */}
       </form>
@@ -343,30 +581,73 @@ export function Login() {
 }
 ```
 
+#### 5.4 CORS Configuration
+
+**File**: `apps/api/src/app.ts` (update existing)
+
+**Changes**: Add OAuth callback URLs to CORS allowed origins
+
+```typescript
+import { cors } from 'hono/cors';
+
+app.use(
+  '/v1/*',
+  cors({
+    origin: [
+      'http://localhost:5173', // Vite dev server
+      'http://localhost:3000', // API dev server (for OAuth callbacks)
+      process.env.WEB_URL || 'https://app.superbasicfinance.com',
+    ],
+    credentials: true, // Required for cookies
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+```
+
+#### 5.5 Environment Variables
+
+**File**: `apps/web/.env.example` (update)
+
+```bash
+# API URL for Auth.js redirects
+VITE_API_URL=http://localhost:3000
+```
+
+**File**: `apps/api/.env.example` (update)
+
+```bash
+# OAuth callback base URL
+NEXTAUTH_URL=http://localhost:3000
+
+# Web client URL for post-auth redirects
+WEB_URL=http://localhost:5173
+```
+
 ## Data Flow Diagrams
 
-### OAuth Flow (Google Example)
+### OAuth Flow (Google Example) - REST Pattern
 
 ```
 1. User clicks "Sign in with Google"
    │
    ▼
-2. Web client calls signIn('google')
+2. Web client calls loginWithGoogle()
    │
    ▼
-3. Redirects to /v1/auth/signin/google
+3. Browser redirects to: GET /v1/auth/signin/google
    │
    ▼
 4. Auth.js generates OAuth state parameter
    │
    ▼
-5. Redirects to Google consent screen
+5. Auth.js redirects to Google consent screen
    │
    ▼
-6. User approves consent
+6. User approves consent on Google
    │
    ▼
-7. Google redirects to /v1/auth/callback/google?code=...&state=...
+7. Google redirects to: GET /v1/auth/callback/google?code=...&state=...
    │
    ▼
 8. Auth.js validates state parameter
@@ -382,69 +663,221 @@ export function Login() {
     │
     ├─ Exists: Link Google account to existing user
     │
-    └─ New: Create user + profile records
+    └─ New: Create user + profile records (via signIn callback)
     │
     ▼
 12. Auth.js creates JWT session
     │
     ▼
-13. Sets httpOnly cookie
+13. Auth.js sets httpOnly cookie
     │
     ▼
-14. Redirects to callbackUrl (/)
+14. Auth.js redirects to: /?callbackUrl=/
     │
     ▼
-15. User logged in
+15. Web client detects callbackUrl param
+    │
+    ▼
+16. Web client calls GET /v1/auth/session
+    │
+    ▼
+17. Auth.js returns user data
+    │
+    ▼
+18. AuthContext updates state
+    │
+    ▼
+19. Web client clears query params and redirects to /
+    │
+    ▼
+20. User logged in
 ```
 
-### Magic Link Flow
+### OAuth Error Flow
+
+```
+1. OAuth fails (user cancels, invalid credentials, etc.)
+   │
+   ▼
+2. Auth.js redirects to: /?error=OAuthAccountNotLinked&callbackUrl=/
+   │
+   ▼
+3. Web client detects error param
+   │
+   ▼
+4. Web client shows error message to user
+   │
+   ▼
+5. Web client clears query params
+   │
+   ▼
+6. User remains on login page
+```
+
+### Magic Link Flow - REST Pattern
 
 ```
 1. User enters email and clicks "Send magic link"
    │
    ▼
-2. Web client calls signIn('email', { email })
+2. Web client POSTs to: /v1/auth/signin/email
+   Body: email=user@example.com (form-encoded)
    │
    ▼
 3. Auth.js generates verification token
    │
    ▼
-4. Stores token in verification_tokens table
+4. Auth.js stores token in verification_tokens table
    │
    ▼
-5. Sends email with magic link
+5. Auth.js sends email with magic link
    │
    ▼
-6. User clicks magic link in email
+6. Web client shows "Check your email" message
    │
    ▼
-7. Redirects to /v1/auth/callback/email?token=...&email=...
+7. User clicks magic link in email
    │
    ▼
-8. Auth.js validates token
+8. Browser navigates to: GET /v1/auth/callback/email?token=...&email=...
    │
    ▼
-9. Auth.js checks if user exists
+9. Auth.js validates token (checks expiry, matches email)
    │
-   ├─ Exists: Log in existing user
-   │
-   └─ New: Create user + profile records
-   │
-    ▼
-10. Auth.js creates JWT session
+   ▼
+10. Auth.js checks if user exists
+    │
+    ├─ Exists: Log in existing user
+    │
+    └─ New: Create user + profile records (via signIn callback)
     │
     ▼
-11. Sets httpOnly cookie
+11. Auth.js creates JWT session
     │
     ▼
-12. Marks token as used (delete from verification_tokens)
+12. Auth.js sets httpOnly cookie
     │
     ▼
-13. Redirects to callbackUrl (/)
+13. Auth.js marks token as used (delete from verification_tokens)
     │
     ▼
-14. User logged in
+14. Auth.js redirects to: /?callbackUrl=/
+    │
+    ▼
+15. Web client detects callbackUrl param
+    │
+    ▼
+16. Web client calls GET /v1/auth/session
+    │
+    ▼
+17. Auth.js returns user data
+    │
+    ▼
+18. AuthContext updates state
+    │
+    ▼
+19. Web client clears query params and redirects to /
+    │
+    ▼
+20. User logged in
 ```
+
+### Credentials Login Flow - REST Pattern
+
+```
+1. User enters email/password and clicks "Sign in"
+   │
+   ▼
+2. Web client POSTs to: /v1/auth/callback/credentials
+   Body: email=...&password=... (form-encoded)
+   │
+   ▼
+3. Auth.js validates credentials (calls authorize function)
+   │
+   ▼
+4. Auth.js creates JWT session
+   │
+   ▼
+5. Auth.js sets httpOnly cookie
+   │
+   ▼
+6. Auth.js returns user data
+   │
+   ▼
+7. AuthContext updates state
+   │
+   ▼
+8. User logged in (no redirect needed)
+```
+
+## Technical Implementation Notes
+
+### Form-Encoded POST Requirement
+
+Auth.js credential and email sign-in endpoints expect `application/x-www-form-urlencoded`, not JSON. The web client must use a form-encoded POST helper:
+
+```typescript
+// ❌ Wrong - Auth.js will reject JSON
+fetch('/v1/auth/callback/credentials', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ email, password }),
+});
+
+// ✅ Correct - Auth.js expects form-encoded
+fetch('/v1/auth/callback/credentials', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({ email, password }).toString(),
+});
+```
+
+**Alternative**: Create a thin API shim that accepts JSON and forwards as form data to Auth.js. This keeps the web client API consistent but adds an extra hop.
+
+### OAuth Callback Handling
+
+After OAuth redirect, the web client must:
+
+1. **Detect callback**: Check for `?callbackUrl=...` or `?error=...` query params
+2. **Handle errors**: Extract error from URL and show to user
+3. **Poll session**: Call `GET /v1/auth/session` to get user data (cookie is already set by Auth.js)
+4. **Clear params**: Remove query params from URL to avoid re-triggering callback handler
+5. **Redirect**: Navigate to `callbackUrl` destination
+
+**Example callback URL**: `http://localhost:5173/?callbackUrl=/&error=OAuthAccountNotLinked`
+
+### CORS Configuration
+
+OAuth redirects require CORS to allow:
+- Web client origin (`http://localhost:5173`)
+- API origin (`http://localhost:3000`) for OAuth callbacks
+- `credentials: true` for httpOnly cookies
+
+Without proper CORS, OAuth callbacks will fail with CORS errors.
+
+### Session Polling vs. Server-Sent Events
+
+The REST pattern requires polling `/v1/auth/session` after OAuth callback. This is simple but adds a round-trip. Alternatives:
+
+- **Server-sent events**: Auth.js could push session data to client
+- **WebSocket**: Real-time session updates
+- **Redirect with token**: Auth.js could include session token in redirect URL (less secure)
+
+For v1, polling is sufficient. Future optimization if needed.
+
+### Why No @auth/react?
+
+`@auth/react` is designed for Next.js with server-side rendering. Using it in a Vite SPA:
+
+- ❌ Breaks API-first architecture (client becomes Auth.js-aware)
+- ❌ Doesn't work with Capacitor (expects browser environment)
+- ❌ Adds unnecessary dependency
+- ❌ Couples client to Auth.js implementation details
+- ❌ Makes testing harder (must mock Auth.js internals)
+
+The REST pattern keeps the web client as a dumb API consumer, making it portable and testable.
+
+---
 
 ## Database Schema Usage
 
@@ -561,7 +994,7 @@ INSERT INTO verification_tokens (
 
 1. Update auth middleware to support Auth.js sessions
 2. Ensure PAT authentication still works
-3. Run all 102 existing tests
+3. Run all 225 existing tests (includes Phase 3 PAT tests)
 4. Fix any test failures
 5. Deploy to preview environment
 
@@ -606,7 +1039,7 @@ INSERT INTO verification_tokens (
 
 - Existing JWT sessions still valid
 - PAT authentication still works
-- All 102 existing tests pass
+- All 225 existing tests pass (includes Phase 3 PAT tests)
 - No forced logouts during migration
 
 ## Monitoring and Observability

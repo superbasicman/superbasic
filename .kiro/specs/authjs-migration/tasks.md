@@ -2,8 +2,10 @@
 
 ## Task Overview
 
-Total: 30 tasks across 5 sub-phases
+Total: 32 tasks across 5 sub-phases
 Estimated Duration: 3 weeks
+
+**Architecture Note**: Web client remains a thin REST consumer. Auth.js lives entirely in API tier. No `@auth/react` dependency - preserves API-first architecture and Capacitor compatibility.
 
 ## Sub-Phase 1: Auth.js Handler Integration (Week 1, Days 1-3)
 
@@ -624,60 +626,132 @@ Need help? Contact us at support@superbasicfinance.com
 
 ## Sub-Phase 5: Web Client Integration and Cleanup (Week 3)
 
-### Task 24: Add OAuth Buttons to Web Client
+### Task 24: Update API Client with Auth.js Endpoints
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
 **Estimated Time**: 3 hours
 **Dependencies**: Task 11, Task 12
 
-**Description**: Add OAuth provider buttons to login and registration pages.
+**Description**: Update `authApi` in web client to call Auth.js handlers using REST pattern. Add form-encoded POST helper and OAuth redirect methods.
 
 **Steps**:
-1. Create OAuth button components
-2. Add Google button to login page
-3. Add GitHub button to login page
-4. Implement `signIn()` method calls
-5. Handle OAuth redirects
-6. Add loading states
-7. Add error handling
+1. Open `apps/web/src/lib/api.ts`
+2. Add `apiFormPost()` helper for form-encoded requests (Auth.js expects `application/x-www-form-urlencoded`)
+3. Update `authApi.login()` to POST to `/v1/auth/callback/credentials` with form-encoded body
+4. Add `authApi.loginWithGoogle()` - redirects to `/v1/auth/signin/google`
+5. Add `authApi.loginWithGitHub()` - redirects to `/v1/auth/signin/github`
+6. Add `authApi.requestMagicLink(email)` - POSTs to `/v1/auth/signin/email` with form-encoded body
+7. Update `authApi.me()` to call `/v1/auth/session`
+8. Update `authApi.logout()` to POST to `/v1/auth/signout`
+9. Keep `authApi.register()` unchanged (not part of Auth.js)
 
 **Acceptance Criteria**:
-- [ ] OAuth buttons visible on login page
-- [ ] Buttons trigger OAuth flows
-- [ ] Loading states shown
-- [ ] Errors displayed to user
-- [ ] OAuth flows complete successfully
+- [ ] Form-encoded POST helper implemented
+- [ ] All authApi methods updated to call Auth.js endpoints
+- [ ] OAuth redirect methods added (no `@auth/react` dependency)
+- [ ] TypeScript types correct
+- [ ] No build errors
+
+**Key Technical Detail**: Auth.js credential and email sign-in endpoints expect `application/x-www-form-urlencoded`, not JSON. The `apiFormPost()` helper handles this conversion.
 
 ---
 
-### Task 25: Add Magic Link UI to Web Client
+### Task 25: Update AuthContext for OAuth Callback Handling
 
 **Status**: Not Started
-**Priority**: P1 (High)
-**Estimated Time**: 2 hours
-**Dependencies**: Task 17
+**Priority**: P0 (Critical)
+**Estimated Time**: 3 hours
+**Dependencies**: Task 24
 
-**Description**: Add magic link option to login page.
+**Description**: Update `AuthContext` to handle OAuth callbacks, detect error query params, and add new auth methods.
 
 **Steps**:
-1. Add "Sign in with email" section
-2. Add email input field
-3. Add submit button
-4. Implement magic link request
-5. Show success message
-6. Handle errors
+1. Open `apps/web/src/contexts/AuthContext.tsx`
+2. Add `handleOAuthCallback()` function that:
+   - Detects `?error=...` query param and shows error message
+   - Detects `?callbackUrl=...` query param (OAuth return)
+   - Calls `checkAuthStatus()` to fetch session
+   - Clears query params and redirects to callbackUrl
+3. Add `useEffect` hook to call `handleOAuthCallback()` on location change
+4. Add `loginWithGoogle()` method - calls `authApi.loginWithGoogle()`
+5. Add `loginWithGitHub()` method - calls `authApi.loginWithGitHub()`
+6. Add `requestMagicLink(email)` method - calls `authApi.requestMagicLink()`
+7. Update `AuthContextType` interface with new methods
+8. Keep existing `login()`, `register()`, `logout()` methods unchanged
 
 **Acceptance Criteria**:
-- [ ] Magic link UI visible on login page
-- [ ] Email input functional
-- [ ] Success message shown
-- [ ] Errors displayed to user
-- [ ] Magic link flow works end-to-end
+- [ ] OAuth callback detection working
+- [ ] Error query params handled and displayed
+- [ ] Session fetched after OAuth return
+- [ ] Query params cleared after processing
+- [ ] New auth methods added to context
+- [ ] TypeScript types updated
+- [ ] No breaking changes to existing code
+
+**Key Technical Detail**: After OAuth redirect, the SPA must poll `/v1/auth/session` to get user data, then clear the `callbackUrl` query param to avoid re-triggering the callback handler.
 
 ---
 
-### Task 26: Update API Documentation
+### Task 26: Add OAuth Buttons and Magic Link UI to Login Page
+
+**Status**: Not Started
+**Priority**: P0 (Critical)
+**Estimated Time**: 2 hours
+**Dependencies**: Task 25
+
+**Description**: Update login page with OAuth buttons and magic link form.
+
+**Steps**:
+1. Open `apps/web/src/pages/Login.tsx`
+2. Import `loginWithGoogle`, `loginWithGitHub`, `requestMagicLink` from `useAuth()`
+3. Add Google OAuth button - calls `loginWithGoogle()` on click
+4. Add GitHub OAuth button - calls `loginWithGitHub()` on click
+5. Add magic link form with email input
+6. Add magic link submit handler - calls `requestMagicLink(email)`
+7. Show "Check your email" message after magic link sent
+8. Add visual separators between auth methods ("or")
+9. Keep existing email/password form unchanged
+
+**Acceptance Criteria**:
+- [ ] OAuth buttons visible and functional
+- [ ] Magic link form visible and functional
+- [ ] Success message shown after magic link request
+- [ ] Existing email/password login still works
+- [ ] UI is clean and organized
+- [ ] No console errors
+
+---
+
+### Task 27: Update CORS Configuration for OAuth Callbacks
+
+**Status**: Not Started
+**Priority**: P0 (Critical)
+**Estimated Time**: 30 minutes
+**Dependencies**: Task 3
+
+**Description**: Update CORS configuration to allow OAuth callback redirects.
+
+**Steps**:
+1. Open `apps/api/src/app.ts`
+2. Update CORS middleware to include:
+   - `http://localhost:5173` (Vite dev server)
+   - `http://localhost:3000` (API dev server for OAuth callbacks)
+   - `process.env.WEB_URL` (production web client)
+3. Ensure `credentials: true` is set
+4. Verify `allowMethods` includes GET, POST, OPTIONS
+5. Test CORS with OAuth flow
+
+**Acceptance Criteria**:
+- [ ] CORS allows web client origin
+- [ ] CORS allows API origin (for OAuth callbacks)
+- [ ] Credentials enabled for cookies
+- [ ] OAuth redirects work without CORS errors
+- [ ] Existing API calls still work
+
+---
+
+### Task 28: Update API Documentation
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -703,12 +777,12 @@ Need help? Contact us at support@superbasicfinance.com
 
 ---
 
-### Task 27: Deprecate Custom Auth Routes
+### Task 29: Deprecate Custom Auth Routes
 
 **Status**: Not Started
 **Priority**: P2 (Low)
 **Estimated Time**: 1 hour
-**Dependencies**: Task 24, Task 25
+**Dependencies**: Task 26, Task 27
 
 **Description**: Mark custom auth routes as deprecated (keep for rollback).
 
@@ -727,12 +801,12 @@ Need help? Contact us at support@superbasicfinance.com
 
 ---
 
-### Task 28: Remove Custom Auth Routes (After 1 Week)
+### Task 30: Remove Custom Auth Routes (After 1 Week)
 
 **Status**: Not Started
 **Priority**: P2 (Low)
 **Estimated Time**: 1 hour
-**Dependencies**: Task 27
+**Dependencies**: Task 29
 
 **Description**: Remove deprecated custom auth routes after successful migration.
 
@@ -751,7 +825,7 @@ Need help? Contact us at support@superbasicfinance.com
 
 ---
 
-### Task 29: Update Current Phase Documentation
+### Task 31: Update Current Phase Documentation
 
 **Status**: Not Started
 **Priority**: P2 (Low)
@@ -774,7 +848,7 @@ Need help? Contact us at support@superbasicfinance.com
 
 ---
 
-### Task 30: Create Phase 2.1 Readme
+### Task 32: Create Phase 2.1 Readme
 
 **Status**: Not Started
 **Priority**: P2 (Low)
@@ -786,16 +860,19 @@ Need help? Contact us at support@superbasicfinance.com
 **Steps**:
 1. Create `docs/phase-2.1-readme.md`
 2. Document what was built
-3. Add sanity checks
+3. Add sanity checks (curl commands for OAuth/magic link flows)
 4. Add usage examples
-5. Document OAuth setup
-6. Document magic link setup
+5. Document OAuth setup (Google/GitHub app registration)
+6. Document magic link setup (email service configuration)
+7. Document REST-first architecture decision
 
 **Acceptance Criteria**:
 - [ ] Readme created
 - [ ] Comprehensive documentation
-- [ ] Sanity checks included
-- [ ] Examples provided
+- [ ] Sanity checks included with curl examples
+- [ ] OAuth setup guide included
+- [ ] Magic link setup guide included
+- [ ] Architecture decision documented
 
 ---
 
@@ -805,16 +882,18 @@ Need help? Contact us at support@superbasicfinance.com
 - Tasks 1-5: Auth.js handler integration
 - Tasks 6-13: OAuth provider setup
 - Tasks 19-20: Middleware migration and testing
-- Task 24: OAuth buttons in web client
+- Task 24: Update API client with Auth.js endpoints (REST pattern)
+- Task 25: Update AuthContext for OAuth callback handling
+- Task 26: Add OAuth buttons and magic link UI
+- Task 27: Update CORS configuration
 
 ### P1 (High) - Should Complete
 - Tasks 14-18: Magic link setup
 - Tasks 21-23: OAuth and magic link tests
-- Task 25: Magic link UI
-- Task 26: Documentation updates
+- Task 28: Documentation updates
 
 ### P2 (Low) - Nice to Have
-- Tasks 27-30: Cleanup and documentation
+- Tasks 29-32: Cleanup and documentation
 
 ## Estimated Timeline
 
@@ -827,8 +906,8 @@ Need help? Contact us at support@superbasicfinance.com
 - Days 4-7: Tasks 19-23 (Middleware migration and testing)
 
 **Week 3**:
-- Days 1-3: Tasks 24-26 (Web client integration and documentation)
-- Days 4-5: Tasks 27-30 (Cleanup and final documentation)
+- Days 1-3: Tasks 24-28 (Web client integration, CORS, and documentation)
+- Days 4-5: Tasks 29-32 (Cleanup and final documentation)
 
 ## Success Criteria
 
@@ -836,12 +915,16 @@ Phase 2.1 is complete when:
 
 - [ ] All P0 tasks completed
 - [ ] All P1 tasks completed
-- [ ] All 102+ existing tests passing
+- [ ] All 225 existing tests passing (including Phase 3 PAT tests)
 - [ ] New OAuth and magic link tests added (15+ tests)
-- [ ] OAuth flows working (Google, GitHub)
-- [ ] Magic link flow working
+- [ ] OAuth flows working (Google, GitHub) via REST redirects
+- [ ] Magic link flow working via REST POST
 - [ ] Web client has OAuth buttons and magic link UI
-- [ ] Documentation updated
+- [ ] OAuth callback handling working (error detection, session polling)
+- [ ] CORS configured for OAuth redirects
+- [ ] Form-encoded POST helper implemented for Auth.js endpoints
+- [ ] Documentation updated with REST-first architecture
 - [ ] Deployed to preview environment
 - [ ] Monitoring shows > 95% OAuth success rate
 - [ ] Zero forced logouts during migration
+- [ ] PAT authentication (Bearer tokens) working identically
