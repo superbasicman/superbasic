@@ -2,7 +2,7 @@
 
 ## Task Overview
 
-Total: 25 tasks across 5 sub-phases
+Total: 30 tasks across 5 sub-phases
 Estimated Duration: 3 weeks
 
 ## Sub-Phase 1: Auth.js Handler Integration (Week 1, Days 1-3)
