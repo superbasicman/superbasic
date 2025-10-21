@@ -99,7 +99,9 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - `.kiro/specs/authentication-foundation/` - Core authentication implementation
 - `.kiro/specs/authentication-testing/` - Comprehensive test suite
 
-**Notes**: Core authentication functionality is complete and production-ready with comprehensive test coverage. Rate limiting is fully implemented with Upstash Redis using a sliding window algorithm. The system gracefully fails open if Redis becomes unavailable. All 102 tests passing (unit, integration, and E2E). The profiles table separates Auth.js identity (users) from user preferences/business data (profiles), with middleware attaching both IDs to request context. A Prisma client caching fix ensures schema updates are picked up automatically.
+**Notes**: Core authentication functionality is complete and production-ready with comprehensive test coverage. Rate limiting is fully implemented with Upstash Redis using a sliding window algorithm. The system gracefully fails open if Redis becomes unavailable. Phase 2 completed with 102 tests passing (unit, integration, and E2E). The profiles table separates Auth.js identity (users) from user preferences/business data (profiles), with middleware attaching both IDs to request context. A Prisma client caching fix ensures schema updates are picked up automatically.
+
+**Post-Phase 3 Update**: Test suite expanded to 225 tests after API Key Management implementation. Phase 2.1 migration must maintain all 225 tests in passing state.
 
 ---
 
@@ -128,7 +130,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - [ ] Add OAuth provider buttons to login/register pages
 - [ ] Add "Sign in with magic link" option
 - [ ] Migrate existing user sessions (JWT format compatibility)
-- [ ] Update all 102 existing tests for Auth.js handlers
+- [ ] Update all 225 existing tests for Auth.js handlers (includes Phase 3 PAT tests)
 - [ ] Add OAuth flow tests (mock provider responses)
 - [ ] Add magic link flow tests
 - [ ] Update API documentation with OAuth and magic link flows
@@ -145,7 +147,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 - [ ] PAT authentication (Bearer tokens) unaffected
 - [ ] OAuth accounts linked to existing users by email
 - [ ] New OAuth users automatically create profile records
-- [ ] All 102+ tests passing with Auth.js handlers
+- [ ] All 225 tests passing with Auth.js handlers (critical: PAT authentication must remain functional)
 - [ ] E2E tests cover OAuth and magic link flows
 - [ ] Documentation updated with OAuth setup instructions
 
@@ -258,12 +260,12 @@ EMAIL_FROM=noreply@superbasicfinance.com
 
 ### Success Metrics
 
-- [ ] 100% of existing tests passing after migration
+- [ ] 100% of existing tests passing after migration (225 tests including Phase 3 PAT tests)
 - [ ] 0 forced logouts during migration (session compatibility)
 - [ ] < 5 second OAuth flow completion time
 - [ ] < 30 second magic link delivery time
 - [ ] > 95% OAuth success rate (excluding user cancellations)
-- [ ] PAT authentication latency unchanged
+- [ ] PAT authentication latency unchanged (critical: Bearer token auth must work identically)
 
 ### Rollback Plan
 
