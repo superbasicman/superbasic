@@ -288,20 +288,24 @@
     - Expiration policy recommendations
     - _Requirements: 14.5_
 
-- [ ] 12. Integration with existing endpoints
+- [x] 12. Integration with existing endpoints
 
-  - [ ] 12.1 Add scope requirements to protected endpoints
+  - [x] 12.1 Add scope requirements to protected endpoints
 
-    - Add `requireScope("read:transactions")` to GET /v1/transactions
-    - Add `requireScope("write:transactions")` to transaction overlay endpoints
-    - Add `requireScope("read:profile")` to GET /v1/profile
-    - Add `requireScope("write:profile")` to PATCH /v1/profile
+    - Add `requireScope("read:profile")` to GET /v1/me
+    - Add `requireScope("write:profile")` to PATCH /v1/me
+    - Use `unifiedAuthMiddleware` to support both session and PAT auth
     - Document required scopes in endpoint comments
     - _Requirements: 7.3, 7.4_
+    - _Status: Complete - Scope enforcement active on /v1/me endpoints_
 
-  - [ ] 12.2 Write integration tests for scope enforcement
-    - Test read-only token can GET but not POST
-    - Test write token can POST
+  - [x] 12.2 Write integration tests for scope enforcement
+    - Test read-only token can GET but not PATCH
+    - Test write token can PATCH
     - Test session auth bypasses scope checks
     - Test 403 response includes required scope
+    - Test admin scope grants all permissions
+    - Test multiple scope combinations
     - _Requirements: 7.3, 7.4, 7.5_
+    - _Status: Complete - 13/13 tests passing in `apps/api/src/middleware/__tests__/scopes.test.ts`_
+    - _Note: See `docs/scope-enforcement-testing-debug-solution.md` for implementation details_

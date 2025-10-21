@@ -3,7 +3,11 @@
  * Tests priority order: Bearer token first, then session cookie
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
+
 import { Hono } from "hono";
 import { unifiedAuthMiddleware } from "../auth-unified.js";
 import { resetDatabase, getTestPrisma } from "../../test/setup.js";

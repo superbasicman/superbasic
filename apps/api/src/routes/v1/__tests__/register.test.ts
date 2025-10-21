@@ -3,7 +3,11 @@
  * Tests user registration, validation, and audit events
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
+
 import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import { makeRequest, createTestUserCredentials } from '../../../test/helpers.js';

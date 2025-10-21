@@ -4,6 +4,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
+
 import { Hono } from "hono";
 import { resetDatabase } from "../../../../test/setup.js";
 import {

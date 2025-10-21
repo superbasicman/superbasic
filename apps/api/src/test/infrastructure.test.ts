@@ -3,7 +3,11 @@
  * Verifies that test setup and helpers work correctly
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
+
 import { getTestPrisma, resetDatabase } from './setup.js';
 import { createTestUser, createTestUserCredentials, makeRequest } from './helpers.js';
 import app from '../app.js';

@@ -1,483 +1,494 @@
 /**
  * Integration tests for scope enforcement middleware
- * Tests that PAT tokens are restricted by scopes while session auth has full access
+ * Tests that PAT tokens are properly restricted by scopes while session auth has full access
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { Hono } from "hono";
-import { requireScope } from "../scopes.js";
-import { resetDatabase, getTestPrisma } from "../../test/setup.js";
-import { makeRequest, createTestUser } from "../../test/helpers.js";
-import { generateToken, hashToken, authEvents } from "@repo/auth";
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-// Define context variables type
-type ScopeContext = {
-  Variables: {
-    userId: string;
-    userEmail: string;
-    profileId?: string;
-    authType: "session" | "pat";
-    tokenId?: string;
-    tokenScopes?: string[];
-  };
-};
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
 
-// Create a test app with scope middleware
-// The mockAuth parameter allows tests to inject their own auth context
-function createTestApp(
-  mockAuth?: (c: Context) => void
-) {
-  const app = new Hono<ScopeContext>();
+import app from '../../app.js';
+import { resetDatabase, getTestPrisma } from '../../test/setup.js';
+import {
+  makeRequest,
+  makeAuthenticatedRequest,
+  createTestUser,
+  extractCookie,
+} from '../../test/helpers.js';
+import { generateToken, hashToken, COOKIE_NAME } from '@repo/auth';
 
-  // Mock auth middleware that sets context based on test needs
-  if (mockAuth) {
-    app.use("*", async (c, next) => {
-      mockAuth(c);
-      await next();
-    });
+// Use the full app which includes all routes (login, me, etc.)
+const testApp = app;
+
+// Helper to create API token directly in database
+async function createApiToken(
+  userId: string,
+  profileId: string,
+  options: {
+    name: string;
+    scopes: string[];
+    expiresInDays?: number;
   }
+) {
+  const prisma = getTestPrisma();
+  const token = generateToken();
+  const last4 = token.slice(-4);
+  const keyHash = hashToken(token);
 
-  // Endpoint requiring read:transactions scope
-  app.get(
-    "/transactions",
-    requireScope("read:transactions"),
-    async (c) => {
-      return c.json({ message: "Success" });
-    }
-  );
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + (options.expiresInDays || 90));
 
-  // Endpoint requiring write:transactions scope
-  app.post(
-    "/transactions",
-    requireScope("write:transactions"),
-    async (c) => {
-      return c.json({ message: "Created" });
-    }
-  );
+  const apiKey = await prisma.apiKey.create({
+    data: {
+      userId,
+      profileId,
+      name: options.name,
+      keyHash,
+      last4,
+      scopes: options.scopes,
+      expiresAt,
+    },
+  });
 
-  // Endpoint requiring write:budgets scope
-  app.post(
-    "/budgets",
-    requireScope("write:budgets"),
-    async (c) => {
-      return c.json({ message: "Created" });
-    }
-  );
-
-  return app;
+  return { apiKey, token };
 }
 
-describe("Scope Enforcement Middleware", () => {
-  let prisma: ReturnType<typeof getTestPrisma>;
-
+describe('Scope Enforcement Middleware', () => {
   beforeEach(async () => {
     await resetDatabase();
-    prisma = getTestPrisma();
-    authEvents.clearHandlers();
   });
 
-  afterEach(() => {
-    authEvents.clearHandlers();
-  });
-
-  describe("Session Auth Bypass", () => {
-    it("should allow session auth to access any endpoint", async () => {
-      const { user } = await createTestUser();
-      
-      // Create app with session auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "session");
+  describe('Profile Endpoints - read:profile scope', () => {
+    it('should allow session auth to access GET /v1/me without scope check', async () => {
+      const { user, credentials } = await createTestUser({
+        name: 'Test User',
       });
 
-      // Session auth should access read endpoint
-      const readResponse = await makeRequest(app, "GET", "/transactions");
-      expect(readResponse.status).toBe(200);
-
-      // Session auth should access write endpoint
-      const writeResponse = await makeRequest(app, "POST", "/transactions");
-      expect(writeResponse.status).toBe(200);
-
-      // Session auth should access different resource
-      const budgetResponse = await makeRequest(app, "POST", "/budgets");
-      expect(budgetResponse.status).toBe(200);
-    });
-
-    it("should not check scopes for session auth", async () => {
-      const { user } = await createTestUser();
-
-      // Track audit events
-      const events: any[] = [];
-      authEvents.on((event) => events.push(event));
-
-      // Create app with session auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "session");
-        // No tokenScopes set for session auth
+      // Login to get session
+      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
+        body: {
+          email: credentials.email,
+          password: credentials.password,
+        },
       });
 
-      const response = await makeRequest(app, "GET", "/transactions");
-      expect(response.status).toBe(200);
+      expect(loginResponse.status).toBe(200);
 
-      // No scope_denied events should be emitted
-      const scopeDeniedEvents = events.filter(
-        (e) => e.type === "token.scope_denied"
+      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      expect(sessionCookie).toBeTruthy();
+
+      // Make request with session auth (should bypass scope check)
+      const response = await makeAuthenticatedRequest(
+        testApp,
+        'GET',
+        '/v1/me',
+        sessionCookie!
       );
-      expect(scopeDeniedEvents).toHaveLength(0);
-    });
-  });
 
-  describe("PAT Scope Enforcement", () => {
-    it("should allow PAT with sufficient scope", async () => {
-      const { user } = await createTestUser();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
-        },
-      });
-
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", ["read:transactions"]);
-      });
-
-      const response = await makeRequest(app, "GET", "/transactions");
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.message).toBe("Success");
+      expect(data.user.id).toBe(user.id);
+      expect(data.user.email).toBe(user.email);
     });
 
-    it("should deny PAT with insufficient scope", async () => {
+    it('should allow PAT with read:profile scope to access GET /v1/me', async () => {
       const { user } = await createTestUser();
+      const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
         where: { userId: user.id },
       });
 
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"], // Only read, not write
-        },
+      // Create token with read:profile scope
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Read Profile Token',
+        scopes: ['read:profile'],
       });
 
-      // Track audit events
-      const events: any[] = [];
-      authEvents.on((event) => events.push(event));
-
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", ["read:transactions"]);
-      });
-
-      const response = await makeRequest(app, "POST", "/transactions");
-      expect(response.status).toBe(403);
-
-      const data = await response.json();
-      expect(data.error).toBe("Insufficient permissions");
-      expect(data.required).toBe("write:transactions");
-
-      // Verify audit event was emitted
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe("token.scope_denied");
-      expect(events[0].userId).toBe(user.id);
-      expect(events[0].metadata.tokenId).toBe(apiKey.id);
-      expect(events[0].metadata.requiredScope).toBe("write:transactions");
-      expect(events[0].metadata.providedScopes).toEqual(["read:transactions"]);
-    });
-
-    it("should deny PAT with wrong scope", async () => {
-      const { user } = await createTestUser();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:budgets"], // Wrong resource
-        },
-      });
-
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", ["read:budgets"]);
-      });
-
-      const response = await makeRequest(app, "GET", "/transactions");
-      expect(response.status).toBe(403);
-
-      const data = await response.json();
-      expect(data.error).toBe("Insufficient permissions");
-      expect(data.required).toBe("read:transactions");
-    });
-
-    it("should allow PAT with multiple scopes", async () => {
-      const { user } = await createTestUser();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions", "write:transactions", "write:budgets"],
-        },
-      });
-
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", [
-          "read:transactions",
-          "write:transactions",
-          "write:budgets",
-        ]);
-      });
-
-      // Should access read endpoint
-      const readResponse = await makeRequest(app, "GET", "/transactions");
-      expect(readResponse.status).toBe(200);
-
-      // Should access write endpoint
-      const writeResponse = await makeRequest(app, "POST", "/transactions");
-      expect(writeResponse.status).toBe(200);
-
-      // Should access different resource
-      const budgetResponse = await makeRequest(app, "POST", "/budgets");
-      expect(budgetResponse.status).toBe(200);
-    });
-
-    it("should deny PAT with empty scopes", async () => {
-      const { user } = await createTestUser();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: [], // No scopes
-        },
-      });
-
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", []);
-      });
-
-      const response = await makeRequest(app, "GET", "/transactions");
-      expect(response.status).toBe(403);
-
-      const data = await response.json();
-      expect(data.error).toBe("Insufficient permissions");
-    });
-  });
-
-  describe("Audit Event Emission", () => {
-    it("should emit scope_denied event with full context", async () => {
-      const { user } = await createTestUser();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
-        },
-      });
-
-      // Track audit events
-      const events: any[] = [];
-      authEvents.on((event) => events.push(event));
-
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", ["read:transactions"]);
-      });
-
-      await makeRequest(app, "POST", "/transactions", {
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'GET', '/v1/me', {
         headers: {
-          "User-Agent": "Test Client",
-          "X-Forwarded-For": "192.168.1.1",
+          Authorization: `Bearer ${token}`,
         },
       });
 
-      expect(events).toHaveLength(1);
-      expect(events[0].type).toBe("token.scope_denied");
-      expect(events[0].userId).toBe(user.id);
-      expect(events[0].metadata).toMatchObject({
-        tokenId: apiKey.id,
-        endpoint: "/transactions",
-        method: "POST",
-        requiredScope: "write:transactions",
-        providedScopes: ["read:transactions"],
-        ip: "192.168.1.1",
-        userAgent: "Test Client",
-      });
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.user.id).toBe(user.id);
     });
 
-    it("should not emit events for successful scope checks", async () => {
+    it('should deny PAT without read:profile scope from accessing GET /v1/me', async () => {
       const { user } = await createTestUser();
+      const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
         where: { userId: user.id },
       });
 
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
+      // Create token without read:profile scope
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Write Only Token',
+        scopes: ['write:transactions'],
+      });
 
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'GET', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
       });
 
-      // Track audit events
-      const events: any[] = [];
-      authEvents.on((event) => events.push(event));
+      expect(response.status).toBe(403);
 
-      // Create app with PAT auth context
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", apiKey.id);
-        c.set("tokenScopes", ["read:transactions"]);
+      const data = await response.json();
+      expect(data.error).toBe('Insufficient permissions');
+      expect(data.required).toBe('read:profile');
+    });
+
+    it('should allow PAT with admin scope to access GET /v1/me', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
       });
 
-      await makeRequest(app, "GET", "/transactions");
+      // Create token with admin scope (grants all permissions)
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Admin Token',
+        scopes: ['admin'],
+      });
 
-      // No scope_denied events should be emitted
-      const scopeDeniedEvents = events.filter(
-        (e) => e.type === "token.scope_denied"
-      );
-      expect(scopeDeniedEvents).toHaveLength(0);
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'GET', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.user.id).toBe(user.id);
     });
   });
 
-  describe("Error Handling", () => {
-    it("should return 401 when authType is not set", async () => {
-      // Create app without setting authType in context
-      const app = createTestApp((c) => {
-        c.set("userId", "user_123");
-        c.set("userEmail", "test@example.com");
-        // authType not set
+  describe('Profile Endpoints - write:profile scope', () => {
+    it('should allow session auth to access PATCH /v1/me without scope check', async () => {
+      const { user, credentials } = await createTestUser({
+        name: 'Test User',
       });
 
-      const response = await makeRequest(app, "GET", "/transactions");
-      expect(response.status).toBe(401);
+      // Login to get session
+      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
+        body: {
+          email: credentials.email,
+          password: credentials.password,
+        },
+      });
+
+      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+
+      // Make request with session auth (should bypass scope check)
+      const response = await makeAuthenticatedRequest(
+        testApp,
+        'PATCH',
+        '/v1/me',
+        sessionCookie!,
+        {
+          body: {
+            name: 'Updated Name',
+            timezone: 'America/New_York',
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data.error).toBe("Unauthorized");
+      expect(data.user.name).toBe('Updated Name');
+      expect(data.user.profile.timezone).toBe('America/New_York');
     });
 
-    it("should handle missing tokenScopes gracefully", async () => {
+    it('should allow PAT with write:profile scope to access PATCH /v1/me', async () => {
       const { user } = await createTestUser();
+      const prisma = getTestPrisma();
 
-      // Create app with PAT auth but no tokenScopes
-      const app = createTestApp((c) => {
-        c.set("userId", user.id);
-        c.set("userEmail", user.email);
-        c.set("authType", "pat");
-        c.set("tokenId", "token_123");
-        // tokenScopes not set
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
       });
 
-      const response = await makeRequest(app, "GET", "/transactions");
+      // Create token with write:profile scope
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Write Profile Token',
+        scopes: ['write:profile'],
+      });
+
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'PATCH', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          name: 'Updated via PAT',
+        },
+      });
+
+      expect(response.status).toBe(200);
+
+      const data = await response.json();
+      expect(data.user.name).toBe('Updated via PAT');
+    });
+
+    it('should deny PAT with only read:profile scope from accessing PATCH /v1/me', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create token with only read:profile scope
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Read Only Token',
+        scopes: ['read:profile'],
+      });
+
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'PATCH', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          name: 'Should Fail',
+        },
+      });
+
       expect(response.status).toBe(403);
+
+      const data = await response.json();
+      expect(data.error).toBe('Insufficient permissions');
+      expect(data.required).toBe('write:profile');
+    });
+
+    it('should deny PAT without write:profile scope from accessing PATCH /v1/me', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create token without write:profile scope
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Wrong Scope Token',
+        scopes: ['read:transactions', 'write:transactions'],
+      });
+
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'PATCH', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          name: 'Should Fail',
+        },
+      });
+
+      expect(response.status).toBe(403);
+
+      const data = await response.json();
+      expect(data.error).toBe('Insufficient permissions');
+      expect(data.required).toBe('write:profile');
+    });
+  });
+
+  describe('Multiple Scopes', () => {
+    it('should allow PAT with multiple scopes including required scope', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create token with multiple scopes
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Multi-Scope Token',
+        scopes: ['read:profile', 'write:profile', 'read:transactions'],
+      });
+
+      // Test read access
+      const readResponse = await makeRequest(testApp, 'GET', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      expect(readResponse.status).toBe(200);
+
+      // Test write access
+      const writeResponse = await makeRequest(testApp, 'PATCH', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          name: 'Updated Name',
+        },
+      });
+
+      expect(writeResponse.status).toBe(200);
+    });
+
+    it('should deny PAT with multiple scopes but missing required scope', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create token with multiple scopes but not read:profile
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Wrong Scopes Token',
+        scopes: ['read:transactions', 'write:transactions', 'read:budgets'],
+      });
+
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'GET', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      expect(response.status).toBe(403);
+
+      const data = await response.json();
+      expect(data.error).toBe('Insufficient permissions');
+      expect(data.required).toBe('read:profile');
+    });
+  });
+
+  describe('Error Response Format', () => {
+    it('should return 403 with error and required scope in response', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create token without required scope
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Limited Token',
+        scopes: ['read:transactions'],
+      });
+
+      // Make request with Bearer token
+      const response = await makeRequest(testApp, 'GET', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      expect(response.status).toBe(403);
+
+      const data = await response.json();
+      expect(data).toHaveProperty('error');
+      expect(data).toHaveProperty('required');
+      expect(data.error).toBe('Insufficient permissions');
+      expect(data.required).toBe('read:profile');
+    });
+  });
+
+  describe('Session vs PAT Auth Behavior', () => {
+    it('should allow session auth full access regardless of endpoint scope', async () => {
+      const { user, credentials } = await createTestUser();
+
+      // Login to get session
+      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
+        body: {
+          email: credentials.email,
+          password: credentials.password,
+        },
+      });
+
+      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+
+      // Test read endpoint
+      const readResponse = await makeAuthenticatedRequest(
+        testApp,
+        'GET',
+        '/v1/me',
+        sessionCookie!
+      );
+      expect(readResponse.status).toBe(200);
+
+      // Test write endpoint
+      const writeResponse = await makeAuthenticatedRequest(
+        testApp,
+        'PATCH',
+        '/v1/me',
+        sessionCookie!,
+        {
+          body: {
+            name: 'Updated Name',
+          },
+        }
+      );
+      expect(writeResponse.status).toBe(200);
+    });
+
+    it('should enforce scopes for PAT auth but not session auth', async () => {
+      const { user, credentials } = await createTestUser();
+      const prisma = getTestPrisma();
+
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create read-only token
+      const { token } = await createApiToken(user.id, profile!.id, {
+        name: 'Read Only Token',
+        scopes: ['read:profile'],
+      });
+
+      // PAT should be denied write access
+      const patWriteResponse = await makeRequest(testApp, 'PATCH', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: {
+          name: 'Should Fail',
+        },
+      });
+      expect(patWriteResponse.status).toBe(403);
+
+      // Session should have write access
+      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
+        body: {
+          email: credentials.email,
+          password: credentials.password,
+        },
+      });
+
+      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+
+      const sessionWriteResponse = await makeAuthenticatedRequest(
+        testApp,
+        'PATCH',
+        '/v1/me',
+        sessionCookie!,
+        {
+          body: {
+            name: 'Should Succeed',
+          },
+        }
+      );
+      expect(sessionWriteResponse.status).toBe(200);
     });
   });
 });

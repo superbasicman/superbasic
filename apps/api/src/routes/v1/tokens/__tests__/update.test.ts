@@ -3,7 +3,11 @@
  * Tests token name updates, duplicate name rejection, ownership verification, and token functionality
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
+
 import { Hono } from "hono";
 import { resetDatabase } from "../../../../test/setup.js";
 import {

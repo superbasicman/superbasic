@@ -3,7 +3,11 @@
  * Tests token retrieval, masking, sorting, and access control
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
+
+// Unmock @repo/database for integration tests (use real Prisma client)
+vi.unmock('@repo/database');
+
 import { Hono } from "hono";
 import { resetDatabase } from "../../../../test/setup.js";
 import {

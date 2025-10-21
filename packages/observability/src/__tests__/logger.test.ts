@@ -4,7 +4,6 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { createLogger } from "../logger.js";
 import pino from "pino";
 
 describe("Logger Redaction", () => {
@@ -42,7 +41,8 @@ describe("Logger Redaction", () => {
         },
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.req.headers.authorization).toBe("Bearer [REDACTED]");
     });
 
@@ -72,7 +72,8 @@ describe("Logger Redaction", () => {
         },
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.headers.Authorization).toBe("[REDACTED]");
     });
   });
@@ -94,7 +95,9 @@ describe("Logger Redaction", () => {
               if (
                 args.length > 0 &&
                 typeof args[0] === "object" &&
-                args[0].msg
+                args[0] !== null &&
+                "msg" in args[0] &&
+                typeof args[0].msg === "string"
               ) {
                 args[0].msg = args[0].msg.replace(
                   /sbf_[A-Za-z0-9_-]+/g,
@@ -112,7 +115,8 @@ describe("Logger Redaction", () => {
         msg: "Token: sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.msg).toBe("Token: sbf_[REDACTED]");
     });
 
@@ -132,7 +136,9 @@ describe("Logger Redaction", () => {
               if (
                 args.length > 0 &&
                 typeof args[0] === "object" &&
-                args[0].msg
+                args[0] !== null &&
+                "msg" in args[0] &&
+                typeof args[0].msg === "string"
               ) {
                 args[0].msg = args[0].msg.replace(
                   /sbf_[A-Za-z0-9_-]+/g,
@@ -150,7 +156,8 @@ describe("Logger Redaction", () => {
         msg: "Tokens: sbf_abc123def456ghi789jkl012mno345pqr678stu901vwx234yz and sbf_xyz987wvu654tsr321qpo098nml765kji432hgf109edc876ba",
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.msg).toBe("Tokens: sbf_[REDACTED] and sbf_[REDACTED]");
     });
 
@@ -170,7 +177,9 @@ describe("Logger Redaction", () => {
               if (
                 args.length > 0 &&
                 typeof args[0] === "object" &&
-                args[0].msg
+                args[0] !== null &&
+                "msg" in args[0] &&
+                typeof args[0].msg === "string"
               ) {
                 args[0].msg = args[0].msg.replace(
                   /sbf_[A-Za-z0-9_-]+/g,
@@ -188,7 +197,8 @@ describe("Logger Redaction", () => {
         msg: "Token prefix is sbf_",
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       // Should not redact if there's no token after the prefix
       expect(logEntry.msg).toBe("Token prefix is sbf_");
     });
@@ -218,7 +228,8 @@ describe("Logger Redaction", () => {
         password: "super-secret-password",
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.password).toBe("[REDACTED]");
     });
 
@@ -245,7 +256,8 @@ describe("Logger Redaction", () => {
         secret: "my-secret-key",
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.secret).toBe("[REDACTED]");
     });
   });
@@ -287,7 +299,8 @@ describe("Logger Redaction", () => {
         },
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.req.method).toBe("GET");
       expect(logEntry.req.url).toBe("/v1/transactions");
       expect(logEntry.req.headers.authorization).toBe("Bearer [REDACTED]");
@@ -313,7 +326,8 @@ describe("Logger Redaction", () => {
         endpoint: "/v1/transactions",
       });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       expect(logEntry.userId).toBe("user_123");
       expect(logEntry.email).toBe("test@example.com");
       expect(logEntry.ip).toBe("192.168.1.1");
@@ -340,7 +354,8 @@ describe("Logger Redaction", () => {
 
       logger.info({ msg: "test" });
 
-      const logEntry = JSON.parse(logs[0]);
+      expect(logs[0]).toBeDefined();
+      const logEntry = JSON.parse(logs[0]!);
       // Check that timestamp exists and is in ISO format
       expect(logEntry.time).toBeDefined();
       expect(typeof logEntry.time).toBe("string");
