@@ -211,12 +211,12 @@ curl -i -X POST http://localhost:3000/v1/auth/signout \
 # OAuth Providers
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
-GITHUB_CLIENT_ID=your_github_client_id
-GITHUB_CLIENT_SECRET=your_github_client_secret
 
 # Email Provider (for magic links)
 EMAIL_SERVER=smtp://username:password@smtp.example.com:587
 EMAIL_FROM=noreply@superbasicfinance.com
+
+# Note: Additional OAuth providers (GitHub, Apple) will be added in Phase 16
 ```
 
 **Sanity Check**:
@@ -224,7 +224,6 @@ EMAIL_FROM=noreply@superbasicfinance.com
 ```bash
 # Verify .env.example has new variables
 grep "GOOGLE_CLIENT_ID" apps/api/.env.example
-grep "GITHUB_CLIENT_ID" apps/api/.env.example
 grep "EMAIL_SERVER" apps/api/.env.example
 
 # Verify .env.local exists with placeholders
@@ -245,6 +244,8 @@ test -f apps/api/.env.local && echo "✓ .env.local exists"
 **Description**: Create OAuth app in Google Cloud Console.
 
 **Setup Guide**: See `docs/oauth-setup-guide.md` for detailed step-by-step instructions.
+
+**Note**: GitHub and Apple OAuth deferred to Phase 16 (Advanced Features). Phase 2.1 focuses on Google OAuth and magic links only.
 
 **Implementation Notes**:
 
@@ -287,6 +288,13 @@ grep "GOOGLE_CLIENT_ID=" apps/api/.env.local | grep -v "your_google"
 grep "GOOGLE_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_google"
 # Should show actual secret (not placeholder)
 
+# Verify Google provider in config
+grep -A 3 "Google" packages/auth/src/config.ts
+
+# Test providers endpoint
+curl http://localhost:3000/v1/auth/providers | jq
+# Should include Google provider
+
 # Verify redirect URI in Google Cloud Console
 # Navigate to: https://console.cloud.google.com/apis/credentials
 # Check that http://localhost:3000/v1/auth/callback/google is listed
@@ -294,301 +302,11 @@ grep "GOOGLE_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_google"
 
 ---
 
-**Note**: GitHub OAuth deferred to Phase 16 (Advanced Features). Phase 2.1 focuses on Google OAuth and magic links only.
-
 ---
 
 ## Sub-Phase 3: Magic Link Setup (Week 1, Days 6-7 + Week 2, Days 1-3)
 
 ### Task 7: Choose and Configure Email Service
-
-**Status**: Not Started
-**Priority**: P1 (High)
-**Estimated Time**: 2 hours
-**Dependencies**: None
-
-- Email account linking will be configured when adding GitHub provider
-
-**Steps**:
-
-1. ✅ Open `packages/auth/src/config.ts`
-2. ✅ Import `Google` provider from `@auth/core/providers/google`
-3. ✅ Add Google provider to `providers` array
-4. [ ] Import `GitHub` provider from `@auth/core/providers/github` (pending Task 7)
-5. [ ] Add GitHub provider to `providers` array (pending Task 7)
-6. [ ] Configure `allowDangerousEmailAccountLinking: true`
-7. ✅ Test configuration loads without errors
-
-**Acceptance Criteria**:
-
-- [x] Google provider added to config
-- [ ] GitHub provider added to config
-- [ ] Email account linking enabled
-- [x] No TypeScript errors
-- [x] Config builds successfully
-- [ ] Code comments/documentation note how to append future providers (e.g., Apple) without additional refactor
-
-**Sanity Check**:
-
-```bash
-# Verify providers in config
-grep -A 5 "Google\|GitHub" packages/auth/src/config.ts
-
-# Check for email account linking
-grep "allowDangerousEmailAccountLinking" packages/auth/src/config.ts
-
-# Verify TypeScript builds
-pnpm build --filter=@repo/auth
-# Should complete without errors
-
-# Test providers endpoint
-curl http://localhost:3000/v1/auth/providers | jq
-# Should show: {"google": {...}, "github": {...}, "credentials": {...}}
-```
-
----
-
-### Task 8: Add Email Provider to Auth.js Config
-
-**Status**: Not Started
-**Priority**: P0 (Critical)
-**Estimated Time**: 1 hour
-**Dependencies**: None
-
-**Description**: Create helper function to ensure profile exists for OAuth users.
-
-**Steps**:
-
-1. Create `packages/auth/src/profile.ts`
-2. Implement `ensureProfileExists(userId)` function
-3. Check if profile exists
-4. Create profile if missing
-5. Export function
-6. Add to `packages/auth/src/index.ts` exports
-
-**Acceptance Criteria**:
-
-- [ ] File created at `packages/auth/src/profile.ts`
-- [ ] Function checks for existing profile
-- [ ] Function creates profile if missing
-- [ ] Function exported from package
-- [ ] Unit tests added
-
-**Sanity Check**:
-
-```bash
-# Verify file exists
-ls -la packages/auth/src/profile.ts
-
-# Check function is exported
-grep "ensureProfileExists" packages/auth/src/index.ts
-
-# Run unit tests
-pnpm test --filter=@repo/auth -- profile
-# Should show passing tests for ensureProfileExists
-
-# Verify TypeScript types
-pnpm typecheck --filter=@repo/auth
-```
-
----
-
-### Task 9: Create Magic Link Email Template
-
-**Status**: Not Started
-**Priority**: P0 (Critical)
-**Estimated Time**: 30 minutes
-**Dependencies**: Task 9
-
-**Description**: Update Auth.js config to create profiles for OAuth users.
-
-**Steps**:
-
-1. Open `packages/auth/src/config.ts`
-2. Add `signIn` callback to `callbacks` object
-3. Call `ensureProfileExists(user.id)` for OAuth sign-ins
-4. Return `true` to allow sign-in
-
-**Acceptance Criteria**:
-
-- [ ] `signIn` callback added
-- [ ] Profile created for new OAuth users
-- [ ] Existing users not affected
-- [ ] Callback doesn't block sign-in
-
-**Sanity Check**:
-
-```bash
-# Verify signIn callback in config
-grep -A 10 "signIn.*async" packages/auth/src/config.ts
-
-# Check it calls ensureProfileExists
-grep "ensureProfileExists" packages/auth/src/config.ts
-
-# Test with OAuth flow (after Task 11/12)
-# Sign in with new OAuth user and verify profile created:
-psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oauth_user_id>';"
-# Should return 1 row
-```
-
----
-
-### Task 10: Test Magic Link Flow
-
-**Status**: Not Started
-**Priority**: P0 (Critical)
-**Estimated Time**: 2 hours
-**Dependencies**: Task 8, Task 10
-
-**Description**: End-to-end test of Google OAuth authentication.
-
-**Steps**:
-
-1. Start dev server
-2. Navigate to `/v1/auth/signin/google`
-3. Complete Google consent flow
-4. Verify redirect to callback URL
-5. Verify session cookie set
-6. Verify user and profile created in database
-7. Verify account record created in `accounts` table
-
-**Acceptance Criteria**:
-
-- [ ] OAuth flow completes successfully
-- [ ] User redirected back to app
-- [ ] Session cookie set
-- [ ] User record created
-- [ ] Profile record created
-- [ ] Account record created with Google provider
-
-**Sanity Check**:
-
-```bash
-# Start OAuth flow (in browser)
-open http://localhost:3000/v1/auth/signin/google
-
-# After completing Google consent, verify database records:
-psql $DATABASE_URL -c "SELECT id, email, name FROM users WHERE email = '<your_google_email>';"
-# Should return 1 user
-
-psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<user_id_from_above>';"
-# Should return 1 profile
-
-psql $DATABASE_URL -c "SELECT provider, provider_account_id FROM accounts WHERE user_id = '<user_id>';"
-# Should show: provider = 'google'
-
-# Verify session works
-curl http://localhost:3000/v1/auth/session \
-  -H "Cookie: authjs.session-token=<token_from_browser>"
-# Should return user data with email
-```
-
----
-
-### Task 11: Implement Magic Link Rate Limiting
-
-**Status**: Not Started
-**Priority**: P0 (Critical)
-**Estimated Time**: 1 hour
-**Dependencies**: Task 8, Task 10
-
-**Description**: End-to-end test of GitHub OAuth authentication.
-
-**Steps**:
-
-1. Start dev server
-2. Navigate to `/v1/auth/signin/github`
-3. Complete GitHub authorization flow
-4. Verify redirect to callback URL
-5. Verify session cookie set
-6. Verify user and profile created in database
-7. Verify account record created in `accounts` table
-
-**Acceptance Criteria**:
-
-- [ ] OAuth flow completes successfully
-- [ ] User redirected back to app
-- [ ] Session cookie set
-- [ ] User record created
-- [ ] Profile record created
-- [ ] Account record created with GitHub provider
-
-**Sanity Check**:
-
-```bash
-# Start OAuth flow (in browser)
-open http://localhost:3000/v1/auth/signin/github
-
-# After completing GitHub authorization, verify database records:
-psql $DATABASE_URL -c "SELECT id, email, name FROM users WHERE email = '<your_github_email>';"
-# Should return 1 user
-
-psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<user_id_from_above>';"
-# Should return 1 profile
-
-psql $DATABASE_URL -c "SELECT provider, provider_account_id FROM accounts WHERE user_id = '<user_id>';"
-# Should show: provider = 'github'
-
-# Verify session works
-curl http://localhost:3000/v1/auth/session \
-  -H "Cookie: authjs.session-token=<token_from_browser>"
-# Should return user data with email
-```
-
----
-
-### Task 12: Create Profile Creation Helper
-
-**Status**: Not Started
-**Priority**: P1 (High)
-**Estimated Time**: 1 hour
-**Dependencies**: Task 11, Task 12
-
-**Description**: Verify OAuth accounts link to existing users by email.
-
-**Steps**:
-
-1. Create user with email/password
-2. Sign in with Google using same email
-3. Verify Google account linked to existing user
-4. Verify no duplicate user created
-5. Verify user can sign in with either method
-
-**Acceptance Criteria**:
-
-- [ ] OAuth account linked to existing user
-- [ ] No duplicate user created
-- [ ] Both auth methods work
-- [ ] Profile data preserved
-
-**Sanity Check**:
-
-```bash
-# Create user with email/password first
-curl -X POST http://localhost:3000/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
-
-# Get user ID
-psql $DATABASE_URL -c "SELECT id FROM users WHERE email = 'test@example.com';"
-# Note the user_id
-
-# Sign in with Google using same email (in browser)
-open http://localhost:3000/v1/auth/signin/google
-# Use test@example.com Google account
-
-# Verify only one user exists
-psql $DATABASE_URL -c "SELECT COUNT(*) FROM users WHERE email = 'test@example.com';"
-# Should return: count = 1
-
-# Verify two accounts linked to same user
-psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>';"
-# Should show: credentials, google (2 rows)
-```
-
----
-
-### Task 13: Add signIn Callback for Profile Creation
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -637,12 +355,12 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 
 ---
 
-### Task 14: Test Google OAuth Flow
+### Task 8: Add Email Provider to Auth.js Config
 
 **Status**: Not Started
-**Priority**: P1 (High)
+**Priority**: P0 (Critical)
 **Estimated Time**: 1 hour
-**Dependencies**: Task 14
+**Dependencies**: Task 7
 
 **Description**: Configure Email provider for magic links.
 
@@ -680,7 +398,7 @@ curl http://localhost:3000/v1/auth/providers | jq '.email'
 
 ---
 
-### Task 15: Test OAuth Account Linking
+### Task 9: Create Magic Link Email Template
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -747,14 +465,12 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 
 ---
 
-## Sub-Phase 4: Middleware Migration and Testing (Week 2, Days 4-7)
-
-### Task 16: Update Auth Middleware
+### Task 10: Test Magic Link Flow
 
 **Status**: Not Started
 **Priority**: P1 (High)
 **Estimated Time**: 2 hours
-**Dependencies**: Task 15, Task 16
+**Dependencies**: Task 8, Task 9
 
 **Description**: End-to-end test of magic link authentication.
 
@@ -809,12 +525,12 @@ psql $DATABASE_URL -c "SELECT identifier, expires FROM verification_tokens WHERE
 
 ---
 
-### Task 17: Migrate Integration Tests
+### Task 11: Implement Magic Link Rate Limiting
 
 **Status**: Not Started
 **Priority**: P1 (High)
 **Estimated Time**: 2 hours
-**Dependencies**: Task 17
+**Dependencies**: Task 10
 
 **Description**: Add rate limiting to prevent magic link abuse.
 
@@ -867,7 +583,197 @@ curl -i -X POST http://localhost:3000/v1/auth/signin/email \
 
 ---
 
-### Task 18: Add OAuth Flow Tests
+### Task 12: Create Profile Creation Helper
+
+**Status**: Not Started
+**Priority**: P1 (High)
+**Estimated Time**: 1 hour
+**Dependencies**: None
+
+**Description**: Create helper function to ensure profile exists for OAuth users.
+
+**Steps**:
+
+1. Create `packages/auth/src/profile.ts`
+2. Implement `ensureProfileExists(userId)` function
+3. Check if profile exists
+4. Create profile if missing
+5. Export function
+6. Add to `packages/auth/src/index.ts` exports
+
+**Acceptance Criteria**:
+
+- [ ] File created at `packages/auth/src/profile.ts`
+- [ ] Function checks for existing profile
+- [ ] Function creates profile if missing
+- [ ] Function exported from package
+- [ ] Unit tests added
+
+**Sanity Check**:
+
+```bash
+# Verify file exists
+ls -la packages/auth/src/profile.ts
+
+# Check function is exported
+grep "ensureProfileExists" packages/auth/src/index.ts
+
+# Run unit tests
+pnpm test --filter=@repo/auth -- profile
+# Should show passing tests for ensureProfileExists
+
+# Verify TypeScript types
+pnpm typecheck --filter=@repo/auth
+```
+
+---
+
+### Task 13: Add signIn Callback for Profile Creation
+
+**Status**: Not Started
+**Priority**: P1 (High)
+**Estimated Time**: 30 minutes
+**Dependencies**: Task 12
+
+**Description**: Update Auth.js config to create profiles for OAuth users.
+
+**Steps**:
+
+1. Open `packages/auth/src/config.ts`
+2. Add `signIn` callback to `callbacks` object
+3. Call `ensureProfileExists(user.id)` for OAuth sign-ins
+4. Return `true` to allow sign-in
+
+**Acceptance Criteria**:
+
+- [ ] `signIn` callback added
+- [ ] Profile created for new OAuth users
+- [ ] Existing users not affected
+- [ ] Callback doesn't block sign-in
+
+**Sanity Check**:
+
+```bash
+# Verify signIn callback in config
+grep -A 10 "signIn.*async" packages/auth/src/config.ts
+
+# Check it calls ensureProfileExists
+grep "ensureProfileExists" packages/auth/src/config.ts
+
+# Test with OAuth flow (after Google OAuth is working)
+# Sign in with new OAuth user and verify profile created:
+psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oauth_user_id>';"
+# Should return 1 row
+```
+
+---
+
+### Task 14: Test Google OAuth Flow
+
+**Status**: Not Started
+**Priority**: P1 (High)
+**Estimated Time**: 2 hours
+**Dependencies**: Task 13
+
+**Description**: End-to-end test of Google OAuth authentication.
+
+**Steps**:
+
+1. Start dev server
+2. Navigate to `/v1/auth/signin/google`
+3. Complete Google consent flow
+4. Verify redirect to callback URL
+5. Verify session cookie set
+6. Verify user and profile created in database
+7. Verify account record created in `accounts` table
+
+**Acceptance Criteria**:
+
+- [ ] OAuth flow completes successfully
+- [ ] User redirected back to app
+- [ ] Session cookie set
+- [ ] User record created
+- [ ] Profile record created
+- [ ] Account record created with Google provider
+
+**Sanity Check**:
+
+```bash
+# Start OAuth flow (in browser)
+open http://localhost:3000/v1/auth/signin/google
+
+# After completing Google consent, verify database records:
+psql $DATABASE_URL -c "SELECT id, email, name FROM users WHERE email = '<your_google_email>';"
+# Should return 1 user
+
+psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<user_id_from_above>';"
+# Should return 1 profile
+
+psql $DATABASE_URL -c "SELECT provider, provider_account_id FROM accounts WHERE user_id = '<user_id>';"
+# Should show: provider = 'google'
+
+# Verify session works
+curl http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token_from_browser>"
+# Should return user data with email
+```
+
+---
+
+### Task 15: Test OAuth Account Linking
+
+**Status**: Not Started
+**Priority**: P1 (High)
+**Estimated Time**: 1 hour
+**Dependencies**: Task 14
+
+**Description**: Verify OAuth accounts link to existing users by email.
+
+**Steps**:
+
+1. Create user with email/password
+2. Sign in with Google using same email
+3. Verify Google account linked to existing user
+4. Verify no duplicate user created
+5. Verify user can sign in with either method
+
+**Acceptance Criteria**:
+
+- [ ] OAuth account linked to existing user
+- [ ] No duplicate user created
+- [ ] Both auth methods work
+- [ ] Profile data preserved
+
+**Sanity Check**:
+
+```bash
+# Create user with email/password first
+curl -X POST http://localhost:3000/v1/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
+
+# Get user ID
+psql $DATABASE_URL -c "SELECT id FROM users WHERE email = 'test@example.com';"
+# Note the user_id
+
+# Sign in with Google using same email (in browser)
+open http://localhost:3000/v1/auth/signin/google
+# Use test@example.com Google account
+
+# Verify only one user exists
+psql $DATABASE_URL -c "SELECT COUNT(*) FROM users WHERE email = 'test@example.com';"
+# Should return: count = 1
+
+# Verify two accounts linked to same user
+psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>';"
+# Should show: credentials, google (2 rows)
+```
+
+---
+
+## Sub-Phase 4: Middleware Migration and Testing (Week 2, Days 4-7)
+
+### Task 16: Update Auth Middleware
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -918,12 +824,12 @@ pnpm dev --filter=@repo/api
 
 ---
 
-### Task 19: Add Magic Link Tests
+### Task 17: Migrate Integration Tests
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
 **Estimated Time**: 4 hours
-**Dependencies**: Task 19
+**Dependencies**: Task 16
 
 **Description**: Update all integration tests to work with Auth.js handlers.
 
@@ -966,12 +872,12 @@ pnpm test --filter=@repo/api | grep "skipped"
 
 ---
 
-### Task 20: Update E2E Tests
+### Task 18: Add OAuth Flow Tests
 
 **Status**: Not Started
 **Priority**: P1 (High)
 **Estimated Time**: 3 hours
-**Dependencies**: Task 20
+**Dependencies**: Task 17
 
 **Description**: Add integration tests for OAuth flows.
 
@@ -986,15 +892,13 @@ pnpm test --filter=@repo/api | grep "skipped"
 2. Import `postAuthJsForm` from `../test/helpers.js` for any form submissions
 3. Mock OAuth provider responses
 4. Test Google OAuth flow
-5. Test GitHub OAuth flow
-6. Test account linking
-7. Test OAuth errors
+5. Test account linking
+6. Test OAuth errors
 
 **Acceptance Criteria**:
 
-- [ ] OAuth tests added (10+ tests)
+- [ ] OAuth tests added (5+ tests)
 - [ ] Google OAuth flow tested
-- [ ] GitHub OAuth flow tested
 - [ ] Account linking tested
 - [ ] Error cases tested
 
@@ -1003,7 +907,7 @@ pnpm test --filter=@repo/api | grep "skipped"
 ```bash
 # Run OAuth tests
 pnpm test --filter=@repo/api -- oauth
-# Should show 10+ tests passing
+# Should show 5+ tests passing
 
 # Check test file exists
 ls -la apps/api/src/__tests__/oauth.test.ts
@@ -1016,7 +920,6 @@ pnpm test --filter=@repo/api -- oauth --coverage
 grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 # Should show tests for:
 # - Google OAuth flow
-# - GitHub OAuth flow
 # - Account linking
 # - Invalid provider
 # - Missing credentials
@@ -1025,14 +928,12 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 
 ---
 
-## Sub-Phase 5: Web Client Integration and Cleanup (Week 3)
-
-### Task 21: Update API Client with Auth.js Endpoints
+### Task 19: Add Magic Link Tests
 
 **Status**: Not Started
 **Priority**: P1 (High)
 **Estimated Time**: 2 hours
-**Dependencies**: Task 20
+**Dependencies**: Task 17
 
 **Description**: Add integration tests for magic link flow.
 
@@ -1096,12 +997,12 @@ grep "it\|test" apps/api/src/__tests__/magic-link.test.ts
 
 ---
 
-### Task 22: Update AuthContext for OAuth Callback Handling
+### Task 20: Update E2E Tests
 
 **Status**: Not Started
 **Priority**: P1 (High)
 **Estimated Time**: 3 hours
-**Dependencies**: Task 21, Task 22
+**Dependencies**: Task 18, Task 19
 
 **Description**: Update E2E tests to cover OAuth and magic link flows.
 
@@ -1141,12 +1042,14 @@ pnpm exec playwright show-report
 
 ---
 
-### Task 23: Add OAuth Buttons and Magic Link UI to Login Page
+## Sub-Phase 5: Web Client Integration and Cleanup (Week 3)
+
+### Task 21: Update API Client with Auth.js Endpoints
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
 **Estimated Time**: 3 hours
-**Dependencies**: Task 11, Task 12
+**Dependencies**: Task 14
 
 **Description**: Update `authApi` in web client to call Auth.js handlers using REST pattern. Add form-encoded POST helper and OAuth redirect methods.
 
@@ -1156,11 +1059,10 @@ pnpm exec playwright show-report
 2. Add `apiFormPost()` helper for form-encoded requests (Auth.js expects `application/x-www-form-urlencoded`)
 3. Update `authApi.login()` to POST to `/v1/auth/callback/credentials` with form-encoded body
 4. Add `authApi.loginWithGoogle()` - redirects to `/v1/auth/signin/google`
-5. Add `authApi.loginWithGitHub()` - redirects to `/v1/auth/signin/github`
-6. Add `authApi.requestMagicLink(email)` - POSTs to `/v1/auth/signin/email` with form-encoded body
-7. Update `authApi.me()` to call `/v1/auth/session`
-8. Update `authApi.logout()` to POST to `/v1/auth/signout`
-9. Keep `authApi.register()` unchanged (not part of Auth.js)
+5. Add `authApi.requestMagicLink(email)` - POSTs to `/v1/auth/signin/email` with form-encoded body
+6. Update `authApi.me()` to call `/v1/auth/session`
+7. Update `authApi.logout()` to POST to `/v1/auth/signout`
+8. Keep `authApi.register()` unchanged (not part of Auth.js)
 
 **Acceptance Criteria**:
 
@@ -1179,7 +1081,7 @@ pnpm exec playwright show-report
 grep "apiFormPost" apps/web/src/lib/api.ts
 
 # Check authApi methods updated
-grep -A 3 "login\|loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/lib/api.ts
+grep -A 3 "login\|loginWithGoogle\|requestMagicLink" apps/web/src/lib/api.ts
 
 # Verify TypeScript builds
 pnpm build --filter=@repo/web
@@ -1192,12 +1094,12 @@ pnpm build --filter=@repo/web
 
 ---
 
-### Task 24: Update CORS Configuration for OAuth Callbacks
+### Task 22: Update AuthContext for OAuth Callback Handling
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
 **Estimated Time**: 3 hours
-**Dependencies**: Task 24
+**Dependencies**: Task 21
 
 **Description**: Update `AuthContext` to handle OAuth callbacks, detect error query params, and add new auth methods.
 
@@ -1211,10 +1113,9 @@ pnpm build --filter=@repo/web
    - Clears query params and redirects to callbackUrl
 3. Add `useEffect` hook to call `handleOAuthCallback()` on location change
 4. Add `loginWithGoogle()` method - calls `authApi.loginWithGoogle()`
-5. Add `loginWithGitHub()` method - calls `authApi.loginWithGitHub()`
-6. Add `requestMagicLink(email)` method - calls `authApi.requestMagicLink()`
-7. Update `AuthContextType` interface with new methods
-8. Keep existing `login()`, `register()`, `logout()` methods unchanged
+5. Add `requestMagicLink(email)` method - calls `authApi.requestMagicLink()`
+6. Update `AuthContextType` interface with new methods
+7. Keep existing `login()`, `register()`, `logout()` methods unchanged
 
 **Acceptance Criteria**:
 
@@ -1238,7 +1139,7 @@ grep "handleOAuthCallback" apps/web/src/contexts/AuthContext.tsx
 grep "error.*query" apps/web/src/contexts/AuthContext.tsx
 
 # Verify new methods in context
-grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/AuthContext.tsx
+grep "loginWithGoogle\|requestMagicLink" apps/web/src/contexts/AuthContext.tsx
 
 # Test in browser
 # 1. Start OAuth flow: click "Sign in with Google"
@@ -1246,34 +1147,55 @@ grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/
 # 3. Verify query params cleared after 1-2 seconds
 # 4. Check console for any errors
 # 5. Verify user is logged in (check AuthContext state)
+```ts updated
+- [ ] OAuth flows tested (or documented as manual test)
+- [ ] Magic link flows tested
+- [ ] All E2E tests passing
+
+**Sanity Check**:
+
+```bash
+# Run E2E tests
+pnpm test:e2e
+
+# Or run Playwright tests
+pnpm exec playwright test
+
+# Check E2E test files
+ls -la apps/web/e2e/*.spec.ts
+
+# Run specific auth E2E tests
+pnpm exec playwright test auth
+
+# View test report
+pnpm exec playwright show-report
 ```
 
 ---
 
-### Task 25: Update API Documentation
+### Task 23: Add OAuth Buttons and Magic Link UI to Login Page
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
 **Estimated Time**: 2 hours
-**Dependencies**: Task 25
+**Dependencies**: Task 22
 
 **Description**: Update login page with OAuth buttons and magic link form.
 
 **Steps**:
 
 1. Open `apps/web/src/pages/Login.tsx`
-2. Import `loginWithGoogle`, `loginWithGitHub`, `requestMagicLink` from `useAuth()`
+2. Import `loginWithGoogle`, `requestMagicLink` from `useAuth()`
 3. Add Google OAuth button - calls `loginWithGoogle()` on click
-4. Add GitHub OAuth button - calls `loginWithGitHub()` on click
-5. Add magic link form with email input
-6. Add magic link submit handler - calls `requestMagicLink(email)`
-7. Show "Check your email" message after magic link sent
-8. Add visual separators between auth methods ("or")
-9. Keep existing email/password form unchanged
+4. Add magic link form with email input
+5. Add magic link submit handler - calls `requestMagicLink(email)`
+6. Show "Check your email" message after magic link sent
+7. Add visual separators between auth methods ("or")
+8. Keep existing email/password form unchanged
 
 **Acceptance Criteria**:
 
-- [ ] OAuth buttons visible and functional
+- [ ] OAuth button visible and functional
 - [ ] Magic link form visible and functional
 - [ ] Success message shown after magic link request
 - [ ] Existing email/password login still works
@@ -1291,10 +1213,9 @@ open http://localhost:5173/login
 
 # Manual UI checks:
 # 1. Verify "Sign in with Google" button visible
-# 2. Verify "Sign in with GitHub" button visible
-# 3. Verify magic link email input and submit button
-# 4. Verify "or" separators between auth methods
-# 5. Verify existing email/password form still present
+# 2. Verify magic link email input and submit button
+# 3. Verify "or" separators between auth methods
+# 4. Verify existing email/password form still present
 
 # Test OAuth button click
 # Click "Sign in with Google" → should redirect to Google OAuth
@@ -1305,6 +1226,110 @@ open http://localhost:5173/login
 # Check browser console
 # Should have no errors (open DevTools → Console tab)
 ```
+
+---
+
+### Task 24: Update CORS Configuration for OAuth Callbacks
+
+**Status**: Not Started
+**Priority**: P0 (Critical)
+**Estimated Time**: 30 minutes
+**Dependencies**: Task 3
+
+**Description**: Update CORS configuration to allow OAuth callback redirects.
+
+**Steps**:
+
+1. Open `apps/api/src/app.ts`
+2. Update CORS middleware to include:
+   - `http://localhost:5173` (Vite dev server)
+   - `http://localhost:3000` (API dev server for OAuth callbacks)
+   - `process.env.WEB_URL` (production web client)
+3. Ensure `credentials: true` is set
+4. Verify `allowMethods` includes GET, POST, OPTIONS
+5. Test CORS with OAuth flow
+
+**Acceptance Criteria**:
+
+- [ ] CORS allows web client origin
+- [ ] CORS allows API origin (for OAuth callbacks)
+- [ ] Credentials enabled for cookies
+- [ ] OAuth redirects work without CORS errors
+- [ ] Existing API calls still work
+
+**Sanity Check**:
+
+```bash
+# Check CORS configuration
+grep -A 10 "cors" apps/api/src/app.ts
+
+# Verify origins include localhost:5173 and localhost:3000
+grep "localhost:5173\|localhost:3000" apps/api/src/app.ts
+
+# Test CORS with preflight request
+curl -i -X OPTIONS http://localhost:3000/v1/auth/session \
+  -H "Origin: http://localhost:5173" \
+  -H "Access-Control-Request-Method: GET"
+# Should return 200 with Access-Control-Allow-Origin header
+
+# Test OAuth flow in browser
+# Open http://localhost:5173/login
+# Click "Sign in with Google"
+# Check browser console for CORS errors (should be none)
+
+# Test existing API calls
+curl -i http://localhost:3000/v1/health \
+  -H "Origin: http://localhost:5173"
+# Should return 200 with CORS headers
+```
+
+---
+
+### Task 25: Update API Documentation
+
+**Status**: Not Started
+**Priority**: P1 (High)
+**Estimated Time**: 3 hours
+**Dependencies**: All previous tasks
+
+**Description**: Update API documentation with OAuth and magic link flows.
+
+**Steps**:
+
+1. Update `docs/api-authentication.md`
+2. Document OAuth flows (Google)
+3. Document magic link flow
+4. Add OAuth setup instructions
+5. Add environment variable documentation
+6. Add troubleshooting section
+
+**Acceptance Criteria**:
+
+- [ ] Documentation updated
+- [ ] OAuth flows documented
+- [ ] Magic link flow documented
+- [ ] Setup instructions clear
+- [ ] Examples provided
+
+**Sanity Check**:
+
+````bash
+# Verify documentation file updated
+ls -la docs/api-authentication.md
+
+# Check for OAuth sections
+grep -i "oauth\|google" docs/api-authentication.md
+
+# Check for magic link section
+grep -i "magic link\|email" docs/api-authentication.md
+
+# Verify setup instructions present
+grep -i "setup\|configuration" docs/api-authentication.md
+
+# Check for code examples
+grep "```" docs/api-authentication.md | wc -l
+# Should show multiple code blocks (5+)
+````
 
 ---
 
@@ -1376,7 +1401,7 @@ curl -i http://localhost:3000/v1/health \
 **Steps**:
 
 1. Update `docs/api-authentication.md`
-2. Document OAuth flows (Google, GitHub)
+2. Document OAuth flows (Google)
 3. Document magic link flow
 4. Add OAuth setup instructions
 5. Add environment variable documentation
@@ -1397,7 +1422,7 @@ curl -i http://localhost:3000/v1/health \
 ls -la docs/api-authentication.md
 
 # Check for OAuth sections
-grep -i "oauth\|google\|github" docs/api-authentication.md
+grep -i "oauth\|google" docs/api-authentication.md
 
 # Check for magic link section
 grep -i "magic link\|email" docs/api-authentication.md
@@ -1522,7 +1547,7 @@ curl https://api.superbasicfinance.com/v1/auth/providers
 2. Document what was built
 3. Add sanity checks (curl commands for OAuth/magic link flows)
 4. Add usage examples
-5. Document OAuth setup (Google/GitHub app registration)
+5. Document OAuth setup (Google app registration)
 6. Document magic link setup (email service configuration)
 7. Document REST-first architecture decision
 
@@ -1555,7 +1580,7 @@ grep "## " docs/phase-2.1-readme.md
 grep -A 5 "Sanity Checks" docs/phase-2.1-readme.md | grep "curl"
 
 # Check OAuth setup instructions
-grep -A 10 "OAuth Setup\|Google\|GitHub" docs/phase-2.1-readme.md
+grep -A 10 "OAuth Setup\|Google" docs/phase-2.1-readme.md
 
 # Check magic link setup
 grep -A 10 "Magic Link\|Email" docs/phase-2.1-readme.md
@@ -1613,7 +1638,7 @@ Phase 2.1 is complete when:
 - [ ] All P1 tasks completed
 - [ ] All 225 existing tests passing (including Phase 3 PAT tests)
 - [ ] New OAuth and magic link tests added (15+ tests)
-- [ ] OAuth flows working (Google, GitHub) via REST redirects
+- [ ] OAuth flows working (Google) via REST redirects
 - [ ] Magic link flow working via REST POST
 - [ ] Web client has OAuth buttons and magic link UI
 - [ ] OAuth callback handling working (error detection, session polling)

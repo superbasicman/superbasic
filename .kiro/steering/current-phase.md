@@ -73,7 +73,7 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - OAuth form uses POST with CSRF token (not simple link)
 - Documentation created: `docs/archived/task-6-oauth-csrf-fix.md`
 
-**Architecture Decision**: GitHub OAuth deferred to Phase 16 (Advanced Features) to focus on core functionality. Phase 2.1 will deliver Google OAuth + magic links only.
+**Architecture Decision**: Additional OAuth providers (GitHub, Apple) deferred to Phase 16 (Advanced Features) to focus on core functionality. Phase 2.1 will deliver Google OAuth + magic links only.
 
 ### Sub-Phase 3 Progress (Tasks 7-15): 🔄 STARTING
 

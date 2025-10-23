@@ -111,7 +111,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 **Status**: IN PROGRESS - Sub-Phase 3 Starting (Task 7 Next: Email Service Setup)
 
-**Context**: Phase 2 implemented a hybrid approach using Auth.js utilities (`encode`/`decode`) with custom Hono routes. This phase completes the Auth.js migration to enable OAuth (Google, GitHub) and magic link authentication while maintaining backward compatibility with existing sessions and PAT tokens. The implementation keeps the provider architecture extensible so additional providers (for example, Apple) can be dropped in once we secure the required accounts.
+**Context**: Phase 2 implemented a hybrid approach using Auth.js utilities (`encode`/`decode`) with custom Hono routes. This phase completes the Auth.js migration to enable OAuth (Google) and magic link authentication while maintaining backward compatibility with existing sessions and PAT tokens. The implementation keeps the provider architecture extensible so additional providers (GitHub, Apple) can be added in Phase 16 once we secure the required accounts.
 
 ### Deliverables
 
@@ -136,7 +136,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 ### Exit Criteria
 
 - [ ] Users can log in with Google OAuth
-- [ ] Architecture supports adding additional OAuth providers (e.g., GitHub, Apple) without refactor
+- [ ] Architecture supports adding additional OAuth providers (GitHub, Apple) in Phase 16 without refactor
 - [ ] Users can request magic link via email
 - [ ] Magic link logs user in without password
 - [ ] Existing email/password authentication still works
@@ -166,7 +166,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 4. ✅ OAuth callback handling (built into Auth.js)
 5. ⏭️ Test Google OAuth flow in development (pending user testing)
 
-_Note_: GitHub and Apple OAuth deferred to Phase 16 (Advanced Features) to focus on core functionality
+_Note_: Additional OAuth providers (GitHub, Apple) deferred to Phase 16 (Advanced Features) to focus on core functionality
 
 **Phase 2.1.3: Magic Link Setup (Week 2)**
 
@@ -228,15 +228,11 @@ _Note_: GitHub and Apple OAuth deferred to Phase 16 (Advanced Features) to focus
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 
-# Future providers (Phase 16) can be added without code changes:
-# GITHUB_CLIENT_ID=...
-# GITHUB_CLIENT_SECRET=...
-# APPLE_CLIENT_ID=...
-# APPLE_CLIENT_SECRET=...
-
 # Email Provider (for magic links)
 EMAIL_SERVER=smtp://...
 EMAIL_FROM=noreply@superbasicfinance.com
+
+# Note: Additional OAuth providers (GitHub, Apple) will be added in Phase 16
 ```
 
 ### Dependencies
@@ -249,11 +245,11 @@ EMAIL_FROM=noreply@superbasicfinance.com
 - ✅ Auth.js config file exists (`packages/auth/src/config.ts`)
 - ✅ Database schema has Auth.js tables
 
-- **External Dependencies:**
-- OAuth provider accounts (Google, GitHub)  
-  _Future_: Apple Developer account when we turn on Apple Sign-In
+**External Dependencies:**
+- ✅ Google OAuth app (registered and configured)
 - Email service account (SendGrid, Postmark, or Resend)
 - Domain for OAuth callbacks (can use localhost for development)
+- _Note_: GitHub and Apple OAuth accounts deferred to Phase 16
 
 **Blockers:**
 
