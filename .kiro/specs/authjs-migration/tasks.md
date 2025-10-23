@@ -412,7 +412,7 @@ grep "EMAIL_SERVER\|EMAIL_FROM" packages/auth/src/config.ts
 pnpm build --filter=@repo/auth
 
 # Test providers endpoint includes email
-curl http://localhost:3000/v1/auth/providers | jq '.email'
+curl http://localhost:3000/v1/auth/providers '.email'
 # Should show email provider config
 ```
 

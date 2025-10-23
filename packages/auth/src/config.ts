@@ -71,7 +71,7 @@ export const authConfig: AuthConfig = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
     Email({
-      from: process.env.EMAIL_FROM ?? "noreply@superbasicfinance.com",
+      from: process.env.EMAIL_FROM ?? "onboard@resend.com",
       // Dummy server config required by Auth.js (not actually used since we override sendVerificationRequest)
       server: {
         host: "localhost",
