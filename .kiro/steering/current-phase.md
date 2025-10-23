@@ -78,7 +78,8 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 ### Sub-Phase 3 Progress (Tasks 7-15): 🔄 IN PROGRESS
 
 **Completed Tasks:**
-- Task 7: ✅ Choose and Configure Email Service (2024-10-23)
+- Task 7: ✅ Choose and Configure Email Service (2025-10-23)
+- Task 8: ✅ Add Email Provider to Auth.js Config (2025-10-23)
 
 **Task 7 Achievements:**
 - Resend account created and API key obtained
@@ -93,9 +94,21 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Documentation: `docs/task-7-resend-setup.md`
 - Temporary debug script deleted (task-hygiene cleanup)
 
+**Completed Tasks:**
+- Task 8: ✅ Add Email Provider to Auth.js Config (2025-10-23)
+
+**Task 8 Achievements:**
+- Email provider from `@auth/core/providers/email` added to Auth.js config
+- Custom `sendVerificationRequest` function configured to use Resend
+- Lazy-loaded Resend client to avoid requiring API key at module load time
+- Added `nodemailer@6.9.16` as peer dependency (required by Auth.js Email provider)
+- Added dummy SMTP server config (required by Auth.js but not used)
+- `/v1/auth/providers` endpoint now returns email provider
+- Email provider configured with `EMAIL_FROM` environment variable
+- TypeScript builds successfully (runtime working, typecheck has known Auth.js type issues)
+
 **Next Up:**
-- Task 8: Add Email Provider to Auth.js Config
-- Task 9: Create Magic Link Email Template (may be combined with Task 8)
+- Task 9: Create Magic Link Email Template (may be combined with Task 10)
 - Task 10: Test Magic Link Flow
 
 ## Phase 3 Context (Completed and Revalidated)

@@ -1,13 +1,13 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 export interface SendMagicLinkEmailParams {
   to: string;
   url: string;
 }
 
 export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams): Promise<void> {
+  // Lazy-load Resend client to avoid requiring API key at module load time
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
   await resend.emails.send({

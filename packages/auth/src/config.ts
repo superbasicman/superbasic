@@ -6,9 +6,11 @@
 import type { AuthConfig } from "@auth/core";
 import Credentials from "@auth/core/providers/credentials";
 import Google from "@auth/core/providers/google";
+import Email from "@auth/core/providers/email";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/database";
 import { verifyPassword } from "./password.js";
+import { sendMagicLinkEmail } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
 
 export const authConfig: AuthConfig = {
@@ -68,6 +70,18 @@ export const authConfig: AuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
+    Email({
+      from: process.env.EMAIL_FROM ?? "noreply@superbasicfinance.com",
+      // Dummy server config required by Auth.js (not actually used since we override sendVerificationRequest)
+      server: {
+        host: "localhost",
+        port: 587,
+        auth: { user: "dummy", pass: "dummy" },
+      },
+      sendVerificationRequest: async ({ identifier: email, url }) => {
+        await sendMagicLinkEmail({ to: email, url });
+      },
+    }),
   ],
   session: {
     strategy: "jwt", // Stateless sessions; no database session rows created
@@ -92,7 +106,7 @@ export const authConfig: AuthConfig = {
       }
       return session;
     },
-    async redirect({ url, baseUrl }) {
+    async redirect() {
       // Always redirect to the web app after OAuth sign-in
       // Auth.js default behavior is to redirect to baseUrl (API server)
       // We want users to land in the React app instead

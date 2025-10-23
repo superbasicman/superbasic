@@ -20,8 +20,14 @@ if (!testEmail) {
   process.exit(1);
 }
 
-const apiKey = process.env.RESEND_API_KEY || 're_QCFJoGYk_HZHQbemKkLH6Z7pfhEDgBv9t';
+const apiKey = process.env.RESEND_API_KEY;
 const from = process.env.EMAIL_FROM || 'noreply@superbasicfinance.com';
+
+if (!apiKey) {
+  console.error('❌ RESEND_API_KEY environment variable is required');
+  console.log('Usage: RESEND_API_KEY=re_xxx pnpm tsx tooling/scripts/test-resend.ts your-email@example.com');
+  process.exit(1);
+}
 
 if (!apiKey || apiKey === 'your_resend_api_key_here') {
   console.error('❌ Error: RESEND_API_KEY not configured');

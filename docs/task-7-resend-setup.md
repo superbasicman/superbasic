@@ -56,10 +56,10 @@ The magic link email includes:
 
 ```bash
 # Method 1: Pass environment variables inline
-RESEND_API_KEY=re_xxx EMAIL_FROM=onboarding@resend.dev \
+RESEND_API_KEY=re_your_api_key EMAIL_FROM=noreply@superbasicfinance.com \
   pnpm tsx tooling/scripts/test-resend.ts your-email@example.com
 
-# Method 2: Source env file first
+# Method 2: Source env file first (recommended)
 export $(cat apps/api/.env.local | xargs)
 pnpm tsx tooling/scripts/test-resend.ts your-email@example.com
 ```
@@ -76,7 +76,7 @@ grep "EMAIL_FROM=" apps/api/.env.local
 # ✅ Should show: EMAIL_FROM=onboarding@resend.dev
 
 # Test Resend integration
-RESEND_API_KEY=re_xxx pnpm tsx tooling/scripts/test-resend.ts test@example.com
+RESEND_API_KEY=re_your_api_key pnpm tsx tooling/scripts/test-resend.ts test@example.com
 # ✅ Should output: Email sent successfully!
 
 # Verify email utility is exported
@@ -104,11 +104,11 @@ pnpm build --filter=@repo/auth
 ### Development & Production (`.env.local`)
 
 ```bash
-RESEND_API_KEY=re_QCFJoGYk_HZHQbemKkLH6Z7pfhEDgBv9t
+RESEND_API_KEY=re_your_resend_api_key_here
 EMAIL_FROM=noreply@superbasicfinance.com
 ```
 
-**Note**: Domain is verified, so we use the custom domain for all environments
+**Note**: Domain is verified, so we use the custom domain for all environments. Get your API key from the Resend dashboard.
 
 ## API Usage
 
