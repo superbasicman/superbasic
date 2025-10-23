@@ -3,7 +3,7 @@
  * Tests token name updates, duplicate name rejection, ownership verification, and token functionality
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
@@ -15,7 +15,6 @@ import {
   createTestUser,
 } from "../../../../test/helpers.js";
 import {
-  COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
   JWT_SALT,
   authConfig,
@@ -203,7 +202,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       });
 
       // Create two tokens with different names
-      const { apiKey: token1 } = await createTestApiKey(user.id, profile!.id, "Token 1");
+      await createTestApiKey(user.id, profile!.id, "Token 1");
       const { apiKey: token2 } = await createTestApiKey(user.id, profile!.id, "Token 2");
 
       const app = createTestApp();

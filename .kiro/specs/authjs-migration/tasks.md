@@ -21,17 +21,20 @@ Estimated Duration: 3 weeks
 **Implementation Note**: The `@auth/hono` package does not exist in npm. Instead, we're using `@auth/core` (v0.37.4) which is already installed and provides the framework-agnostic `Auth()` function that works with Hono's Web standard Request/Response APIs.
 
 **Steps**:
+
 1. ~~Run `pnpm add @auth/hono --filter=@repo/api`~~ (Package doesn't exist)
 2. ✅ Verified `@auth/core` v0.37.4 installed in `apps/api/package.json`
 3. ✅ No additional installation needed
 4. ✅ No dependency conflicts
 
 **Acceptance Criteria**:
+
 - [x] Auth.js core package available (`@auth/core` v0.37.4)
 - [x] No dependency conflicts
 - [x] Dependencies verified (pre-existing TypeScript errors are unrelated)
 
 **Sanity Check**:
+
 ```bash
 # Verify @auth/core is installed
 pnpm list @auth/core --filter=@repo/api
@@ -56,6 +59,7 @@ pnpm install --filter=@repo/api
 **Implementation Note**: Created custom Hono integration using `Auth()` function from `@auth/core` since `@auth/hono` package doesn't exist. The handler wraps Auth.js to work with Hono's Web standard Request/Response APIs.
 
 **Steps**:
+
 1. ✅ Created `apps/api/src/auth.ts`
 2. ✅ Imported `Auth` function from `@auth/core`
 3. ✅ Imported `authConfig` from `@repo/auth`
@@ -64,12 +68,14 @@ pnpm install --filter=@repo/api
 6. ✅ Exported `authApp`
 
 **Acceptance Criteria**:
+
 - [x] File created at `apps/api/src/auth.ts`
 - [x] Auth.js handler configured using `Auth()` from `@auth/core`
 - [x] No TypeScript errors
 - [x] File exports `authApp`
 
 **Sanity Check**:
+
 ```bash
 # Verify file exists
 ls -la apps/api/src/auth.ts
@@ -85,27 +91,36 @@ grep "export.*authApp" apps/api/src/auth.ts
 
 ### Task 3: Mount Auth.js Handler in Main App
 
-**Status**: Not Started
+**Status**: ✅ Complete
 **Priority**: P0 (Critical)
 **Estimated Time**: 30 minutes
 **Dependencies**: Task 2
 
 **Description**: Integrate Auth.js handler into main Hono app.
 
+**Implementation Notes**:
+
+- Added `trustHost: true` to Auth.js config to handle the UntrustedHost error
+- Added `AUTH_URL` and `AUTH_TRUST_HOST` environment variables
+- Updated `.env.example` with new Auth.js configuration variables
+
 **Steps**:
-1. Open `apps/api/src/app.ts`
-2. Import `authApp` from `./auth.js`
-3. Mount at `/v1/auth` using `app.route()`
-4. Ensure mounted before existing routes
-5. Test handler responds to `/v1/auth/signin`
+
+1. ✅ Open `apps/api/src/app.ts`
+2. ✅ Import `authApp` from `./auth.js`
+3. ✅ Mount at `/v1/auth` using `app.route()`
+4. ✅ Ensure mounted before existing routes
+5. ✅ Test handler responds to `/v1/auth/signin`
 
 **Acceptance Criteria**:
-- [ ] Auth.js handler mounted at `/v1/auth`
-- [ ] Handler responds to requests
-- [ ] Existing routes still functional
-- [ ] No route conflicts
+
+- [x] Auth.js handler mounted at `/v1/auth`
+- [x] Handler responds to requests
+- [x] Existing routes still functional
+- [x] No route conflicts
 
 **Sanity Check**:
+
 ```bash
 # Start dev server
 pnpm dev --filter=@repo/api
@@ -123,7 +138,7 @@ curl -i http://localhost:3000/v1/health
 
 ### Task 4: Test Auth.js Handler with Credentials Provider
 
-**Status**: Not Started
+**Status**: ✅ Complete
 **Priority**: P0 (Critical)
 **Estimated Time**: 2 hours
 **Dependencies**: Task 3
@@ -131,6 +146,7 @@ curl -i http://localhost:3000/v1/health
 **Description**: Verify Auth.js handler works with existing Credentials provider.
 
 **Steps**:
+
 1. Start dev server: `pnpm dev --filter=@repo/api`
 2. Test POST `/v1/auth/signin/credentials` with valid credentials
 3. Verify session cookie set
@@ -139,13 +155,15 @@ curl -i http://localhost:3000/v1/health
 6. Compare session format with custom routes
 
 **Acceptance Criteria**:
-- [ ] Credentials sign-in works via Auth.js handler
-- [ ] Session cookie set correctly
-- [ ] Session data matches expected format
-- [ ] Sign-out clears session
-- [ ] Session format compatible with existing middleware
+
+- [x] Credentials sign-in works via Auth.js handler
+- [x] Session cookie set correctly
+- [x] Session data matches expected format
+- [x] Sign-out clears session
+- [x] Session format compatible with existing middleware
 
 **Sanity Check**:
+
 ```bash
 # Test credentials sign-in
 curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
@@ -176,16 +194,19 @@ curl -i -X POST http://localhost:3000/v1/auth/signout \
 **Description**: Add placeholder environment variables for OAuth and email providers.
 
 **Steps**:
+
 1. Update `apps/api/.env.example` with new variables
 2. Add to `apps/api/.env.local` (with placeholder values)
 3. Document required variables in README
 
 **Acceptance Criteria**:
+
 - [ ] `.env.example` updated
 - [ ] `.env.local` has placeholders
 - [ ] Variables documented
 
 **Environment Variables**:
+
 ```bash
 # OAuth Providers
 GOOGLE_CLIENT_ID=your_google_client_id
@@ -199,6 +220,7 @@ EMAIL_FROM=noreply@superbasicfinance.com
 ```
 
 **Sanity Check**:
+
 ```bash
 # Verify .env.example has new variables
 grep "GOOGLE_CLIENT_ID" apps/api/.env.example
@@ -223,6 +245,7 @@ test -f apps/api/.env.local && echo "✓ .env.local exists"
 **Description**: Create OAuth app in Google Cloud Console.
 
 **Steps**:
+
 1. Go to Google Cloud Console
 2. Create new project or select existing
 3. Enable Google+ API
@@ -232,12 +255,14 @@ test -f apps/api/.env.local && echo "✓ .env.local exists"
 7. Add to `.env.local`
 
 **Acceptance Criteria**:
+
 - [ ] Google OAuth app created
 - [ ] Client ID and secret obtained
 - [ ] Redirect URI configured
 - [ ] Credentials added to `.env.local`
 
 **Sanity Check**:
+
 ```bash
 # Verify credentials are in .env.local
 grep "GOOGLE_CLIENT_ID=" apps/api/.env.local | grep -v "your_google"
@@ -263,6 +288,7 @@ grep "GOOGLE_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_google"
 **Description**: Create OAuth app in GitHub.
 
 **Steps**:
+
 1. Go to GitHub Settings > Developer settings > OAuth Apps
 2. Click "New OAuth App"
 3. Set callback URL: `http://localhost:3000/v1/auth/callback/github`
@@ -270,12 +296,14 @@ grep "GOOGLE_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_google"
 5. Add to `.env.local`
 
 **Acceptance Criteria**:
+
 - [ ] GitHub OAuth app created
 - [ ] Client ID and secret obtained
 - [ ] Callback URL configured
 - [ ] Credentials added to `.env.local`
 
 **Sanity Check**:
+
 ```bash
 # Verify credentials are in .env.local
 grep "GITHUB_CLIENT_ID=" apps/api/.env.local | grep -v "your_github"
@@ -301,6 +329,7 @@ grep "GITHUB_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_github"
 **Description**: Configure Google and GitHub providers in Auth.js config.
 
 **Steps**:
+
 1. Open `packages/auth/src/config.ts`
 2. Import `Google` and `GitHub` providers from `@auth/core/providers`
 3. Add providers to `providers` array
@@ -308,6 +337,7 @@ grep "GITHUB_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_github"
 5. Test configuration loads without errors
 
 **Acceptance Criteria**:
+
 - [ ] Google provider added to config
 - [ ] GitHub provider added to config
 - [ ] Email account linking enabled
@@ -316,6 +346,7 @@ grep "GITHUB_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_github"
 - [ ] Code comments/documentation note how to append future providers (e.g., Apple) without additional refactor
 
 **Sanity Check**:
+
 ```bash
 # Verify providers in config
 grep -A 5 "Google\|GitHub" packages/auth/src/config.ts
@@ -344,6 +375,7 @@ curl http://localhost:3000/v1/auth/providers | jq
 **Description**: Create helper function to ensure profile exists for OAuth users.
 
 **Steps**:
+
 1. Create `packages/auth/src/profile.ts`
 2. Implement `ensureProfileExists(userId)` function
 3. Check if profile exists
@@ -352,6 +384,7 @@ curl http://localhost:3000/v1/auth/providers | jq
 6. Add to `packages/auth/src/index.ts` exports
 
 **Acceptance Criteria**:
+
 - [ ] File created at `packages/auth/src/profile.ts`
 - [ ] Function checks for existing profile
 - [ ] Function creates profile if missing
@@ -359,6 +392,7 @@ curl http://localhost:3000/v1/auth/providers | jq
 - [ ] Unit tests added
 
 **Sanity Check**:
+
 ```bash
 # Verify file exists
 ls -la packages/auth/src/profile.ts
@@ -386,18 +420,21 @@ pnpm typecheck --filter=@repo/auth
 **Description**: Update Auth.js config to create profiles for OAuth users.
 
 **Steps**:
+
 1. Open `packages/auth/src/config.ts`
 2. Add `signIn` callback to `callbacks` object
 3. Call `ensureProfileExists(user.id)` for OAuth sign-ins
 4. Return `true` to allow sign-in
 
 **Acceptance Criteria**:
+
 - [ ] `signIn` callback added
 - [ ] Profile created for new OAuth users
 - [ ] Existing users not affected
 - [ ] Callback doesn't block sign-in
 
 **Sanity Check**:
+
 ```bash
 # Verify signIn callback in config
 grep -A 10 "signIn.*async" packages/auth/src/config.ts
@@ -423,6 +460,7 @@ psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oa
 **Description**: End-to-end test of Google OAuth authentication.
 
 **Steps**:
+
 1. Start dev server
 2. Navigate to `/v1/auth/signin/google`
 3. Complete Google consent flow
@@ -432,6 +470,7 @@ psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oa
 7. Verify account record created in `accounts` table
 
 **Acceptance Criteria**:
+
 - [ ] OAuth flow completes successfully
 - [ ] User redirected back to app
 - [ ] Session cookie set
@@ -440,6 +479,7 @@ psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oa
 - [ ] Account record created with Google provider
 
 **Sanity Check**:
+
 ```bash
 # Start OAuth flow (in browser)
 open http://localhost:3000/v1/auth/signin/google
@@ -472,6 +512,7 @@ curl http://localhost:3000/v1/auth/session \
 **Description**: End-to-end test of GitHub OAuth authentication.
 
 **Steps**:
+
 1. Start dev server
 2. Navigate to `/v1/auth/signin/github`
 3. Complete GitHub authorization flow
@@ -481,6 +522,7 @@ curl http://localhost:3000/v1/auth/session \
 7. Verify account record created in `accounts` table
 
 **Acceptance Criteria**:
+
 - [ ] OAuth flow completes successfully
 - [ ] User redirected back to app
 - [ ] Session cookie set
@@ -489,6 +531,7 @@ curl http://localhost:3000/v1/auth/session \
 - [ ] Account record created with GitHub provider
 
 **Sanity Check**:
+
 ```bash
 # Start OAuth flow (in browser)
 open http://localhost:3000/v1/auth/signin/github
@@ -521,6 +564,7 @@ curl http://localhost:3000/v1/auth/session \
 **Description**: Verify OAuth accounts link to existing users by email.
 
 **Steps**:
+
 1. Create user with email/password
 2. Sign in with Google using same email
 3. Verify Google account linked to existing user
@@ -528,12 +572,14 @@ curl http://localhost:3000/v1/auth/session \
 5. Verify user can sign in with either method
 
 **Acceptance Criteria**:
+
 - [ ] OAuth account linked to existing user
 - [ ] No duplicate user created
 - [ ] Both auth methods work
 - [ ] Profile data preserved
 
 **Sanity Check**:
+
 ```bash
 # Create user with email/password first
 curl -X POST http://localhost:3000/v1/auth/register \
@@ -571,6 +617,7 @@ psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>'
 **Description**: Select email service and configure SMTP settings.
 
 **Steps**:
+
 1. Evaluate options: SendGrid, Postmark, Resend
 2. Create account with chosen service
 3. Obtain SMTP credentials
@@ -578,6 +625,7 @@ psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>'
 5. Test SMTP connection
 
 **Acceptance Criteria**:
+
 - [ ] Email service account created
 - [ ] SMTP credentials obtained
 - [ ] Credentials added to `.env.local`
@@ -586,6 +634,7 @@ psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>'
 **Recommendation**: Resend (best pricing, modern API)
 
 **Sanity Check**:
+
 ```bash
 # Verify EMAIL_SERVER in .env.local
 grep "EMAIL_SERVER=" apps/api/.env.local | grep -v "smtp.example.com"
@@ -617,6 +666,7 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 **Description**: Configure Email provider for magic links.
 
 **Steps**:
+
 1. Open `packages/auth/src/config.ts`
 2. Import `Email` provider from `@auth/core/providers/email`
 3. Add Email provider to `providers` array
@@ -624,12 +674,14 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 5. Test configuration loads without errors
 
 **Acceptance Criteria**:
+
 - [ ] Email provider added to config
 - [ ] SMTP server configured
 - [ ] From address configured
 - [ ] No TypeScript errors
 
 **Sanity Check**:
+
 ```bash
 # Verify Email provider in config
 grep -A 5 "Email" packages/auth/src/config.ts
@@ -657,6 +709,7 @@ curl http://localhost:3000/v1/auth/providers | jq '.email'
 **Description**: Design and implement email template for magic links.
 
 **Steps**:
+
 1. Create plain text email template
 2. Include magic link button
 3. Include plain text link (for email clients without HTML)
@@ -665,12 +718,14 @@ curl http://localhost:3000/v1/auth/providers | jq '.email'
 6. Test template rendering
 
 **Acceptance Criteria**:
+
 - [ ] Email template created
 - [ ] Magic link included
 - [ ] Expiration notice included
 - [ ] Template renders correctly in major email clients
 
 **Template Structure**:
+
 ```
 Subject: Sign in to SuperBasic Finance
 
@@ -691,6 +746,7 @@ Need help? Contact us at support@superbasicfinance.com
 ```
 
 **Sanity Check**:
+
 ```bash
 # Verify email template file exists
 ls -la packages/auth/src/email-template.ts  # or .html
@@ -720,6 +776,7 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 **Description**: End-to-end test of magic link authentication.
 
 **Steps**:
+
 1. Start dev server
 2. Request magic link via `/v1/auth/signin/email`
 3. Check email inbox for magic link
@@ -730,6 +787,7 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 8. Verify token marked as used in database
 
 **Acceptance Criteria**:
+
 - [ ] Magic link email delivered
 - [ ] Magic link works
 - [ ] Session cookie set
@@ -737,6 +795,7 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 - [ ] Token cannot be reused
 
 **Sanity Check**:
+
 ```bash
 # Request magic link
 curl -X POST http://localhost:3000/v1/auth/signin/email \
@@ -777,6 +836,7 @@ psql $DATABASE_URL -c "SELECT identifier, expires FROM verification_tokens WHERE
 **Description**: Add rate limiting to prevent magic link abuse.
 
 **Steps**:
+
 1. Create rate limit middleware for magic link requests
 2. Limit to 3 requests per hour per email
 3. Use existing Upstash Redis infrastructure
@@ -784,12 +844,14 @@ psql $DATABASE_URL -c "SELECT identifier, expires FROM verification_tokens WHERE
 5. Test rate limiting works
 
 **Acceptance Criteria**:
+
 - [ ] Rate limiting implemented
 - [ ] 3 requests per hour per email enforced
 - [ ] 429 response returned when exceeded
 - [ ] Rate limit resets after 1 hour
 
 **Sanity Check**:
+
 ```bash
 # Request magic link 3 times
 for i in {1..3}; do
@@ -834,6 +896,7 @@ curl -i -X POST http://localhost:3000/v1/auth/signin/email \
 **Description**: Update auth middleware to support Auth.js sessions while maintaining PAT authentication.
 
 **Steps**:
+
 1. Open `apps/api/src/middleware/auth.ts`
 2. Add Bearer token check first (PAT auth)
 3. If no Bearer token, check Auth.js session
@@ -842,6 +905,7 @@ curl -i -X POST http://localhost:3000/v1/auth/signin/email \
 6. Ensure backward compatibility
 
 **Acceptance Criteria**:
+
 - [ ] PAT authentication checked first
 - [ ] Auth.js sessions validated
 - [ ] userId and profileId attached to context
@@ -849,6 +913,7 @@ curl -i -X POST http://localhost:3000/v1/auth/signin/email \
 - [ ] No breaking changes
 
 **Sanity Check**:
+
 ```bash
 # Test PAT authentication (should work unchanged)
 curl -i http://localhost:3000/v1/tokens \
@@ -882,6 +947,7 @@ pnpm dev --filter=@repo/api
 **Description**: Update all integration tests to work with Auth.js handlers.
 
 **Steps**:
+
 1. Update test helpers to use `/v1/auth/*` endpoints
 2. Update login test helper
 3. Update registration test helper
@@ -890,12 +956,14 @@ pnpm dev --filter=@repo/api
 6. Ensure 100% pass rate
 
 **Acceptance Criteria**:
+
 - [ ] All integration tests updated
 - [ ] All tests passing
 - [ ] Test helpers updated
 - [ ] No test regressions
 
 **Sanity Check**:
+
 ```bash
 # Run all integration tests
 pnpm test --filter=@repo/api
@@ -927,6 +995,7 @@ pnpm test --filter=@repo/api | grep "skipped"
 **Description**: Add integration tests for OAuth flows.
 
 **Steps**:
+
 1. Create test file: `apps/api/src/__tests__/oauth.test.ts`
 2. Mock OAuth provider responses
 3. Test Google OAuth flow
@@ -935,6 +1004,7 @@ pnpm test --filter=@repo/api | grep "skipped"
 6. Test OAuth errors
 
 **Acceptance Criteria**:
+
 - [ ] OAuth tests added (10+ tests)
 - [ ] Google OAuth flow tested
 - [ ] GitHub OAuth flow tested
@@ -942,6 +1012,7 @@ pnpm test --filter=@repo/api | grep "skipped"
 - [ ] Error cases tested
 
 **Sanity Check**:
+
 ```bash
 # Run OAuth tests
 pnpm test --filter=@repo/api -- oauth
@@ -977,6 +1048,7 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 **Description**: Add integration tests for magic link flow.
 
 **Steps**:
+
 1. Create test file: `apps/api/src/__tests__/magic-link.test.ts`
 2. Mock email sending
 3. Test magic link request
@@ -985,6 +1057,7 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 6. Test rate limiting
 
 **Acceptance Criteria**:
+
 - [ ] Magic link tests added (5+ tests)
 - [ ] Request flow tested
 - [ ] Validation tested
@@ -992,6 +1065,7 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 - [ ] Rate limiting tested
 
 **Sanity Check**:
+
 ```bash
 # Run magic link tests
 pnpm test --filter=@repo/api -- magic-link
@@ -1022,6 +1096,7 @@ grep "it\|test" apps/api/src/__tests__/magic-link.test.ts
 **Description**: Update E2E tests to cover OAuth and magic link flows.
 
 **Steps**:
+
 1. Update existing auth E2E tests
 2. Add OAuth flow E2E tests (if possible with mocking)
 3. Add magic link flow E2E tests
@@ -1029,12 +1104,14 @@ grep "it\|test" apps/api/src/__tests__/magic-link.test.ts
 5. Fix any failures
 
 **Acceptance Criteria**:
+
 - [ ] E2E tests updated
 - [ ] OAuth flows tested (or documented as manual test)
 - [ ] Magic link flows tested
 - [ ] All E2E tests passing
 
 **Sanity Check**:
+
 ```bash
 # Run E2E tests
 pnpm test:e2e
@@ -1066,6 +1143,7 @@ pnpm exec playwright show-report
 **Description**: Update `authApi` in web client to call Auth.js handlers using REST pattern. Add form-encoded POST helper and OAuth redirect methods.
 
 **Steps**:
+
 1. Open `apps/web/src/lib/api.ts`
 2. Add `apiFormPost()` helper for form-encoded requests (Auth.js expects `application/x-www-form-urlencoded`)
 3. Update `authApi.login()` to POST to `/v1/auth/callback/credentials` with form-encoded body
@@ -1077,6 +1155,7 @@ pnpm exec playwright show-report
 9. Keep `authApi.register()` unchanged (not part of Auth.js)
 
 **Acceptance Criteria**:
+
 - [ ] Form-encoded POST helper implemented
 - [ ] All authApi methods updated to call Auth.js endpoints
 - [ ] OAuth redirect methods added (no `@auth/react` dependency)
@@ -1086,6 +1165,7 @@ pnpm exec playwright show-report
 **Key Technical Detail**: Auth.js credential and email sign-in endpoints expect `application/x-www-form-urlencoded`, not JSON. The `apiFormPost()` helper handles this conversion.
 
 **Sanity Check**:
+
 ```bash
 # Verify apiFormPost helper exists
 grep "apiFormPost" apps/web/src/lib/api.ts
@@ -1114,6 +1194,7 @@ pnpm build --filter=@repo/web
 **Description**: Update `AuthContext` to handle OAuth callbacks, detect error query params, and add new auth methods.
 
 **Steps**:
+
 1. Open `apps/web/src/contexts/AuthContext.tsx`
 2. Add `handleOAuthCallback()` function that:
    - Detects `?error=...` query param and shows error message
@@ -1128,6 +1209,7 @@ pnpm build --filter=@repo/web
 8. Keep existing `login()`, `register()`, `logout()` methods unchanged
 
 **Acceptance Criteria**:
+
 - [ ] OAuth callback detection working
 - [ ] Error query params handled and displayed
 - [ ] Session fetched after OAuth return
@@ -1139,6 +1221,7 @@ pnpm build --filter=@repo/web
 **Key Technical Detail**: After OAuth redirect, the SPA must poll `/v1/auth/session` to get user data, then clear the `callbackUrl` query param to avoid re-triggering the callback handler.
 
 **Sanity Check**:
+
 ```bash
 # Verify handleOAuthCallback function exists
 grep "handleOAuthCallback" apps/web/src/contexts/AuthContext.tsx
@@ -1169,6 +1252,7 @@ grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/
 **Description**: Update login page with OAuth buttons and magic link form.
 
 **Steps**:
+
 1. Open `apps/web/src/pages/Login.tsx`
 2. Import `loginWithGoogle`, `loginWithGitHub`, `requestMagicLink` from `useAuth()`
 3. Add Google OAuth button - calls `loginWithGoogle()` on click
@@ -1180,6 +1264,7 @@ grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/
 9. Keep existing email/password form unchanged
 
 **Acceptance Criteria**:
+
 - [ ] OAuth buttons visible and functional
 - [ ] Magic link form visible and functional
 - [ ] Success message shown after magic link request
@@ -1188,6 +1273,7 @@ grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/
 - [ ] No console errors
 
 **Sanity Check**:
+
 ```bash
 # Start web dev server
 pnpm dev --filter=@repo/web
@@ -1224,6 +1310,7 @@ open http://localhost:5173/login
 **Description**: Update CORS configuration to allow OAuth callback redirects.
 
 **Steps**:
+
 1. Open `apps/api/src/app.ts`
 2. Update CORS middleware to include:
    - `http://localhost:5173` (Vite dev server)
@@ -1234,6 +1321,7 @@ open http://localhost:5173/login
 5. Test CORS with OAuth flow
 
 **Acceptance Criteria**:
+
 - [ ] CORS allows web client origin
 - [ ] CORS allows API origin (for OAuth callbacks)
 - [ ] Credentials enabled for cookies
@@ -1241,6 +1329,7 @@ open http://localhost:5173/login
 - [ ] Existing API calls still work
 
 **Sanity Check**:
+
 ```bash
 # Check CORS configuration
 grep -A 10 "cors" apps/api/src/app.ts
@@ -1277,6 +1366,7 @@ curl -i http://localhost:3000/v1/health \
 **Description**: Update API documentation with OAuth and magic link flows.
 
 **Steps**:
+
 1. Update `docs/api-authentication.md`
 2. Document OAuth flows (Google, GitHub)
 3. Document magic link flow
@@ -1285,6 +1375,7 @@ curl -i http://localhost:3000/v1/health \
 6. Add troubleshooting section
 
 **Acceptance Criteria**:
+
 - [ ] Documentation updated
 - [ ] OAuth flows documented
 - [ ] Magic link flow documented
@@ -1292,7 +1383,8 @@ curl -i http://localhost:3000/v1/health \
 - [ ] Examples provided
 
 **Sanity Check**:
-```bash
+
+````bash
 # Verify documentation file updated
 ls -la docs/api-authentication.md
 
@@ -1308,7 +1400,7 @@ grep -i "setup\|configuration" docs/api-authentication.md
 # Check for code examples
 grep "```" docs/api-authentication.md | wc -l
 # Should show multiple code blocks (5+)
-```
+````
 
 ---
 
@@ -1322,6 +1414,7 @@ grep "```" docs/api-authentication.md | wc -l
 **Description**: Mark custom auth routes as deprecated (keep for rollback).
 
 **Steps**:
+
 1. Add deprecation comments to custom routes
 2. Add console warnings when custom routes used
 3. Update web client to use Auth.js exclusively
@@ -1329,12 +1422,14 @@ grep "```" docs/api-authentication.md | wc -l
 5. Plan removal after 1 week
 
 **Acceptance Criteria**:
+
 - [ ] Custom routes marked as deprecated
 - [ ] Warnings added
 - [ ] Web client uses Auth.js only
 - [ ] Usage monitored
 
 **Sanity Check**:
+
 ```bash
 # Check for deprecation comments
 grep -i "deprecated" apps/api/src/routes/v1/auth/*.ts
@@ -1363,6 +1458,7 @@ pnpm dev --filter=@repo/api | grep "DEPRECATED"
 **Description**: Remove deprecated custom auth routes after successful migration.
 
 **Steps**:
+
 1. Verify no usage of custom routes
 2. Delete custom route files
 3. Remove route registrations
@@ -1370,12 +1466,14 @@ pnpm dev --filter=@repo/api | grep "DEPRECATED"
 5. Deploy to production
 
 **Acceptance Criteria**:
+
 - [ ] Custom routes removed
 - [ ] No route conflicts
 - [ ] Tests still passing
 - [ ] Production deployment successful
 
 **Sanity Check**:
+
 ```bash
 # Verify custom auth route files deleted
 ls apps/api/src/routes/v1/auth/login.ts 2>/dev/null
@@ -1413,6 +1511,7 @@ curl https://api.superbasicfinance.com/v1/auth/providers
 **Description**: Update `.kiro/steering/current-phase.md` to reflect Phase 2.1 completion.
 
 **Steps**:
+
 1. Open `.kiro/steering/current-phase.md`
 2. Mark Phase 2.1 as complete
 3. Update status summary
@@ -1420,11 +1519,13 @@ curl https://api.superbasicfinance.com/v1/auth/providers
 5. Update next steps
 
 **Acceptance Criteria**:
+
 - [ ] Current phase document updated
 - [ ] Phase 2.1 marked complete
 - [ ] Achievements documented
 
 **Sanity Check**:
+
 ```bash
 # Verify current-phase.md updated
 grep "Phase 2.1" .kiro/steering/current-phase.md
@@ -1452,6 +1553,7 @@ grep "Last Updated" .kiro/steering/current-phase.md
 **Description**: Create comprehensive readme for Phase 2.1.
 
 **Steps**:
+
 1. Create `docs/phase-2.1-readme.md`
 2. Document what was built
 3. Add sanity checks (curl commands for OAuth/magic link flows)
@@ -1461,6 +1563,7 @@ grep "Last Updated" .kiro/steering/current-phase.md
 7. Document REST-first architecture decision
 
 **Acceptance Criteria**:
+
 - [ ] Readme created
 - [ ] Comprehensive documentation
 - [ ] Sanity checks included with curl examples
@@ -1469,6 +1572,7 @@ grep "Last Updated" .kiro/steering/current-phase.md
 - [ ] Architecture decision documented
 
 **Sanity Check**:
+
 ```bash
 # Verify readme file created
 ls -la docs/phase-2.1-readme.md
@@ -1501,6 +1605,7 @@ grep -i "REST\|API-first\|Capacitor" docs/phase-2.1-readme.md
 ## Task Summary by Priority
 
 ### P0 (Critical) - Must Complete
+
 - Tasks 1-5: Auth.js handler integration
 - Tasks 6-13: OAuth provider setup
 - Tasks 19-20: Middleware migration and testing
@@ -1510,24 +1615,29 @@ grep -i "REST\|API-first\|Capacitor" docs/phase-2.1-readme.md
 - Task 27: Update CORS configuration
 
 ### P1 (High) - Should Complete
+
 - Tasks 14-18: Magic link setup
 - Tasks 21-23: OAuth and magic link tests
 - Task 28: Documentation updates
 
 ### P2 (Low) - Nice to Have
+
 - Tasks 29-32: Cleanup and documentation
 
 ## Estimated Timeline
 
 **Week 1**:
+
 - Days 1-3: Tasks 1-5 (Auth.js handler integration)
 - Days 4-7: Tasks 6-13 (OAuth provider setup)
 
 **Week 2**:
+
 - Days 1-3: Tasks 14-18 (Magic link setup)
 - Days 4-7: Tasks 19-23 (Middleware migration and testing)
 
 **Week 3**:
+
 - Days 1-3: Tasks 24-28 (Web client integration, CORS, and documentation)
 - Days 4-5: Tasks 29-32 (Cleanup and final documentation)
 

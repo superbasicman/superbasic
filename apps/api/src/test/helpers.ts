@@ -52,7 +52,9 @@ export async function makeRequest(
   };
 
   if (body !== undefined) {
-    init.body = JSON.stringify(body);
+    // If body is already a string (e.g., form-encoded), use it directly
+    // Otherwise, JSON stringify it
+    init.body = typeof body === 'string' ? body : JSON.stringify(body);
   }
 
   // Make request to Hono app
@@ -109,6 +111,71 @@ export function extractCookie(response: Response, name: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Get CSRF token from Auth.js for testing credentials sign-in
+ * 
+ * @param app - Hono application instance
+ * @returns Object with csrfToken and cookie
+ */
+export async function getAuthJsCSRFToken(
+  app: Hono<any>
+): Promise<{ csrfToken: string; csrfCookie: string }> {
+  const response = await makeRequest(app, 'GET', '/v1/auth/csrf');
+  
+  if (response.status !== 200) {
+    throw new Error(`Failed to get CSRF token: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const csrfCookie = extractCookie(response, '__Host-authjs.csrf-token') || 
+                     extractCookie(response, 'authjs.csrf-token');
+  
+  if (!data.csrfToken || !csrfCookie) {
+    throw new Error('CSRF token or cookie not found in response');
+  }
+
+  return {
+    csrfToken: data.csrfToken,
+    csrfCookie,
+  };
+}
+
+/**
+ * Sign in with credentials using Auth.js (handles CSRF automatically)
+ * 
+ * @param app - Hono application instance
+ * @param email - User email
+ * @param password - User password
+ * @returns Response object
+ */
+export async function signInWithCredentials(
+  app: Hono<any>,
+  email: string,
+  password: string
+): Promise<Response> {
+  // Get CSRF token
+  const { csrfToken, csrfCookie } = await getAuthJsCSRFToken(app);
+
+  // Build form data with CSRF token
+  const formData = new URLSearchParams({
+    email,
+    password,
+    csrfToken,
+  });
+
+  // Make sign-in request with CSRF cookie
+  return makeRequest(app, 'POST', '/v1/auth/callback/credentials', {
+    body: formData.toString(),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    cookies: {
+      '__Host-authjs.csrf-token': csrfCookie,
+      'authjs.csrf-token': csrfCookie, // Fallback for non-HTTPS
+    },
+  });
 }
 
 /**

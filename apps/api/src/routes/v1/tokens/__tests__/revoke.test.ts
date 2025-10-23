@@ -15,7 +15,6 @@ import {
   createTestUser,
 } from "../../../../test/helpers.js";
 import {
-  COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
   JWT_SALT,
   authConfig,
@@ -475,7 +474,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
         where: { userId: user.id },
       });
 
-      const { apiKey, token } = await createTestApiKey(user.id, profile!.id);
+      const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
       const sessionToken = await createSessionToken(user.id, user.email);
 

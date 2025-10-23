@@ -12,6 +12,7 @@ import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
 
 export const authConfig: AuthConfig = {
   basePath: "/v1/auth",
+  trustHost: true, // Trust the host from AUTH_URL or request headers
   adapter: PrismaAdapter(prisma), // For future OAuth; unused with JWT strategy
   providers: [
     Credentials({

@@ -134,7 +134,7 @@ describe("PAT Authentication Middleware", () => {
 
       // Track audit events
       const events: any[] = [];
-      authEvents.on((event) => { events.push(event); });
+      authEvents.on((event) => events.push(event));
 
       const response = await makeRequest(app, "GET", "/protected", {
         headers: {
@@ -162,7 +162,7 @@ describe("PAT Authentication Middleware", () => {
 
       // Track audit events
       const events: any[] = [];
-      authEvents.on((event) => { events.push(event); });
+      authEvents.on((event) => events.push(event));
 
       const response = await makeRequest(app, "GET", "/protected", {
         headers: {
@@ -208,7 +208,7 @@ describe("PAT Authentication Middleware", () => {
 
       // Track audit events
       const events: any[] = [];
-      authEvents.on((event) => { events.push(event); });
+      authEvents.on((event) => events.push(event));
 
       const response = await makeRequest(app, "GET", "/protected", {
         headers: {
@@ -258,7 +258,7 @@ describe("PAT Authentication Middleware", () => {
 
       // Track audit events
       const events: any[] = [];
-      authEvents.on((event) => { events.push(event); });
+      authEvents.on((event) => events.push(event));
 
       const response = await makeRequest(app, "GET", "/protected", {
         headers: {
@@ -477,7 +477,7 @@ describe("PAT Authentication Middleware", () => {
 
       // Track audit events
       const events: any[] = [];
-      authEvents.on((event) => { events.push(event); });
+      authEvents.on((event) => events.push(event));
 
       const response = await makeRequest(app, "GET", "/protected", {
         headers: {
@@ -505,7 +505,7 @@ describe("PAT Authentication Middleware", () => {
 
       // Track audit events
       const events: any[] = [];
-      authEvents.on((event) => { events.push(event); });
+      authEvents.on((event) => events.push(event));
 
       // Test invalid format
       await makeRequest(app, "GET", "/protected", {

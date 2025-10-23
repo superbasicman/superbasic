@@ -12,7 +12,11 @@ import { UpdateTokenRequestSchema } from "@repo/types";
 import { prisma } from "@repo/database";
 import { authMiddleware } from "../../../middleware/auth.js";
 
-const updateTokenRoute = new Hono();
+type Variables = {
+  userId: string;
+};
+
+const updateTokenRoute = new Hono<{ Variables: Variables }>();
 
 updateTokenRoute.patch(
   "/:id",

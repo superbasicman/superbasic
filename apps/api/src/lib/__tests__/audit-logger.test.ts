@@ -246,7 +246,7 @@ describe("Audit Logger", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockInfo).toHaveBeenCalled();
-      const logEntry = mockInfo.mock.calls[0][0];
+      const logEntry = mockInfo.mock.calls[0]?.[0];
       expect(logEntry).not.toHaveProperty("requestId");
     });
   });
@@ -269,7 +269,7 @@ describe("Audit Logger", () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       expect(mockWarn).toHaveBeenCalled();
-      const logEntry = mockWarn.mock.calls[0][0];
+      const logEntry = mockWarn.mock.calls[0]?.[0] as any;
       
       // Should only have tokenPrefix, not full token
       expect(logEntry.metadata).toHaveProperty("tokenPrefix");

@@ -14,7 +14,13 @@ import { prisma } from "@repo/database";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit.js";
 
-const createTokenRoute = new Hono();
+type Variables = {
+  userId: string;
+  profileId?: string;
+  requestId?: string;
+};
+
+const createTokenRoute = new Hono<{ Variables: Variables }>();
 
 createTokenRoute.post(
   "/",

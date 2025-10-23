@@ -11,7 +11,12 @@ import { prisma } from "@repo/database";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { authEvents } from "@repo/auth";
 
-const revokeTokenRoute = new Hono();
+type Variables = {
+  userId: string;
+  requestId?: string;
+};
+
+const revokeTokenRoute = new Hono<{ Variables: Variables }>();
 
 revokeTokenRoute.delete("/:id", authMiddleware, async (c) => {
   const userId = c.get("userId") as string;

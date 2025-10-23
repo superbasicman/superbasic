@@ -178,7 +178,7 @@ describe('Scope Enforcement Middleware', () => {
 
   describe('Profile Endpoints - write:profile scope', () => {
     it('should allow session auth to access PATCH /v1/me without scope check', async () => {
-      const { user, credentials } = await createTestUser({
+      const { credentials } = await createTestUser({
         name: 'Test User',
       });
 
@@ -406,7 +406,7 @@ describe('Scope Enforcement Middleware', () => {
 
   describe('Session vs PAT Auth Behavior', () => {
     it('should allow session auth full access regardless of endpoint scope', async () => {
-      const { user, credentials } = await createTestUser();
+      const { credentials } = await createTestUser();
 
       // Login to get session
       const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {

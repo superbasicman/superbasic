@@ -15,7 +15,6 @@ import {
   createTestUser,
 } from "../../../../test/helpers.js";
 import {
-  COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
   JWT_SALT,
   authConfig,

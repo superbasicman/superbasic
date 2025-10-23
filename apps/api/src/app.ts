@@ -8,6 +8,7 @@ import { loginRoute } from './routes/v1/login.js';
 import { logoutRoute } from './routes/v1/logout.js';
 import { meRoute } from './routes/v1/me.js';
 import { tokensRoute } from './routes/v1/tokens/index.js';
+import { authApp } from './auth.js';
 
 const app = new Hono();
 
@@ -21,6 +22,10 @@ app.route('/health', healthRoute);
 
 // Mount v1 routes
 const v1 = new Hono();
+
+// Mount Auth.js handler first (handles /v1/auth/*)
+v1.route('/auth', authApp);
+
 v1.route('/health', healthRoute);
 
 // Apply rate limiting to auth endpoints (10 req/min per IP)

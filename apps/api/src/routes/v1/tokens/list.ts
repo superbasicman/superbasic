@@ -10,7 +10,11 @@ import { Hono } from "hono";
 import { prisma } from "@repo/database";
 import { authMiddleware } from "../../../middleware/auth.js";
 
-const listTokensRoute = new Hono();
+type Variables = {
+  userId: string;
+};
+
+const listTokensRoute = new Hono<{ Variables: Variables }>();
 
 listTokensRoute.get("/", authMiddleware, async (c) => {
   const userId = c.get("userId") as string;

@@ -101,7 +101,7 @@ describe("Rate Limiting Integration Tests", () => {
 
       // Mock rate limiter to allow first 10 requests
       let callCount = 0;
-      mockCheckLimit.mockImplementation(async (key: string) => {
+      mockCheckLimit.mockImplementation(async (_key: string) => {
         callCount++;
         const remaining = Math.max(0, 10 - callCount);
         const allowed = callCount <= 10;
