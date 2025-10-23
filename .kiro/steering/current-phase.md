@@ -75,12 +75,28 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 **Architecture Decision**: Additional OAuth providers (GitHub, Apple) deferred to Phase 16 (Advanced Features) to focus on core functionality. Phase 2.1 will deliver Google OAuth + magic links only.
 
-### Sub-Phase 3 Progress (Tasks 7-15): 🔄 STARTING
+### Sub-Phase 3 Progress (Tasks 7-15): 🔄 IN PROGRESS
+
+**Completed Tasks:**
+- Task 7: ✅ Choose and Configure Email Service (2024-10-23)
+
+**Task 7 Achievements:**
+- Resend account created and API key obtained
+- Domain `superbasicfinance.com` verified in Resend
+- DNS records added to Route53 (1 MX + 2 TXT for SPF/DKIM)
+- `resend` package installed in `@repo/auth` and workspace root
+- Email utility created: `packages/auth/src/email.ts` with `sendMagicLinkEmail()` function
+- Environment variables configured: `RESEND_API_KEY` and `EMAIL_FROM=noreply@superbasicfinance.com`
+- Test script created: `tooling/scripts/test-resend.ts`
+- Email template designed with HTML and plain text fallback
+- Successfully sent test emails to multiple addresses
+- Documentation: `docs/task-7-resend-setup.md`
+- Temporary debug script deleted (task-hygiene cleanup)
 
 **Next Up:**
-- Task 7: Choose and Configure Email Service (Resend, SendGrid, or Postmark)
 - Task 8: Add Email Provider to Auth.js Config
-- Task 9: Create Magic Link Email Template
+- Task 9: Create Magic Link Email Template (may be combined with Task 8)
+- Task 10: Test Magic Link Flow
 
 ## Phase 3 Context (Completed and Revalidated)
 

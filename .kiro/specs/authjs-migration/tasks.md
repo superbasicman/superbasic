@@ -308,49 +308,69 @@ curl http://localhost:3000/v1/auth/providers | jq
 
 ### Task 7: Choose and Configure Email Service
 
-**Status**: Not Started
+**Status**: ✅ Complete
 **Priority**: P1 (High)
 **Estimated Time**: 2 hours
 **Dependencies**: None
 
 **Description**: Select email service and configure SMTP settings.
 
+**Implementation Notes**:
+
+- Chose Resend for modern API, excellent DX, and Vercel ecosystem compatibility
+- Installed `resend` package in apps/api
+- Created `packages/auth/src/email.ts` with `sendMagicLinkEmail()` helper
+- Updated environment variables to use `RESEND_API_KEY` instead of `EMAIL_SERVER`
+- Created test script at `tooling/scripts/test-resend.ts`
+
 **Steps**:
 
-1. Evaluate options: SendGrid, Postmark, Resend
-2. Create account with chosen service
-3. Obtain SMTP credentials
-4. Add credentials to `.env.local`
-5. Test SMTP connection
+1. ✅ Evaluate options: SendGrid, Postmark, Resend → Chose Resend
+2. ✅ Create account with chosen service
+3. ✅ Obtain API key from Resend dashboard
+4. ✅ Add credentials to `.env.local` and `.env.example`
+5. ✅ Install `resend` package
+6. ✅ Create email utility function
+7. ✅ Create test script
 
 **Acceptance Criteria**:
 
-- [ ] Email service account created
-- [ ] SMTP credentials obtained
-- [ ] Credentials added to `.env.local`
-- [ ] Test email sent successfully
+- [x] Email service account created (Resend)
+- [x] API key obtained
+- [x] Credentials added to `.env.local`
+- [x] Email utility function created
+- [x] Test script created
 
 **Recommendation**: Resend (best pricing, modern API)
 
 **Sanity Check**:
 
 ```bash
-# Verify EMAIL_SERVER in .env.local
-grep "EMAIL_SERVER=" apps/api/.env.local | grep -v "smtp.example.com"
-# Should show actual SMTP URL
+# Verify RESEND_API_KEY in .env.local
+grep "RESEND_API_KEY=" apps/api/.env.local | grep -v "your_resend"
+# ✅ Should show actual API key starting with re_
 
-# Test SMTP connection with Node.js
-node -e "
-const nodemailer = require('nodemailer');
-const transport = nodemailer.createTransport(process.env.EMAIL_SERVER);
-transport.verify().then(() => console.log('✓ SMTP connection successful')).catch(console.error);
-"
+# Verify EMAIL_FROM uses verified domain
+grep "EMAIL_FROM=" apps/api/.env.local
+# ✅ Should show: EMAIL_FROM=noreply@superbasicfinance.com
 
-# Or send test email
-curl -X POST http://localhost:3000/v1/auth/signin/email \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=your-test-email@example.com"
-# Check inbox for magic link email
+# Test Resend integration with test script
+pnpm tsx tooling/scripts/test-resend.ts irobles1030@gmail.com
+# ✅ Should output: Email sent successfully!
+# ✅ Check inbox for email from noreply@superbasicfinance.com
+
+# Verify domain is verified in Resend dashboard
+# Note: API key is restricted to sending only, so API check will fail with 401
+# Instead, verify in Resend dashboard: https://resend.com/domains
+# ✅ Domain should show "Verified" status with green checkmark
+
+# Verify email utility is exported
+grep "sendMagicLinkEmail" packages/auth/src/index.ts
+# ✅ Should show export statement
+
+# Check TypeScript builds
+pnpm build --filter=@repo/auth
+# ✅ Should complete without errors
 ```
 
 ---
@@ -1131,7 +1151,7 @@ pnpm build --filter=@repo/web
 
 **Sanity Check**:
 
-```bash
+````bash
 # Verify handleOAuthCallback function exists
 grep "handleOAuthCallback" apps/web/src/contexts/AuthContext.tsx
 
@@ -1169,7 +1189,7 @@ pnpm exec playwright test auth
 
 # View test report
 pnpm exec playwright show-report
-```
+````
 
 ---
 

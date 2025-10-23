@@ -103,7 +103,6 @@ export default function Login() {
         <div className="mt-8">
           <form action="http://localhost:3000/v1/auth/signin/google" method="POST">
             <input type="hidden" name="csrfToken" value={csrfToken} />
-            <input type="hidden" name="callbackUrl" value="http://localhost:5173/" />
             <button
               type="submit"
               disabled={!csrfToken}

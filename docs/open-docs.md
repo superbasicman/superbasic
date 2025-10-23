@@ -2,7 +2,7 @@
 
 Quick reference list of documentation files that should be reviewed and updated after completing tasks or phases.
 
-**Last Updated**: 2025-10-22
+**Last Updated**: 2024-10-23
 
 ---
 
@@ -22,8 +22,7 @@ Phase-specific documentation that should be updated during and after phase work:
 ### Active Phases
 
 - `docs/oauth-setup-guide.md` - OAuth provider setup instructions (Phase 2.1)
-- `docs/task-6-checklist.md` - Task 6 completion checklist (Phase 2.1)
-- `docs/task-6-completion-summary.md` - Task 6 summary (Phase 2.1)
+- `docs/task-7-resend-setup.md` - Task 7 Resend email service setup (Phase 2.1)
 
 ### Completed Phases
 

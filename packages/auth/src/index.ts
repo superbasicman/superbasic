@@ -56,3 +56,7 @@ export {
   RBAC_ROLES,
 } from "./rbac.js";
 export type { Scope, RBACScope, RBACRole } from "./rbac.js";
+
+// Email utilities
+export { sendMagicLinkEmail } from "./email.js";
+export type { SendMagicLinkEmailParams } from "./email.js";
