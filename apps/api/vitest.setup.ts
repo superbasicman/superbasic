@@ -1,6 +1,10 @@
 /**
  * Vitest setup file
  * Runs before each test file
+ * 
+ * Note: Auth.js error logs are suppressed in vitest.config.ts via onConsoleLog
+ * to keep CI output clean. Expected errors like CredentialsSignin, MissingCSRF,
+ * and CallbackRouteError are intentional test cases and don't indicate failures.
  */
 
 // Mock bcrypt to avoid native module loading issues in tests

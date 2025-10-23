@@ -254,17 +254,23 @@ describe('Auth.js Credentials Provider', () => {
       const setCookieHeaders = signOutResponse.headers.getSetCookie?.() || [];
       const cookieHeader = setCookieHeaders.find((h) => h.includes('authjs.session-token'));
       
-      // Auth.js should set a cookie to clear the session
-      // It might use Max-Age=0, expires in past, or empty value
-      if (cookieHeader) {
-        const isCleared = 
-          cookieHeader.includes('Max-Age=0') || 
-          cookieHeader.includes('expires=Thu, 01 Jan 1970') ||
-          cookieHeader.includes('authjs.session-token=;') ||
-          cookieHeader.includes('authjs.session-token=deleted');
-        expect(isCleared).toBe(true);
+      // Auth.js MUST set a cookie to clear the session - fail if missing
+      expect(cookieHeader).toBeTruthy();
+      if (!cookieHeader) {
+        throw new Error('Sign-out response missing Set-Cookie header for authjs.session-token');
       }
-      // If no cookie header, that's also acceptable (session already cleared)
+      
+      // Verify the cookie is actually cleared (not just present)
+      const isCleared = 
+        cookieHeader.includes('Max-Age=0') || 
+        cookieHeader.includes('expires=Thu, 01 Jan 1970') ||
+        cookieHeader.includes('authjs.session-token=;') ||
+        cookieHeader.includes('authjs.session-token=deleted');
+      
+      if (!isCleared) {
+        throw new Error(`Sign-out Set-Cookie header does not clear the cookie: ${cookieHeader}`);
+      }
+      expect(isCleared).toBe(true);
     });
 
     it('should invalidate session after sign out (cookie cleared)', async () => {
@@ -302,15 +308,23 @@ describe('Auth.js Credentials Provider', () => {
       const setCookieHeaders = signOutResponse.headers.getSetCookie?.() || [];
       const cookieHeader = setCookieHeaders.find((h) => h.includes('authjs.session-token'));
       
-      // Auth.js should set a cookie to clear the session
-      if (cookieHeader) {
-        const isCleared = 
-          cookieHeader.includes('Max-Age=0') || 
-          cookieHeader.includes('expires=Thu, 01 Jan 1970') ||
-          cookieHeader.includes('authjs.session-token=;') ||
-          cookieHeader.includes('authjs.session-token=deleted');
-        expect(isCleared).toBe(true);
+      // Auth.js MUST set a cookie to clear the session - fail if missing
+      expect(cookieHeader).toBeTruthy();
+      if (!cookieHeader) {
+        throw new Error('Sign-out response missing Set-Cookie header for authjs.session-token');
       }
+      
+      // Verify the cookie is actually cleared (not just present)
+      const isCleared = 
+        cookieHeader.includes('Max-Age=0') || 
+        cookieHeader.includes('expires=Thu, 01 Jan 1970') ||
+        cookieHeader.includes('authjs.session-token=;') ||
+        cookieHeader.includes('authjs.session-token=deleted');
+      
+      if (!isCleared) {
+        throw new Error(`Sign-out Set-Cookie header does not clear the cookie: ${cookieHeader}`);
+      }
+      expect(isCleared).toBe(true);
 
       // Verify session is null after sign-out when NO cookie is sent
       // (simulating browser behavior where cookie was cleared)

@@ -18,7 +18,7 @@ docs/
 ├─ architecture/          # System design and architecture decisions
 ├─ guides/                # How-to guides and tutorials
 ├─ api/                   # API documentation (if not auto-generated)
-└─ operations/            # Deployment, monitoring, 
+└─ operations/            # Deployment, monitoring,
 └─ archived/              # Archived docs we no longer need
 ```
 
@@ -67,12 +67,15 @@ When finishing a task:
 - [ ] Remove any debug code, console.logs, or commented-out experiments
 - [ ] Clean up any test fixtures or mock data that aren't needed
 - [ ] Verify no orphaned files or directories were left behind
-- [ ] Refresh /steering/current-phase.md to reflect the current task or subtask status
-- [ ] Refresh /docs/project_plan.md to reflect the current task or subtask status
+- [ ] Update documentation per `docs/open-docs.md` checklist:
+  - [ ] Update `.kiro/steering/current-phase.md` with task status
+  - [ ] Update `docs/project_plan.md` if deliverables changed
+  - [ ] Update task-specific checklist if applicable
+  - [ ] Create completion summary ONLY if task was complex
 
 ## Phase Completion Checklist
 
-When finishing a phase:
+When finishing a phase (NOT a task) (see `docs/open-docs.md` for full documentation list):
 
 - [ ] Create phase readme document in `docs/phase-N-readme.md`
 - [ ] Include comprehensive "Sanity Checks" section with curl commands
@@ -84,6 +87,7 @@ When finishing a phase:
 - [ ] Update `docs/project_plan.md` to mark phase as complete
 - [ ] Update `.kiro/steering/current-phase.md` with completion summary
 - [ ] Archive any debug/troubleshooting documents to `docs/archived/`
+- [ ] Update `docs/open-docs.md` to move completed phase docs to "Completed Phases" section
 
 ### Sanity Checks Guidelines
 
@@ -98,28 +102,38 @@ Every phase readme should include a "Sanity Checks" section with:
 - **Log verification**: How to check audit logs and structured logging
 
 **Example Structure:**
+
 ```markdown
 ## Sanity Checks
 
 ### ✅ Feature Creation Check
+
 \`\`\`bash
+
 # Command to test feature
+
 curl -X POST http://localhost:3000/v1/endpoint \
-  -H "Content-Type: application/json" \
-  -d '{"key":"value"}'
+ -H "Content-Type: application/json" \
+ -d '{"key":"value"}'
 
 # Should return:
+
 # {"success":true,"id":"..."}
+
 \`\`\`
 
 ### ✅ Error Handling Check
+
 \`\`\`bash
+
 # Test error case
+
 curl -X POST http://localhost:3000/v1/endpoint \
-  -H "Content-Type: application/json" \
-  -d '{"invalid":"data"}'
+ -H "Content-Type: application/json" \
+ -d '{"invalid":"data"}'
 
 # Should return 400 with validation error
+
 \`\`\`
 ```
 

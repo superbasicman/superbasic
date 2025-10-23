@@ -5,6 +5,7 @@
 
 import type { AuthConfig } from "@auth/core";
 import Credentials from "@auth/core/providers/credentials";
+import Google from "@auth/core/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/database";
 import { verifyPassword } from "./password.js";
@@ -14,6 +15,17 @@ export const authConfig: AuthConfig = {
   basePath: "/v1/auth",
   trustHost: true, // Trust the host from AUTH_URL or request headers
   adapter: PrismaAdapter(prisma), // For future OAuth; unused with JWT strategy
+  cookies: {
+    sessionToken: {
+      name: "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   providers: [
     Credentials({
       credentials: {
@@ -52,6 +64,10 @@ export const authConfig: AuthConfig = {
         };
       },
     }),
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    }),
   ],
   session: {
     strategy: "jwt", // Stateless sessions; no database session rows created
@@ -64,6 +80,9 @@ export const authConfig: AuthConfig = {
         token.id = user.id;
         token.email = user.email ?? null;
       }
+      // Set required claims for middleware validation
+      token.iss = "sbfin";
+      token.aud = "sbfin:web";
       return token;
     },
     async session({ session, token }) {

@@ -4,6 +4,7 @@
  */
 
 import type { Context, Next } from "hono";
+import { getCookie } from "hono/cookie";
 import { authMiddleware } from "./auth.js";
 import { patMiddleware } from "./pat.js";
 
@@ -40,11 +41,11 @@ export async function unifiedAuthMiddleware(c: Context, next: Next) {
   }
 
   // Fall back to session cookie
-  const hasCookie =
-    c.req.header("Cookie")?.includes("__Host-sbfin_auth") ||
-    c.req.header("Cookie")?.includes("__sbfin_auth");
+  // Auth.js uses 'authjs.session-token' cookie name
+  // Check if cookie exists using getCookie (more reliable than string matching)
+  const sessionCookie = getCookie(c, "authjs.session-token");
 
-  if (hasCookie) {
+  if (sessionCookie) {
     return authMiddleware(c, next);
   }
 

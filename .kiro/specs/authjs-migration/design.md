@@ -968,7 +968,7 @@ INSERT INTO verification_tokens (
 2. Create Auth.js handler at `/v1/auth/*`
 3. Keep existing custom routes at `/v1/login`, `/v1/register`, etc.
 4. Test Auth.js handlers in development
-5. Verify session format compatibility
+5. Verify session format compatibility (see `docs/authjs-session-payload.md` for the current golden payload)
 
 **Rollback**: Remove Auth.js handler, keep custom routes
 

@@ -186,7 +186,7 @@ curl -i -X POST http://localhost:3000/v1/auth/signout \
 
 ### Task 5: Update Environment Variables
 
-**Status**: Not Started
+**Status**: ✅ Complete
 **Priority**: P0 (Critical)
 **Estimated Time**: 15 minutes
 **Dependencies**: None
@@ -195,15 +195,15 @@ curl -i -X POST http://localhost:3000/v1/auth/signout \
 
 **Steps**:
 
-1. Update `apps/api/.env.example` with new variables
-2. Add to `apps/api/.env.local` (with placeholder values)
-3. Document required variables in README
+1. ✅ Update `apps/api/.env.example` with new variables
+2. ✅ Add to `apps/api/.env.local` (with placeholder values)
+3. ✅ Document required variables in README
 
 **Acceptance Criteria**:
 
-- [ ] `.env.example` updated
-- [ ] `.env.local` has placeholders
-- [ ] Variables documented
+- [x] `.env.example` updated
+- [x] `.env.local` has placeholders
+- [x] Variables documented
 
 **Environment Variables**:
 
@@ -233,33 +233,49 @@ test -f apps/api/.env.local && echo "✓ .env.local exists"
 
 ---
 
-## Sub-Phase 2: OAuth Provider Setup (Week 1, Days 4-7)
+## Sub-Phase 2: Google OAuth Setup (Week 1, Days 4-5) ✅ COMPLETE
 
 ### Task 6: Register Google OAuth App
 
-**Status**: Not Started
+**Status**: ✅ Complete
 **Priority**: P0 (Critical)
 **Estimated Time**: 1 hour
 **Dependencies**: None
 
 **Description**: Create OAuth app in Google Cloud Console.
 
+**Setup Guide**: See `docs/oauth-setup-guide.md` for detailed step-by-step instructions.
+
+**Implementation Notes**:
+
+- Google OAuth app created in Google Cloud Console
+- Client ID and secret obtained and added to `.env.local`
+- Redirect URI configured: `http://localhost:3000/v1/auth/callback/google`
+- Google provider added to Auth.js config in `packages/auth/src/config.ts`
+- OAuth form requires CSRF token (fetched from `/v1/auth/csrf`)
+- Login page updated with "Continue with Google" button using form POST
+
 **Steps**:
 
-1. Go to Google Cloud Console
-2. Create new project or select existing
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `http://localhost:3000/v1/auth/callback/google`
-6. Copy client ID and secret
-7. Add to `.env.local`
+1. ✅ Go to Google Cloud Console
+2. ✅ Create new project or select existing
+3. ✅ Enable Google+ API
+4. ✅ Create OAuth 2.0 credentials
+5. ✅ Add authorized redirect URI: `http://localhost:3000/v1/auth/callback/google`
+6. ✅ Copy client ID and secret
+7. ✅ Add to `.env.local`
+8. ✅ Add Google provider to Auth.js config
+9. ✅ Update Login page with OAuth button
 
 **Acceptance Criteria**:
 
-- [ ] Google OAuth app created
-- [ ] Client ID and secret obtained
-- [ ] Redirect URI configured
-- [ ] Credentials added to `.env.local`
+- [x] Google OAuth app created
+- [x] Client ID and secret obtained
+- [x] Redirect URI configured
+- [x] Credentials added to `.env.local`
+- [x] Google provider added to Auth.js config
+- [x] `/v1/auth/providers` endpoint returns Google provider
+- [x] Login page has "Continue with Google" button with CSRF token handling
 
 **Sanity Check**:
 
@@ -278,71 +294,38 @@ grep "GOOGLE_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_google"
 
 ---
 
-### Task 7: Register GitHub OAuth App
-
-**Status**: Not Started
-**Priority**: P0 (Critical)
-**Estimated Time**: 30 minutes
-**Dependencies**: None
-
-**Description**: Create OAuth app in GitHub.
-
-**Steps**:
-
-1. Go to GitHub Settings > Developer settings > OAuth Apps
-2. Click "New OAuth App"
-3. Set callback URL: `http://localhost:3000/v1/auth/callback/github`
-4. Copy client ID and generate client secret
-5. Add to `.env.local`
-
-**Acceptance Criteria**:
-
-- [ ] GitHub OAuth app created
-- [ ] Client ID and secret obtained
-- [ ] Callback URL configured
-- [ ] Credentials added to `.env.local`
-
-**Sanity Check**:
-
-```bash
-# Verify credentials are in .env.local
-grep "GITHUB_CLIENT_ID=" apps/api/.env.local | grep -v "your_github"
-# Should show actual client ID (not placeholder)
-
-grep "GITHUB_CLIENT_SECRET=" apps/api/.env.local | grep -v "your_github"
-# Should show actual secret (not placeholder)
-
-# Verify callback URL in GitHub
-# Navigate to: https://github.com/settings/developers
-# Check that http://localhost:3000/v1/auth/callback/github is configured
-```
+**Note**: GitHub OAuth deferred to Phase 16 (Advanced Features). Phase 2.1 focuses on Google OAuth and magic links only.
 
 ---
 
-### Task 8: Add OAuth Providers to Auth.js Config
+## Sub-Phase 3: Magic Link Setup (Week 1, Days 6-7 + Week 2, Days 1-3)
+
+### Task 7: Choose and Configure Email Service
 
 **Status**: Not Started
-**Priority**: P0 (Critical)
-**Estimated Time**: 1 hour
-**Dependencies**: Task 6, Task 7
+**Priority**: P1 (High)
+**Estimated Time**: 2 hours
+**Dependencies**: None
 
-**Description**: Configure Google and GitHub providers in Auth.js config.
+- Email account linking will be configured when adding GitHub provider
 
 **Steps**:
 
-1. Open `packages/auth/src/config.ts`
-2. Import `Google` and `GitHub` providers from `@auth/core/providers`
-3. Add providers to `providers` array
-4. Configure `allowDangerousEmailAccountLinking: true`
-5. Test configuration loads without errors
+1. ✅ Open `packages/auth/src/config.ts`
+2. ✅ Import `Google` provider from `@auth/core/providers/google`
+3. ✅ Add Google provider to `providers` array
+4. [ ] Import `GitHub` provider from `@auth/core/providers/github` (pending Task 7)
+5. [ ] Add GitHub provider to `providers` array (pending Task 7)
+6. [ ] Configure `allowDangerousEmailAccountLinking: true`
+7. ✅ Test configuration loads without errors
 
 **Acceptance Criteria**:
 
-- [ ] Google provider added to config
+- [x] Google provider added to config
 - [ ] GitHub provider added to config
 - [ ] Email account linking enabled
-- [ ] No TypeScript errors
-- [ ] Config builds successfully
+- [x] No TypeScript errors
+- [x] Config builds successfully
 - [ ] Code comments/documentation note how to append future providers (e.g., Apple) without additional refactor
 
 **Sanity Check**:
@@ -365,7 +348,7 @@ curl http://localhost:3000/v1/auth/providers | jq
 
 ---
 
-### Task 9: Create Profile Creation Helper
+### Task 8: Add Email Provider to Auth.js Config
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -410,7 +393,7 @@ pnpm typecheck --filter=@repo/auth
 
 ---
 
-### Task 10: Add signIn Callback for Profile Creation
+### Task 9: Create Magic Link Email Template
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -450,7 +433,7 @@ psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oa
 
 ---
 
-### Task 11: Test Google OAuth Flow
+### Task 10: Test Magic Link Flow
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -502,7 +485,7 @@ curl http://localhost:3000/v1/auth/session \
 
 ---
 
-### Task 12: Test GitHub OAuth Flow
+### Task 11: Implement Magic Link Rate Limiting
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -554,7 +537,7 @@ curl http://localhost:3000/v1/auth/session \
 
 ---
 
-### Task 13: Test OAuth Account Linking
+### Task 12: Create Profile Creation Helper
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -605,9 +588,7 @@ psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>'
 
 ---
 
-## Sub-Phase 3: Magic Link Setup (Week 2, Days 1-3)
-
-### Task 14: Choose and Configure Email Service
+### Task 13: Add signIn Callback for Profile Creation
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -656,7 +637,7 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 
 ---
 
-### Task 15: Add Email Provider to Auth.js Config
+### Task 14: Test Google OAuth Flow
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -699,7 +680,7 @@ curl http://localhost:3000/v1/auth/providers | jq '.email'
 
 ---
 
-### Task 16: Create Magic Link Email Template
+### Task 15: Test OAuth Account Linking
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -766,7 +747,9 @@ curl -X POST http://localhost:3000/v1/auth/signin/email \
 
 ---
 
-### Task 17: Test Magic Link Flow
+## Sub-Phase 4: Middleware Migration and Testing (Week 2, Days 4-7)
+
+### Task 16: Update Auth Middleware
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -826,7 +809,7 @@ psql $DATABASE_URL -c "SELECT identifier, expires FROM verification_tokens WHERE
 
 ---
 
-### Task 18: Implement Magic Link Rate Limiting
+### Task 17: Migrate Integration Tests
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -884,9 +867,7 @@ curl -i -X POST http://localhost:3000/v1/auth/signin/email \
 
 ---
 
-## Sub-Phase 4: Middleware Migration and Testing (Week 2, Days 4-7)
-
-### Task 19: Update Auth Middleware
+### Task 18: Add OAuth Flow Tests
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -937,7 +918,7 @@ pnpm dev --filter=@repo/api
 
 ---
 
-### Task 20: Migrate Integration Tests
+### Task 19: Add Magic Link Tests
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -985,7 +966,7 @@ pnpm test --filter=@repo/api | grep "skipped"
 
 ---
 
-### Task 21: Add OAuth Flow Tests
+### Task 20: Update E2E Tests
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -994,14 +975,20 @@ pnpm test --filter=@repo/api | grep "skipped"
 
 **Description**: Add integration tests for OAuth flows.
 
+**Reference Documentation**:
+
+- `docs/authjs-test-helpers.md` - How to use `postAuthJsForm()` helper for CSRF handling
+- `docs/authjs-test-log-suppression.md` - Expected error logs are suppressed in CI
+
 **Steps**:
 
 1. Create test file: `apps/api/src/__tests__/oauth.test.ts`
-2. Mock OAuth provider responses
-3. Test Google OAuth flow
-4. Test GitHub OAuth flow
-5. Test account linking
-6. Test OAuth errors
+2. Import `postAuthJsForm` from `../test/helpers.js` for any form submissions
+3. Mock OAuth provider responses
+4. Test Google OAuth flow
+5. Test GitHub OAuth flow
+6. Test account linking
+7. Test OAuth errors
 
 **Acceptance Criteria**:
 
@@ -1038,7 +1025,9 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 
 ---
 
-### Task 22: Add Magic Link Tests
+## Sub-Phase 5: Web Client Integration and Cleanup (Week 3)
+
+### Task 21: Update API Client with Auth.js Endpoints
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -1047,14 +1036,20 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 
 **Description**: Add integration tests for magic link flow.
 
+**Reference Documentation**:
+
+- `docs/authjs-test-helpers.md` - How to use `postAuthJsForm()` helper for CSRF handling
+- `docs/authjs-test-log-suppression.md` - Expected error logs are suppressed in CI
+
 **Steps**:
 
 1. Create test file: `apps/api/src/__tests__/magic-link.test.ts`
-2. Mock email sending
-3. Test magic link request
-4. Test magic link validation
-5. Test token expiration
-6. Test rate limiting
+2. Import `postAuthJsForm` from `../test/helpers.js` for magic link requests
+3. Mock email sending
+4. Test magic link request using `postAuthJsForm(app, '/v1/auth/signin/email', { email })`
+5. Test magic link validation
+6. Test token expiration
+7. Test rate limiting
 
 **Acceptance Criteria**:
 
@@ -1063,6 +1058,21 @@ grep "it\|test" apps/api/src/__tests__/oauth.test.ts
 - [ ] Validation tested
 - [ ] Expiration tested
 - [ ] Rate limiting tested
+
+**Example Test Code**:
+
+```typescript
+// apps/api/src/__tests__/magic-link.test.ts
+import { postAuthJsForm } from "../test/helpers.js";
+
+it("should request magic link", async () => {
+  const response = await postAuthJsForm(app, "/v1/auth/signin/email", {
+    email: "test@example.com",
+  });
+  expect(response.status).toBe(200);
+  // Verify email was sent (mock email service)
+});
+```
 
 **Sanity Check**:
 
@@ -1086,7 +1096,7 @@ grep "it\|test" apps/api/src/__tests__/magic-link.test.ts
 
 ---
 
-### Task 23: Update E2E Tests
+### Task 22: Update AuthContext for OAuth Callback Handling
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -1131,9 +1141,7 @@ pnpm exec playwright show-report
 
 ---
 
-## Sub-Phase 5: Web Client Integration and Cleanup (Week 3)
-
-### Task 24: Update API Client with Auth.js Endpoints
+### Task 23: Add OAuth Buttons and Magic Link UI to Login Page
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -1184,7 +1192,7 @@ pnpm build --filter=@repo/web
 
 ---
 
-### Task 25: Update AuthContext for OAuth Callback Handling
+### Task 24: Update CORS Configuration for OAuth Callbacks
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -1242,7 +1250,7 @@ grep "loginWithGoogle\|loginWithGitHub\|requestMagicLink" apps/web/src/contexts/
 
 ---
 
-### Task 26: Add OAuth Buttons and Magic Link UI to Login Page
+### Task 25: Update API Documentation
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -1300,7 +1308,7 @@ open http://localhost:5173/login
 
 ---
 
-### Task 27: Update CORS Configuration for OAuth Callbacks
+### Task 26: Deprecate Custom Auth Routes
 
 **Status**: Not Started
 **Priority**: P0 (Critical)
@@ -1356,7 +1364,7 @@ curl -i http://localhost:3000/v1/health \
 
 ---
 
-### Task 28: Update API Documentation
+### Task 27: Remove Custom Auth Routes (After 1 Week)
 
 **Status**: Not Started
 **Priority**: P1 (High)
@@ -1404,7 +1412,7 @@ grep "```" docs/api-authentication.md | wc -l
 
 ---
 
-### Task 29: Deprecate Custom Auth Routes
+### Task 28: Update Current Phase Documentation
 
 **Status**: Not Started
 **Priority**: P2 (Low)
@@ -1448,7 +1456,7 @@ pnpm dev --filter=@repo/api | grep "DEPRECATED"
 
 ---
 
-### Task 30: Remove Custom Auth Routes (After 1 Week)
+### Task 29: Create Phase 2.1 Readme
 
 **Status**: Not Started
 **Priority**: P2 (Low)
@@ -1500,50 +1508,6 @@ curl https://api.superbasicfinance.com/v1/auth/providers
 ```
 
 ---
-
-### Task 31: Update Current Phase Documentation
-
-**Status**: Not Started
-**Priority**: P2 (Low)
-**Estimated Time**: 30 minutes
-**Dependencies**: All previous tasks
-
-**Description**: Update `.kiro/steering/current-phase.md` to reflect Phase 2.1 completion.
-
-**Steps**:
-
-1. Open `.kiro/steering/current-phase.md`
-2. Mark Phase 2.1 as complete
-3. Update status summary
-4. Document key achievements
-5. Update next steps
-
-**Acceptance Criteria**:
-
-- [ ] Current phase document updated
-- [ ] Phase 2.1 marked complete
-- [ ] Achievements documented
-
-**Sanity Check**:
-
-```bash
-# Verify current-phase.md updated
-grep "Phase 2.1" .kiro/steering/current-phase.md
-
-# Check for completion status
-grep "COMPLETE\|✅" .kiro/steering/current-phase.md | grep "Phase 2.1"
-
-# Verify next phase mentioned
-grep "Phase 4\|Plaid" .kiro/steering/current-phase.md
-
-# Check last updated date
-grep "Last Updated" .kiro/steering/current-phase.md
-# Should show recent date
-```
-
----
-
-### Task 32: Create Phase 2.1 Readme
 
 **Status**: Not Started
 **Priority**: P2 (Low)

@@ -1,9 +1,10 @@
 # Current Phase Context
 
 **Active Phase**: Phase 2.1 - Auth.js Migration  
-**Status**: 🔄 IN PROGRESS - Migrating to Auth.js Prisma adapter with UUID users table  
+**Status**: 🔄 IN PROGRESS - Sub-Phase 3 Starting (Task 7 Next)  
+**Current Task**: Task 7 - Choose and Configure Email Service  
 **Spec Location**: `.kiro/specs/authjs-migration/`  
-**Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, needs revalidation after migration)
+**Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, revalidated with Auth.js)
 
 ---
 
@@ -31,16 +32,65 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 ### Migration Strategy
 
-1. **Add Auth.js Prisma adapter tables** (users, accounts, sessions, verification_tokens) with UUID primary keys
-2. **Preserve existing profiles table** - business logic continues to reference `profiles.id`
-3. **Update api_keys table** - add `userId` reference to Auth.js users table
-4. **Migrate auth middleware** - use Auth.js session management instead of custom JWT
-5. **Update all tests** - ensure 225 existing tests pass with new auth system
-6. **Revalidate Phase 3** - confirm API key management works with Auth.js
+1. ✅ **Add Auth.js Prisma adapter tables** (users, accounts, sessions, verification_tokens) with UUID primary keys
+2. ✅ **Preserve existing profiles table** - business logic continues to reference `profiles.id`
+3. ✅ **Update api_keys table** - add `userId` reference to Auth.js users table
+4. ✅ **Migrate auth middleware** - use Auth.js session management instead of custom JWT
+5. ✅ **Update all tests** - ensure 241 tests pass with new auth system (16 new Auth.js tests added)
+6. ✅ **Revalidate Phase 3** - confirmed API key management works with Auth.js (all 241 tests passing)
 
-## Phase 3 Context (Completed, Needs Revalidation)
+### Sub-Phase 1 Progress (Tasks 1-5): ✅ COMPLETE
 
-Phase 3 delivered a complete API key management system with PAT generation, Bearer auth, and scope enforcement. All 12 tasks were implemented and 225 tests were passing. After the Auth.js migration, we'll need to revalidate this functionality.
+**Completed Tasks:**
+- Task 1: ✅ Auth.js core package installed and verified
+- Task 2: ✅ Auth.js handler created with custom Hono integration
+- Task 3: ✅ Handler mounted at `/v1/auth` in main app
+- Task 4: ✅ Credentials provider tested and validated (16 tests passing)
+- Task 5: ✅ Environment variables added for OAuth and email providers
+
+**Key Achievements:**
+- Auth.js credentials sign-in working end-to-end
+- Session cookie handling fixed (`authjs.session-token`)
+- Unified auth middleware updated for Auth.js compatibility
+- Sign-out cookie clearing validated with strict tests
+- All 241 tests passing (no regressions)
+- OAuth and email provider environment variables configured in all env files
+- README documentation updated with authentication methods
+
+### Sub-Phase 2 Progress (Task 6): ✅ COMPLETE
+
+**Completed Tasks:**
+- Task 6: ✅ Google OAuth App registered and configured (2025-10-22)
+
+**Task 6 Achievements:**
+- Google OAuth app created in Google Cloud Console
+- Client ID and secret obtained and added to `.env.local`
+- Redirect URI configured: `http://localhost:3000/v1/auth/callback/google`
+- Google provider added to Auth.js config (`packages/auth/src/config.ts`)
+- `/v1/auth/providers` endpoint now returns Google provider
+- Login page updated with "Continue with Google" button
+- CSRF token handling implemented for OAuth form submission
+- OAuth form uses POST with CSRF token (not simple link)
+- Documentation created: `docs/archived/task-6-oauth-csrf-fix.md`
+
+**Architecture Decision**: GitHub OAuth deferred to Phase 16 (Advanced Features) to focus on core functionality. Phase 2.1 will deliver Google OAuth + magic links only.
+
+### Sub-Phase 3 Progress (Tasks 7-15): 🔄 STARTING
+
+**Next Up:**
+- Task 7: Choose and Configure Email Service (Resend, SendGrid, or Postmark)
+- Task 8: Add Email Provider to Auth.js Config
+- Task 9: Create Magic Link Email Template
+
+## Phase 3 Context (Completed and Revalidated)
+
+Phase 3 delivered a complete API key management system with PAT generation, Bearer auth, and scope enforcement. All 12 tasks were implemented and all tests are passing with Auth.js integration.
+
+**Revalidation Status: ✅ COMPLETE**
+- All 241 tests passing (225 original + 16 new Auth.js tests)
+- Bearer token authentication working alongside Auth.js sessions
+- Unified middleware correctly prioritizes PAT over session auth
+- No regressions in API key functionality
 
 ## Key Deliverables
 
@@ -48,6 +98,7 @@ Phase 3 delivered a complete API key management system with PAT generation, Bear
 - SHA-256 token hashing before database storage
 - Bearer token authentication middleware (separate from session auth)
 - Token scopes and permissions system (read:transactions, write:budgets, etc.)
+- Unified auth middleware supporting both PAT and session authentication
 - CRUD endpoints: POST /v1/tokens, GET /v1/tokens, DELETE /v1/tokens/:id
 - Last used timestamp tracking and expiration handling
 - Web UI for token management (create, list, revoke)
@@ -246,12 +297,12 @@ Before proceeding to Phase 4 (Plaid Integration):
 
 ## Related Documentation
 
+- **Documentation Index**: `docs/open-docs.md` - Quick reference for all documentation files
 - **Full Roadmap**: `docs/project_plan.md` - Complete 18-phase plan with all details
-- **Phase Summaries**: `docs/phase-1-readme.md`, `docs/phase-2-readme.md`
-- **Phase 3 Completion**: `docs/phase-3-task-12-completion.md`
-- **Test Infrastructure**: `docs/test-isolation-fix.md`
+- **Phase Summaries**: `docs/phase-1-readme.md`, `docs/phase-2-readme.md`, `docs/phase-3-readme.md`
 - **Database Schema**: `.kiro/steering/database-schema.md` - Complete schema reference
 - **API Authentication**: `docs/api-authentication.md` - Authentication guide
+- **Task Hygiene**: `.kiro/steering/task-hygiene.md` - Documentation and cleanup guidelines
 
 ---
 

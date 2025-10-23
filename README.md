@@ -98,8 +98,15 @@ cp packages/database/.env.example packages/database/.env.local
 # Edit .env.local files with your actual values:
 # - DATABASE_URL (Neon Postgres connection string)
 # - AUTH_SECRET (generate with: openssl rand -base64 32)
+# - AUTH_URL (base URL for Auth.js, e.g., http://localhost:3000)
+# - AUTH_TRUST_HOST (set to true in development)
 # - UPSTASH_REDIS_REST_URL (optional, for rate limiting)
 # - UPSTASH_REDIS_REST_TOKEN (optional, for rate limiting)
+# - GOOGLE_CLIENT_ID (optional, for Google OAuth)
+# - GOOGLE_CLIENT_SECRET (optional, for Google OAuth)
+# - EMAIL_SERVER (optional, for magic link authentication)
+# - EMAIL_FROM (optional, sender address for magic links)
+# Note: GitHub OAuth deferred to Phase 16
 ```
 
 4. Generate Prisma client:
@@ -336,6 +343,49 @@ The E2E test script automatically:
 
 See `apps/web/e2e/README.md` for detailed E2E testing documentation.
 
+## Authentication Methods
+
+SuperBasic Finance supports multiple authentication methods:
+
+### Credentials (Email/Password)
+
+- Traditional email and password authentication
+- Passwords hashed with bcrypt (cost factor 10)
+- JWT sessions stored in httpOnly cookies (30-day expiration)
+
+### OAuth Providers (Optional)
+
+Configure OAuth providers for social login:
+
+**Google OAuth:**
+
+1. Create OAuth app in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Add authorized redirect URI: `http://localhost:3000/v1/auth/callback/google`
+3. Copy client ID and secret to `.env.local`
+4. See [OAuth Setup Guide](docs/oauth-setup-guide.md) for detailed step-by-step instructions
+
+**GitHub OAuth (Phase 16):**
+
+- Deferred to Phase 16 (Advanced Features)
+- Architecture supports adding additional OAuth providers without refactor
+- See [OAuth Setup Guide](docs/oauth-setup-guide.md) for implementation details
+
+### Magic Links (Optional)
+
+Configure email provider for passwordless authentication:
+
+1. Choose an email service (Resend, SendGrid, or Postmark recommended)
+2. Obtain SMTP credentials
+3. Add `EMAIL_SERVER` and `EMAIL_FROM` to `.env.local`
+4. Format: `smtp://username:password@smtp.example.com:587`
+
+### API Keys (Bearer Tokens)
+
+- Personal access tokens (PATs) for programmatic API access
+- SHA-256 hashed before storage
+- Scope-based permissions (read:transactions, write:budgets, etc.)
+- See [API Authentication Guide](docs/api-authentication.md) for details
+
 ## Security
 
 - ✅ All authentication endpoints require valid credentials
@@ -350,6 +400,9 @@ See `apps/web/e2e/README.md` for detailed E2E testing documentation.
 - ✅ Bearer token authentication for programmatic API access
 - ✅ Token lifecycle management (creation, listing, revocation, expiration)
 - ✅ Comprehensive API documentation with security best practices
+- 🚧 OAuth account linking (Google) - Phase 2.1 in progress
+- 🔮 Additional OAuth providers (GitHub, Apple) - Phase 16 planned
+- 🚧 Magic link authentication - Phase 2.1 in progress
 - 🚧 Row-level security policies in Postgres - Phase 6
 - 🚧 Stripe webhook signatures - Phase 7
 
@@ -366,10 +419,18 @@ Future environments: `preview`, `prod` with isolated databases
 
 ## Documentation
 
+### Project Documentation
+
+- [Open Docs Checklist](docs/open-docs.md) - Quick reference for all documentation files
 - [Project Plan](docs/project_plan.md) - Complete roadmap and phase breakdown
 - [Phase 1 Guide](docs/phase-1-readme.md) - Foundation & Infrastructure setup
 - [Phase 2 Guide](docs/phase-2-readme.md) - Authentication & Session Management
+- [Phase 3 Guide](docs/phase-3-readme.md) - API Key Management
+
+### Technical Guides
+
 - [API Authentication Guide](docs/api-authentication.md) - Bearer token authentication and API key management
+- [OAuth Setup Guide](docs/oauth-setup-guide.md) - Step-by-step OAuth provider configuration (Google)
 - [E2E Testing Guide](apps/web/e2e/README.md) - Running end-to-end tests
 
 ## Contributing

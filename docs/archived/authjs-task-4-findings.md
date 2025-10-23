@@ -35,6 +35,7 @@ Created `apps/api/src/__tests__/authjs-credentials.test.ts` with 16 test cases c
 
 - **Session compatibility** (1 test)
   - JWT session format compatible with existing middleware
+  - Golden response documented in `docs/authjs-session-payload.md` for downstream consumers
 
 ### 2. Fixed Environment Configuration
 

@@ -143,6 +143,54 @@ export async function getAuthJsCSRFToken(
 }
 
 /**
+ * Post form data to Auth.js endpoint with CSRF token (generic helper)
+ * 
+ * @param app - Hono application instance
+ * @param path - Auth.js endpoint path (e.g., '/v1/auth/callback/credentials')
+ * @param formData - Form data to post (will be merged with CSRF token)
+ * @returns Response object
+ * 
+ * @example
+ * // Sign in with credentials
+ * const response = await postAuthJsForm(app, '/v1/auth/callback/credentials', {
+ *   email: 'user@example.com',
+ *   password: 'password123'
+ * });
+ * 
+ * @example
+ * // Request magic link
+ * const response = await postAuthJsForm(app, '/v1/auth/signin/email', {
+ *   email: 'user@example.com'
+ * });
+ */
+export async function postAuthJsForm(
+  app: Hono<any>,
+  path: string,
+  formData: Record<string, string>
+): Promise<Response> {
+  // Get CSRF token
+  const { csrfToken, csrfCookie } = await getAuthJsCSRFToken(app);
+
+  // Build form data with CSRF token
+  const formParams = new URLSearchParams({
+    ...formData,
+    csrfToken,
+  });
+
+  // Make request with CSRF cookie
+  return makeRequest(app, 'POST', path, {
+    body: formParams.toString(),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    cookies: {
+      '__Host-authjs.csrf-token': csrfCookie,
+      'authjs.csrf-token': csrfCookie, // Fallback for non-HTTPS
+    },
+  });
+}
+
+/**
  * Sign in with credentials using Auth.js (handles CSRF automatically)
  * 
  * @param app - Hono application instance
@@ -155,26 +203,9 @@ export async function signInWithCredentials(
   email: string,
   password: string
 ): Promise<Response> {
-  // Get CSRF token
-  const { csrfToken, csrfCookie } = await getAuthJsCSRFToken(app);
-
-  // Build form data with CSRF token
-  const formData = new URLSearchParams({
+  return postAuthJsForm(app, '/v1/auth/callback/credentials', {
     email,
     password,
-    csrfToken,
-  });
-
-  // Make sign-in request with CSRF cookie
-  return makeRequest(app, 'POST', '/v1/auth/callback/credentials', {
-    body: formData.toString(),
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    cookies: {
-      '__Host-authjs.csrf-token': csrfCookie,
-      'authjs.csrf-token': csrfCookie, // Fallback for non-HTTPS
-    },
   });
 }
 

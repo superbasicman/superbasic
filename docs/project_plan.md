@@ -4,7 +4,7 @@
 
 This document provides a high-level roadmap for building SuperBasic Finance, an API-first personal finance platform. The plan is organized into phases with clear exit criteria, building from foundational infrastructure through core features to advanced capabilities. Each phase represents a deployable milestone that delivers user value while maintaining production quality.
 
- **Current Status**: Phase 2.1 (Auth.js Migration) in progress - migrating to Auth.js Prisma adapter before continuing to Phase 4
+**Current Status**: Phase 2.1 (Auth.js Migration) in progress - migrating to Auth.js Prisma adapter before continuing to Phase 4
 
 ## Guiding Principles
 
@@ -109,25 +109,23 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 
 **Goal**: Migrate from hybrid Auth.js approach to full Auth.js implementation with OAuth providers and magic link support
 
-**Status**: IN PROGRESS - Aligning implementation with documented Auth.js architecture before Phase 4
-
-**Status**: NOT STARTED
+**Status**: IN PROGRESS - Sub-Phase 3 Starting (Task 7 Next: Email Service Setup)
 
 **Context**: Phase 2 implemented a hybrid approach using Auth.js utilities (`encode`/`decode`) with custom Hono routes. This phase completes the Auth.js migration to enable OAuth (Google, GitHub) and magic link authentication while maintaining backward compatibility with existing sessions and PAT tokens. The implementation keeps the provider architecture extensible so additional providers (for example, Apple) can be dropped in once we secure the required accounts.
 
 ### Deliverables
 
-- [ ] Install Auth.js Hono adapter (`@auth/hono`)
-- [ ] Replace custom auth routes with Auth.js request handlers
-- [ ] Configure OAuth providers (Google, GitHub) with pluggable setup for future providers (e.g., Apple)
-- [ ] Configure Email provider for magic links
-- [ ] Migrate existing Credentials provider to Auth.js handlers
+- [x] Install Auth.js Hono adapter (`@auth/hono`) - Using `@auth/core` v0.37.4
+- [x] Replace custom auth routes with Auth.js request handlers - Mounted at `/v1/auth`
+- [x] Configure Google OAuth provider - Task 6 complete (2025-10-22)
+- [ ] Configure Email provider for magic links (Task 7 next)
+- [x] Migrate existing Credentials provider to Auth.js handlers - 16 tests passing
 - [ ] Update auth middleware to support Auth.js session format
-- [ ] Ensure PAT authentication (Phase 3) remains functional
+- [x] Ensure PAT authentication (Phase 3) remains functional - All 241 tests passing
 - [ ] Update CORS configuration for OAuth callbacks
-- [ ] Add OAuth provider configuration to environment variables
+- [x] Add OAuth provider configuration to environment variables - All env files updated
 - [ ] Update web client to use Auth.js signIn/signOut methods
-- [ ] Add OAuth provider buttons to login/register pages
+- [x] Add Google OAuth button to login page with CSRF handling - Task 6 complete
 - [ ] Add "Sign in with magic link" option
 - [ ] Migrate existing user sessions (JWT format compatibility)
 - [ ] Update all 225 existing tests for Auth.js handlers (includes Phase 3 PAT tests)
@@ -138,8 +136,7 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 ### Exit Criteria
 
 - [ ] Users can log in with Google OAuth
-- [ ] Users can log in with GitHub OAuth
-- [ ] Architecture supports adding additional OAuth providers (e.g., Apple) without refactor
+- [ ] Architecture supports adding additional OAuth providers (e.g., GitHub, Apple) without refactor
 - [ ] Users can request magic link via email
 - [ ] Magic link logs user in without password
 - [ ] Existing email/password authentication still works
@@ -161,14 +158,15 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 4. Test Auth.js handlers alongside custom routes
 5. Verify session format compatibility
 
-**Phase 2.1.2: OAuth Provider Setup (Week 1-2)**
+**Phase 2.1.2: OAuth Provider Setup (Week 1)** - ✅ COMPLETE
 
-1. Register OAuth apps (Google, GitHub)  
-   _Note_: Apple OAuth intentionally deferred until we invest in the developer program
-2. Configure OAuth providers in Auth.js config
-3. Add OAuth callback handling
-4. Test OAuth flows in development
-5. Add OAuth buttons to web client
+1. ✅ Register Google OAuth app (Task 6 complete - 2025-10-22)
+2. ✅ Configure Google provider in Auth.js config
+3. ✅ Add Google OAuth button to login page with CSRF token handling
+4. ✅ OAuth callback handling (built into Auth.js)
+5. ⏭️ Test Google OAuth flow in development (pending user testing)
+
+_Note_: GitHub and Apple OAuth deferred to Phase 16 (Advanced Features) to focus on core functionality
 
 **Phase 2.1.3: Magic Link Setup (Week 2)**
 
@@ -229,9 +227,10 @@ This document provides a high-level roadmap for building SuperBasic Finance, an 
 # OAuth Providers
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-GITHUB_CLIENT_ID=...
-GITHUB_CLIENT_SECRET=...
-# Future providers (e.g., Apple) can be added later without code changes
+
+# Future providers (Phase 16) can be added without code changes:
+# GITHUB_CLIENT_ID=...
+# GITHUB_CLIENT_SECRET=...
 # APPLE_CLIENT_ID=...
 # APPLE_CLIENT_SECRET=...
 
@@ -749,6 +748,7 @@ After 1 week of successful Auth.js operation:
 
 ### Potential Deliverables (prioritize based on feedback)
 
+- [ ] Additional OAuth providers (GitHub, Apple, Microsoft)
 - [ ] Recurring transaction detection and categorization
 - [ ] Net worth tracking (assets - liabilities)
 - [ ] Investment account support (Plaid Investments API)
@@ -1005,7 +1005,7 @@ Documentation should be updated when implementing features that were marked as "
 
 | Date       | Version | Changes              | Author |
 | ---------- | ------- | -------------------- | ------ |
-| 2025-01-XX | 1.0     | Initial project plan | Kiro   |
+| 2025-10-XX | 1.0     | Initial project plan | Kiro   |
 
 ---
 
