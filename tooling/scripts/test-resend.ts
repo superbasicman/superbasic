@@ -102,7 +102,7 @@ Need help? Contact us at support@superbasicfinance.com
       console.log('1. Check your inbox:', testEmail);
       console.log('2. Check spam/junk folder if not in inbox');
       console.log('3. Subject: "Sign in to SuperBasic Finance"');
-      console.log('4. From: "onboarding@resend.dev"');
+      console.log('4. From: "<your-domain-here>"');
     }
   })
   .catch((error) => {

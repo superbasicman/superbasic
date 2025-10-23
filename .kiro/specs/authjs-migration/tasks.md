@@ -356,6 +356,7 @@ grep "EMAIL_FROM=" apps/api/.env.local
 
 # Test Resend integration with test script
 pnpm tsx tooling/scripts/test-resend.ts irobles1030@gmail.com
+export $(cat apps/api/.env.local | xargs) && pnpm tsx tooling/scripts/test-resend.ts irobles1030@gmail.com
 # ✅ Should output: Email sent successfully!
 # ✅ Check inbox for email from noreply@superbasicfinance.com
 
