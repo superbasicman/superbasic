@@ -189,18 +189,32 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - All 241 tests passing (225 Phase 3 + 16 Auth.js)
 - Documentation: `docs/archived/task-16-middleware-review.md`
 
-**Current Task:**
-- Task 17: 🔄 Migrate Integration Tests (In Progress - 2025-10-24)
+**Completed Tasks:**
+- Task 16: ✅ Update Auth Middleware (2025-10-24) - No changes needed
+- Task 17: ✅ Migrate Integration Tests (2025-10-24)
 
-**Task 17 Progress:**
-- ✅ Migrated login.test.ts (15 tests passing) to use Auth.js sign-in
-- ✅ Migrated me.test.ts (12 tests passing) to use Auth.js sessions  
-- ✅ Fixed test database configuration to accept Neon branches
-- ✅ All 27 migrated tests passing
-- 📝 Next: Migrate logout tests, run full test suite
+**Task 17 Achievements:**
+- Migrated login.test.ts (15 tests passing) to use Auth.js sign-in
+- Migrated me.test.ts (12 tests passing) to use Auth.js sessions  
+- Fixed test database configuration to accept Neon branches
+- All integration tests passing with Auth.js
+- No test regressions
 
 **Completed Tasks:**
 - Task 16: ✅ Update Auth Middleware (2025-10-24) - No changes needed
+- Task 17: ✅ Migrate Integration Tests (2025-10-24)
+- Task 18: ✅ Add OAuth Flow Tests (2025-10-24)
+
+**Task 18 Achievements:**
+- Created comprehensive OAuth test suite with 11 passing tests
+- Tests verify OAuth provider configuration (Google with OIDC)
+- Tests verify OAuth flow initiation and error handling
+- Tests verify account linking database structure
+- Tests verify profile creation via signIn callback
+- All tests passing with Auth.js integration
+
+**Current Task:**
+- Task 19: 🔄 Add Magic Link Tests (Next - 2025-10-24)
 
 ## Phase 3 Context (Completed and Revalidated)
 
