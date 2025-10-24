@@ -172,18 +172,33 @@ curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
   -b /tmp/cookies.txt \
   -c /tmp/cookies.txt \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=test@example.com&password=password123&csrfToken=$CSRF_TOKEN"
+  -d "email=testn@gmail.com&password=password123.&csrfToken=$CSRF_TOKEN"
 # Should return 302 redirect with Set-Cookie header
 
 # Extract session cookie and test session endpoint
 curl -i http://localhost:3000/v1/auth/session \
-  -H "Cookie: authjs.session-token=<token_from_above>"
+  -b /tmp/cookies.txt
 # Should return 200 with user data JSON
 
 # Test sign-out
 curl -i -X POST http://localhost:3000/v1/auth/signout \
-  -H "Cookie: authjs.session-token=<token>"
-# Should return 302 redirect and clear cookie
+  -b /tmp/cookies.txt \
+  -c /tmp/cookies.txt \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "csrfToken=$CSRF_TOKEN"
+# Should return 302 redirect and Set-Cookie with Max-Age=0 (clears cookie)
+
+# Verify session is cleared
+curl -i http://localhost:3000/v1/auth/session \
+  -b /tmp/cookies.txt
+# Should return 200 with null (no session)
+
+# Test protected endpoint - should return 401 when signed out
+curl -i http://localhost:3000/v1/me -b /tmp/cookies.txt
+# Should return 401 Unauthorized (no session)
+
+# Cleanup
+rm -f /tmp/cookies.txt
 ```
 
 ---
@@ -881,7 +896,7 @@ curl http://localhost:3000/v1/auth/session \
 # Create user with email/password first
 curl -X POST http://localhost:3000/v1/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"password123","name":"Test User"}'
+  -d '{"email":"test@example.com","password":"password123.","name":"Test User"}'
 
 # Get user ID
 psql $DATABASE_URL -c "SELECT id FROM users WHERE email = 'test@example.com';"
@@ -898,7 +913,7 @@ psql $DATABASE_URL -c "SELECT COUNT(*) FROM users WHERE email = 'test@example.co
 # Verify OAuth account linked to user
 psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE \"userId\" = '<user_id>';"
 # Should show: google (1 row)
-# Note: Credentials provider doesn't create accounts table entries - 
+# Note: Credentials provider doesn't create accounts table entries -
 # password is stored in users.password field instead
 ```
 
@@ -949,7 +964,7 @@ curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
   -b /tmp/cookies.txt \
   -c /tmp/cookies.txt \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=superbasicman@gmail.com&password=test123.&csrfToken=$CSRF_TOKEN"
+  -d "email=test@gmail.com&password=password123.&csrfToken=$CSRF_TOKEN"
 # ✅ Should return: HTTP/1.1 302 Found with location to web app (not error URL)
 
 # Create API token with read:profile and write:profile scopes
@@ -1025,6 +1040,7 @@ rm -f /tmp/cookies.txt
 ```
 
 **Key Findings:**
+
 - PAT authentication working via Bearer tokens
 - Session authentication working via Auth.js cookies
 - Unified middleware correctly prioritizes Bearer over session

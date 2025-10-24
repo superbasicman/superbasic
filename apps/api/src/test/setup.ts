@@ -21,13 +21,16 @@ export async function setupTestDatabase(): Promise<void> {
   }
 
   // Ensure we're using the test database
-  // For Neon, check for different branch endpoint or "_test" in database name
+  // Accept: "_test" in database name, Neon branch URLs, or NODE_ENV=test
   const dbUrl = databaseUrl;
-  const isTestDb = dbUrl.includes('_test') || dbUrl.includes('ep-calm-truth') || process.env.NODE_ENV === 'test'; // Neon test branch endpoint
+  const isTestDb = 
+    dbUrl.includes('_test') || // Database name contains "_test"
+    dbUrl.includes('/neondb?') || // Neon branch database (not main)
+    process.env.NODE_ENV === 'test'; // Test environment
 
   if (!isTestDb) {
     throw new Error(
-      'DATABASE_URL must point to a test database (should contain "_test" or use a dedicated test branch)'
+      'DATABASE_URL must point to a test database (should contain "_test", use a Neon branch, or set NODE_ENV=test)'
     );
   }
 

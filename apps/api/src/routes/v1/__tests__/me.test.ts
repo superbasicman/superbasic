@@ -1,6 +1,8 @@
 /**
  * Integration tests for GET /v1/me endpoint
- * Tests session validation and user profile retrieval
+ * Tests session validation and user profile retrieval with Auth.js sessions
+ * 
+ * Note: Migrated to use Auth.js session management
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -12,12 +14,15 @@ import app from '../../../app.js';
 import { resetDatabase } from '../../../test/setup.js';
 import {
   makeRequest,
-  makeAuthenticatedRequest,
   createTestUser,
   extractCookie,
+  signInWithCredentials,
 } from '../../../test/helpers.js';
-import { COOKIE_NAME, SESSION_MAX_AGE_SECONDS, JWT_SALT, authConfig } from '@repo/auth';
+import { SESSION_MAX_AGE_SECONDS, JWT_SALT, authConfig } from '@repo/auth';
 import { encode } from '@auth/core/jwt';
+
+// Auth.js uses this cookie name
+const COOKIE_NAME = 'authjs.session-token';
 
 describe('GET /v1/me', () => {
   beforeEach(async () => {
@@ -25,32 +30,30 @@ describe('GET /v1/me', () => {
   });
 
   describe('Session Validation Success', () => {
-    it('should return 200 with user profile for valid session cookie', async () => {
-      // Create test user and login to get session
+    it('should return 200 with user profile for valid Auth.js session cookie', async () => {
+      // Create test user and sign in to get session
       const { user, credentials } = await createTestUser({
         name: 'Test User',
       });
 
-      const loginResponse = await makeRequest(app, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      const signInResponse = await signInWithCredentials(
+        app,
+        credentials.email,
+        credentials.password
+      );
 
-      expect(loginResponse.status).toBe(200);
+      expect(signInResponse.status).toBe(302);
 
       // Extract session cookie
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
       expect(sessionCookie).toBeTruthy();
 
       // Make authenticated request to /v1/me
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        sessionCookie!
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: sessionCookie!,
+        },
+      });
 
       expect(response.status).toBe(200);
 
@@ -68,21 +71,19 @@ describe('GET /v1/me', () => {
     it('should return user profile with null name if not set', async () => {
       const { credentials } = await createTestUser();
 
-      const loginResponse = await makeRequest(app, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
+      const signInResponse = await signInWithCredentials(
+        app,
+        credentials.email,
+        credentials.password
+      );
+
+      const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
+
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: sessionCookie!,
         },
       });
-
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
-
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        sessionCookie!
-      );
 
       expect(response.status).toBe(200);
 
@@ -99,35 +100,37 @@ describe('GET /v1/me', () => {
         name: 'User Two',
       });
 
-      // Login as first user
-      const login1 = await makeRequest(app, 'POST', '/v1/login', {
-        body: { email: creds1.email, password: creds1.password },
-      });
-      const session1 = extractCookie(login1, COOKIE_NAME);
+      // Sign in as first user
+      const signIn1 = await signInWithCredentials(
+        app,
+        creds1.email,
+        creds1.password
+      );
+      const session1 = extractCookie(signIn1, COOKIE_NAME);
 
-      // Login as second user
-      const login2 = await makeRequest(app, 'POST', '/v1/login', {
-        body: { email: creds2.email, password: creds2.password },
-      });
-      const session2 = extractCookie(login2, COOKIE_NAME);
+      // Sign in as second user
+      const signIn2 = await signInWithCredentials(
+        app,
+        creds2.email,
+        creds2.password
+      );
+      const session2 = extractCookie(signIn2, COOKIE_NAME);
 
       // Verify each session returns correct user
-      const response1 = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        session1!
-      );
+      const response1 = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: session1!,
+        },
+      });
       const data1 = await response1.json();
       expect(data1.user.id).toBe(user1.id);
       expect(data1.user.email).toBe(user1.email);
 
-      const response2 = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        session2!
-      );
+      const response2 = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: session2!,
+        },
+      });
       const data2 = await response2.json();
       expect(data2.user.id).toBe(user2.id);
       expect(data2.user.email).toBe(user2.email);
@@ -148,12 +151,11 @@ describe('GET /v1/me', () => {
     it('should return 401 for invalid session cookie', async () => {
       const invalidToken = 'invalid.jwt.token';
 
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        invalidToken
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: invalidToken,
+        },
+      });
 
       expect(response.status).toBe(401);
 
@@ -165,12 +167,11 @@ describe('GET /v1/me', () => {
     it('should return 401 for malformed JWT', async () => {
       const malformedToken = 'not-a-jwt';
 
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        malformedToken
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: malformedToken,
+        },
+      });
 
       expect(response.status).toBe(401);
 
@@ -197,12 +198,11 @@ describe('GET /v1/me', () => {
         maxAge: -CLOCK_SKEW_TOLERANCE_SECONDS - 3600, // Expired beyond tolerance
       });
 
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        expiredToken
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: expiredToken,
+        },
+      });
 
       expect(response.status).toBe(401);
 
@@ -228,12 +228,11 @@ describe('GET /v1/me', () => {
         maxAge: SESSION_MAX_AGE_SECONDS,
       });
 
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        tokenWithWrongSecret
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: tokenWithWrongSecret,
+        },
+      });
 
       expect(response.status).toBe(401);
 
@@ -254,12 +253,11 @@ describe('GET /v1/me', () => {
         maxAge: SESSION_MAX_AGE_SECONDS,
       });
 
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        tokenWithoutId
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: tokenWithoutId,
+        },
+      });
 
       expect(response.status).toBe(401);
 
@@ -283,12 +281,11 @@ describe('GET /v1/me', () => {
         maxAge: SESSION_MAX_AGE_SECONDS,
       });
 
-      const response = await makeAuthenticatedRequest(
-        app,
-        'GET',
-        '/v1/me',
-        token
-      );
+      const response = await makeRequest(app, 'GET', '/v1/me', {
+        cookies: {
+          [COOKIE_NAME]: token,
+        },
+      });
 
       expect(response.status).toBe(404);
 
@@ -299,21 +296,20 @@ describe('GET /v1/me', () => {
   });
 
   describe('Session Cookie Attributes', () => {
-    it('should accept session cookie with correct name', async () => {
+    it('should accept Auth.js session cookie with correct name', async () => {
       const { credentials } = await createTestUser();
 
-      const loginResponse = await makeRequest(app, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      const signInResponse = await signInWithCredentials(
+        app,
+        credentials.email,
+        credentials.password
+      );
 
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
       expect(sessionCookie).toBeTruthy();
 
       // Verify the cookie name is correct
-      const setCookieHeaders = loginResponse.headers.getSetCookie?.() || [];
+      const setCookieHeaders = signInResponse.headers.getSetCookie?.() || [];
       const cookieHeader = setCookieHeaders.find((h) => h.includes(COOKIE_NAME));
       expect(cookieHeader).toBeTruthy();
     });
@@ -321,14 +317,13 @@ describe('GET /v1/me', () => {
     it('should work with cookies that have additional attributes', async () => {
       const { credentials } = await createTestUser();
 
-      const loginResponse = await makeRequest(app, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      const signInResponse = await signInWithCredentials(
+        app,
+        credentials.email,
+        credentials.password
+      );
 
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
 
       // Make request with cookie that includes attributes (simulating browser behavior)
       const response = await makeRequest(app, 'GET', '/v1/me', {
