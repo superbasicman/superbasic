@@ -166,9 +166,13 @@ curl -i http://localhost:3000/v1/health
 
 ```bash
 # Test credentials sign-in
+CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
+
 curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
+  -b /tmp/cookies.txt \
+  -c /tmp/cookies.txt \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=test@example.com&password=password123"
+  -d "email=test@example.com&password=password123&csrfToken=$CSRF_TOKEN"
 # Should return 302 redirect with Set-Cookie header
 
 # Extract session cookie and test session endpoint
@@ -755,7 +759,7 @@ pnpm typecheck --filter=@repo/auth
 
 ### Task 13: Add signIn Callback for Profile Creation
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-23)
 **Priority**: P1 (High)
 **Estimated Time**: 30 minutes
 **Dependencies**: Task 12
@@ -771,23 +775,25 @@ pnpm typecheck --filter=@repo/auth
 
 **Acceptance Criteria**:
 
-- [ ] `signIn` callback added
-- [ ] Profile created for new OAuth users
-- [ ] Existing users not affected
-- [ ] Callback doesn't block sign-in
+- [x] `signIn` callback added
+- [x] Profile created for new OAuth users
+- [x] Existing users not affected
+- [x] Callback doesn't block sign-in
 
 **Sanity Check**:
 
 ```bash
 # Verify signIn callback in config
-grep -A 10 "signIn.*async" packages/auth/src/config.ts
+grep -A 10 "async signIn" packages/auth/src/config.ts
+
 
 # Check it calls ensureProfileExists
 grep "ensureProfileExists" packages/auth/src/config.ts
 
 # Test with OAuth flow (after Google OAuth is working)
 # Sign in with new OAuth user and verify profile created:
-psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oauth_user_id>';"
+psql $DATABASE_URL -c "SELECT u.id as user_id, u.email, u.name, p.id as profile_id, p.timezone, p.currency FROM users u LEFT JOIN profiles p ON u.id = p.\"userId\" WHERE u.email = '<new_oauth_user_id>';"
+
 # Should return 1 row
 ```
 
@@ -795,7 +801,7 @@ psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oa
 
 ### Task 14: Test Google OAuth Flow
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-24)
 **Priority**: P1 (High)
 **Estimated Time**: 2 hours
 **Dependencies**: Task 13
@@ -814,12 +820,12 @@ psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<new_oa
 
 **Acceptance Criteria**:
 
-- [ ] OAuth flow completes successfully
-- [ ] User redirected back to app
-- [ ] Session cookie set
-- [ ] User record created
-- [ ] Profile record created
-- [ ] Account record created with Google provider
+- [x] OAuth flow completes successfully
+- [x] User redirected back to app
+- [x] Session cookie set
+- [x] User record created
+- [x] Profile record created
+- [x] Account record created with Google provider
 
 **Sanity Check**:
 
@@ -831,10 +837,10 @@ open http://localhost:3000/v1/auth/signin/google
 psql $DATABASE_URL -c "SELECT id, email, name FROM users WHERE email = '<your_google_email>';"
 # Should return 1 user
 
-psql $DATABASE_URL -c "SELECT id, user_id FROM profiles WHERE user_id = '<user_id_from_above>';"
+psql $DATABASE_URL -c "SELECT id, \"userId\", timezone, currency FROM profiles WHERE \"userId\" = '<user_id>';"
 # Should return 1 profile
 
-psql $DATABASE_URL -c "SELECT provider, provider_account_id FROM accounts WHERE user_id = '<user_id>';"
+psql $DATABASE_URL -c "SELECT provider, \"providerAccountId\" FROM accounts WHERE \"userId\" = '<user_id>';"
 # Should show: provider = 'google'
 
 # Verify session works
@@ -847,7 +853,7 @@ curl http://localhost:3000/v1/auth/session \
 
 ### Task 15: Test OAuth Account Linking
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-24)
 **Priority**: P1 (High)
 **Estimated Time**: 1 hour
 **Dependencies**: Task 14
@@ -864,10 +870,10 @@ curl http://localhost:3000/v1/auth/session \
 
 **Acceptance Criteria**:
 
-- [ ] OAuth account linked to existing user
-- [ ] No duplicate user created
-- [ ] Both auth methods work
-- [ ] Profile data preserved
+- [x] OAuth account linked to existing user
+- [x] No duplicate user created
+- [x] Both auth methods work
+- [x] Profile data preserved
 
 **Sanity Check**:
 
@@ -889,9 +895,11 @@ open http://localhost:3000/v1/auth/signin/google
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM users WHERE email = 'test@example.com';"
 # Should return: count = 1
 
-# Verify two accounts linked to same user
-psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>';"
-# Should show: credentials, google (2 rows)
+# Verify OAuth account linked to user
+psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE \"userId\" = '<user_id>';"
+# Should show: google (1 row)
+# Note: Credentials provider doesn't create accounts table entries - 
+# password is stored in users.password field instead
 ```
 
 ---
@@ -900,7 +908,7 @@ psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>'
 
 ### Task 16: Update Auth Middleware
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-24) - No changes needed
 **Priority**: P0 (Critical)
 **Estimated Time**: 2 hours
 **Dependencies**: Task 4
@@ -916,36 +924,113 @@ psql $DATABASE_URL -c "SELECT provider FROM accounts WHERE user_id = '<user_id>'
 5. Attach to context
 6. Ensure backward compatibility
 
+**Implementation Note**: Middleware already Auth.js-compatible from Sub-Phase 1. No changes needed. See `docs/archived/task-16-middleware-review.md` for details.
+
 **Acceptance Criteria**:
 
-- [ ] PAT authentication checked first
-- [ ] Auth.js sessions validated
-- [ ] userId and profileId attached to context
-- [ ] Existing sessions still work
-- [ ] No breaking changes
+- [x] PAT authentication checked first
+- [x] Auth.js sessions validated
+- [x] userId and profileId attached to context
+- [x] Existing sessions still work
+- [x] No breaking changes
 
 **Sanity Check**:
 
 ```bash
-# Test PAT authentication (should work unchanged)
-curl -i http://localhost:3000/v1/tokens \
-  -H "Authorization: Bearer sbf_<your_test_token>"
-# Should return 200 with token list
-
-# Test Auth.js session authentication
-curl -i http://localhost:3000/v1/tokens \
-  -H "Cookie: authjs.session-token=<session_token>"
-# Should return 200 with token list
-
-# Test protected endpoint without auth
-curl -i http://localhost:3000/v1/tokens
-# Should return 401 Unauthorized
-
-# Verify context has userId and profileId
-# Add temporary logging in middleware and check logs:
+# Prerequisites: Start API server
 pnpm dev --filter=@repo/api
-# Logs should show: { userId: '...', profileId: '...' }
+
+# Step 1: Sign in and create a test token with appropriate scopes
+# Get CSRF token
+CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
+
+# Sign in with credentials (replace with your email/password)
+curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
+  -b /tmp/cookies.txt \
+  -c /tmp/cookies.txt \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=superbasicman@gmail.com&password=test123.&csrfToken=$CSRF_TOKEN"
+# ✅ Should return: HTTP/1.1 302 Found with location to web app (not error URL)
+
+# Create API token with read:profile and write:profile scopes
+curl -X POST http://localhost:3000/v1/tokens \
+  -b /tmp/cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Test Token",
+    "scopes": ["read:profile", "write:profile"]
+  }'
+# ✅ Should return: {"token":"sbf_...","id":"...","name":"Test Token",...}
+# ⚠️  SAVE THE TOKEN - it's only shown once!
+
+# Step 2: Test PAT authentication (Bearer token)
+curl -i http://localhost:3000/v1/me \
+  -H "Authorization: Bearer <paste_token_here>"
+# ✅ Should return: HTTP/1.1 200 OK with user profile JSON
+# ✅ Verifies: PAT middleware working, token hash lookup successful, scope enforcement working
+
+# Step 3: Test Auth.js session authentication (cookie)
+curl -i http://localhost:3000/v1/me \
+  -b /tmp/cookies.txt
+# ✅ Should return: HTTP/1.1 200 OK with user profile JSON
+# ✅ Verifies: Session middleware working, Auth.js JWT decoding successful
+
+# Step 4: Test unified middleware priority (Bearer takes precedence)
+curl -i http://localhost:3000/v1/me \
+  -H "Authorization: Bearer sbf_<paste_token_here>" \
+  -b /tmp/cookies.txt
+# ✅ Should return: HTTP/1.1 200 OK
+# ✅ Verifies: Bearer token checked first (unified middleware priority)
+
+# Step 5: Test protected endpoint without auth
+curl -i http://localhost:3000/v1/me
+# ✅ Should return: HTTP/1.1 401 Unauthorized
+# ✅ Verifies: Auth required, no fallback to anonymous access
+
+# Step 6: Test scope enforcement (wrong scope)
+# Create token with different scopes
+curl -X POST http://localhost:3000/v1/tokens \
+  -b /tmp/cookies.txt \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Limited Token",
+    "scopes": ["read:transactions"]
+  }'
+# Save the token, then test with endpoint requiring different scope:
+curl -i http://localhost:3000/v1/me \
+  -H "Authorization: Bearer <limited_token_here>"
+# ✅ Should return: HTTP/1.1 403 Forbidden
+# ✅ Body: {"error":"Insufficient permissions","required":"read:profile"}
+# ✅ Verifies: Scope enforcement working correctly
+
+# Step 7: Test session auth bypasses scope checks
+curl -i http://localhost:3000/v1/me \
+  -b /tmp/cookies.txt
+# ✅ Should return: HTTP/1.1 200 OK (even though session has no explicit scopes)
+# ✅ Verifies: Session auth has full access, bypasses scope checks
+
+# Step 8: Verify token management endpoints require session auth only
+curl -i http://localhost:3000/v1/tokens \
+  -H "Authorization: Bearer <any_token_here>"
+# ✅ Should return: HTTP/1.1 401 Unauthorized
+# ✅ Verifies: Token management requires session auth (security: can't manage tokens with a token)
+
+curl -i http://localhost:3000/v1/tokens \
+  -b /tmp/cookies.txt
+# ✅ Should return: HTTP/1.1 200 OK with token list
+# ✅ Verifies: Session auth works for token management
+
+# Cleanup
+rm -f /tmp/cookies.txt
 ```
+
+**Key Findings:**
+- PAT authentication working via Bearer tokens
+- Session authentication working via Auth.js cookies
+- Unified middleware correctly prioritizes Bearer over session
+- Scope enforcement working (403 when scope missing, session bypasses)
+- Token management endpoints correctly restricted to session auth only
+- No breaking changes to existing authentication flows
 
 ---
 

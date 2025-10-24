@@ -12,6 +12,7 @@ import { prisma } from "@repo/database";
 import { verifyPassword } from "./password.js";
 import { sendMagicLinkEmail } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
+import { ensureProfileExists } from "./profile.js";
 
 export const authConfig: AuthConfig = {
   basePath: "/v1/auth",
@@ -106,6 +107,79 @@ export const authConfig: AuthConfig = {
   },
   secret: process.env.AUTH_SECRET || "",
   callbacks: {
+    async signIn({ user, account, profile: oauthProfile }) {
+      // For OAuth and magic link providers, ensure user and profile exist
+      if (account?.provider && account.provider !== 'credentials') {
+        // Check if user exists
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email! },
+        });
+
+        let userId: string;
+
+        if (!existingUser) {
+          // Create user for OAuth/magic link
+          const newUser = await prisma.user.create({
+            data: {
+              email: user.email!,
+              name: user.name || oauthProfile?.name || null,
+              image: user.image || oauthProfile?.picture || null,
+              emailVerified: new Date(), // OAuth users are email-verified
+            },
+          });
+          userId = newUser.id;
+          
+          // Create account link
+          await prisma.account.create({
+            data: {
+              userId: newUser.id,
+              type: account.type,
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+              access_token: account.access_token,
+              expires_at: account.expires_at,
+              token_type: account.token_type,
+              scope: account.scope,
+              id_token: account.id_token,
+            },
+          });
+        } else {
+          userId = existingUser.id;
+          
+          // Check if account link exists
+          const existingAccount = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
+            },
+          });
+
+          if (!existingAccount) {
+            // Link new OAuth account to existing user
+            await prisma.account.create({
+              data: {
+                userId: existingUser.id,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+                access_token: account.access_token,
+                expires_at: account.expires_at,
+                token_type: account.token_type,
+                scope: account.scope,
+                id_token: account.id_token,
+              },
+            });
+          }
+        }
+
+        // Ensure profile exists
+        await ensureProfileExists(userId);
+      }
+
+      return true; // Allow sign-in
+    },
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;

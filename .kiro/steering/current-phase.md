@@ -1,8 +1,8 @@
 # Current Phase Context
 
 **Active Phase**: Phase 2.1 - Auth.js Migration  
-**Status**: 🔄 IN PROGRESS - Sub-Phase 3 (Task 11 Next)  
-**Current Task**: Task 11 - Add Auth.js Prisma Adapter Tables  
+**Status**: 🔄 IN PROGRESS - Sub-Phase 4 (Task 17 Next)  
+**Current Task**: Task 17 - Migrate Integration Tests  
 **Spec Location**: `.kiro/specs/authjs-migration/`  
 **Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, revalidated with Auth.js)
 
@@ -75,11 +75,18 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 **Architecture Decision**: Additional OAuth providers (GitHub, Apple) deferred to Phase 16 (Advanced Features) to focus on core functionality. Phase 2.1 will deliver Google OAuth + magic links only.
 
-### Sub-Phase 3 Progress (Tasks 7-15): 🔄 IN PROGRESS
+### Sub-Phase 3 Progress (Tasks 7-15): ✅ COMPLETE
 
 **Completed Tasks:**
 - Task 7: ✅ Choose and Configure Email Service (2025-10-23)
 - Task 8: ✅ Add Email Provider to Auth.js Config (2025-10-23)
+- Task 9: ✅ Create Magic Link Email Template (2025-10-23)
+- Task 10: ✅ Test Magic Link Flow (2025-10-23)
+- Task 11: ✅ Implement Magic Link Rate Limiting (2025-10-23)
+- Task 12: ✅ Create Profile Creation Helper (2025-10-23)
+- Task 13: ✅ Add signIn Callback for Profile Creation (2025-10-23)
+- Task 14: ✅ Test Google OAuth Flow (2025-10-24)
+- Task 15: ✅ Test OAuth Account Linking (2025-10-24)
 
 **Task 7 Achievements:**
 - Resend account created and API key obtained
@@ -104,12 +111,7 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Email provider configured with `EMAIL_FROM` environment variable
 - TypeScript builds successfully (runtime working, typecheck has known Auth.js type issues)
 
-**Completed Tasks:**
-- Task 9: ✅ Create Magic Link Email Template (2025-10-23)
-- Task 10: ✅ Test Magic Link Flow (2025-10-23)
-- Task 11: ✅ Implement Magic Link Rate Limiting (2025-10-23)
-
-**Task 11 Achievements:**
+**Sub-Phase 3 Achievements:**
 - Created `magicLinkRateLimitMiddleware` with 3 requests per hour per email limit
 - Email addresses normalized (lowercase + trimmed) for consistent rate limiting
 - Returns 429 with helpful error message including retry time in minutes
@@ -160,8 +162,35 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Exported from `@repo/auth` package
 - TypeScript builds successfully with no errors
 
+**Completed Tasks:**
+- Task 13: ✅ Add signIn Callback for Profile Creation (2025-10-23)
+
+**Task 13 Achievements:**
+- Added `signIn` callback to Auth.js config in `packages/auth/src/config.ts`
+- Callback calls `ensureProfileExists(user.id)` for all sign-in methods
+- Ensures OAuth and magic link users get profiles automatically
+- Credentials provider users already have profiles from registration
+- Callback doesn't block sign-in (returns true)
+- TypeScript builds successfully with no errors
+- All 7 profile tests still passing
+
+### Sub-Phase 4 Progress (Tasks 16-20): 🔄 IN PROGRESS
+
+**Completed Tasks:**
+- Task 16: ✅ Update Auth Middleware (2025-10-24) - No changes needed
+
+**Task 16 Findings:**
+- Middleware already Auth.js-compatible from Sub-Phase 1
+- Uses `@auth/core/jwt` for JWT decoding
+- Uses correct cookie name: `authjs.session-token`
+- Validates JWT signature and claims correctly
+- Attaches userId and profileId to context
+- PAT authentication (Bearer tokens) working unchanged
+- All 241 tests passing (225 Phase 3 + 16 Auth.js)
+- Documentation: `docs/archived/task-16-middleware-review.md`
+
 **Next Up:**
-- Task 13: Add signIn Callback for Profile Creation
+- Task 17: Migrate Integration Tests
 
 ## Phase 3 Context (Completed and Revalidated)
 
