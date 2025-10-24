@@ -23,6 +23,7 @@ Phase-specific documentation that should be updated during and after phase work:
 
 - `docs/oauth-setup-guide.md` - OAuth provider setup instructions (Phase 2.1)
 - `docs/task-7-resend-setup.md` - Task 7 Resend email service setup (Phase 2.1)
+- `docs/archived/task-12-profile-helper.md` - Task 12 profile helper completion (Phase 2.1)
 
 ### Completed Phases
 

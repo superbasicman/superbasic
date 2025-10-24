@@ -6,7 +6,7 @@
 import type { AuthConfig } from "@auth/core";
 import Credentials from "@auth/core/providers/credentials";
 import Google from "@auth/core/providers/google";
-import Email from "@auth/core/providers/email";
+import Nodemailer from "@auth/core/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/database";
 import { verifyPassword } from "./password.js";
@@ -70,16 +70,33 @@ export const authConfig: AuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     }),
-    Email({
+    Nodemailer({
       from: process.env.EMAIL_FROM ?? "onboard@resend.com",
-      // Dummy server config required by Auth.js (not actually used since we override sendVerificationRequest)
+      // Server config required by Auth.js Nodemailer provider
+      // We override sendVerificationRequest so this isn't actually used
       server: {
         host: "localhost",
-        port: 587,
-        auth: { user: "dummy", pass: "dummy" },
+        port: 25,
+        auth: {
+          user: "",
+          pass: "",
+        },
+        // Disable connection pooling and TLS to avoid validation errors
+        pool: false,
+        secure: false,
+        tls: {
+          rejectUnauthorized: false,
+        },
       },
       sendVerificationRequest: async ({ identifier: email, url }) => {
-        await sendMagicLinkEmail({ to: email, url });
+        console.log('[Auth.js] sendVerificationRequest called:', { email, urlLength: url.length });
+        try {
+          await sendMagicLinkEmail({ to: email, url });
+          console.log('[Auth.js] sendMagicLinkEmail completed successfully');
+        } catch (error) {
+          console.error('[Auth.js] sendMagicLinkEmail failed:', error);
+          throw error;
+        }
       },
     }),
   ],

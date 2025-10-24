@@ -10,7 +10,10 @@ export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams):
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-  await resend.emails.send({
+  console.log('[sendMagicLinkEmail] Sending magic link email:', { to, from, urlLength: url.length });
+
+  try {
+    const result = await resend.emails.send({
     from,
     to,
     subject: 'Sign in to SuperBasic Finance',
@@ -52,5 +55,20 @@ If you didn't request this email, you can safely ignore it.
 
 Need help? Contact us at support@superbasicfinance.com
     `.trim(),
-  });
+    });
+
+    console.log('[sendMagicLinkEmail] Email sent successfully:', { 
+      to, 
+      emailId: result.data?.id,
+      error: result.error 
+    });
+
+    if (result.error) {
+      console.error('[sendMagicLinkEmail] Resend API returned error:', result.error);
+      throw new Error(`Failed to send email: ${result.error.message}`);
+    }
+  } catch (error) {
+    console.error('[sendMagicLinkEmail] Failed to send email:', error);
+    throw error;
+  }
 }

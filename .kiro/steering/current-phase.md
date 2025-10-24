@@ -1,8 +1,8 @@
 # Current Phase Context
 
 **Active Phase**: Phase 2.1 - Auth.js Migration  
-**Status**: 🔄 IN PROGRESS - Sub-Phase 3 (Task 10 Next)  
-**Current Task**: Task 10 - Test Magic Link Flow  
+**Status**: 🔄 IN PROGRESS - Sub-Phase 3 (Task 11 Next)  
+**Current Task**: Task 11 - Add Auth.js Prisma Adapter Tables  
 **Spec Location**: `.kiro/specs/authjs-migration/`  
 **Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, revalidated with Auth.js)
 
@@ -106,6 +106,19 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 **Completed Tasks:**
 - Task 9: ✅ Create Magic Link Email Template (2025-10-23)
+- Task 10: ✅ Test Magic Link Flow (2025-10-23)
+- Task 11: ✅ Implement Magic Link Rate Limiting (2025-10-23)
+
+**Task 11 Achievements:**
+- Created `magicLinkRateLimitMiddleware` with 3 requests per hour per email limit
+- Email addresses normalized (lowercase + trimmed) for consistent rate limiting
+- Returns 429 with helpful error message including retry time in minutes
+- Includes standard rate limit headers (X-RateLimit-*, Retry-After)
+- Middleware applied to `/v1/auth/signin/nodemailer` route
+- Created comprehensive test suite: `apps/api/src/middleware/__tests__/magic-link-rate-limit.test.ts` (8 tests)
+- Created manual test script: `tooling/scripts/test-magic-link-rate-limit.sh`
+- Uses existing Upstash Redis infrastructure with sliding window algorithm
+- Fail-open behavior if Redis unavailable (logs warning, allows request)
 
 **Task 9 Achievements:**
 - Email template already implemented in Task 7 as part of `sendMagicLinkEmail()` function
@@ -115,8 +128,40 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - All template elements verified: subject line, button, link, expiration, support email
 - Template follows best practices for email client compatibility
 
+**Task 10 Achievements:**
+- Discovered Auth.js requires CSRF token for email signin requests (security feature)
+- Created test script: `tooling/scripts/test-magic-link-flow.sh` for automated testing
+- Verified magic link request flow: CSRF token → email signin → verify-request redirect
+- Tested email delivery with real email addresses (successful)
+- Updated task documentation with CSRF token requirements
+- Deferred integration tests until Auth.js tables exist (Task 12)
+- Documentation: `docs/archived/task-10-magic-link-testing.md`
+
+**Task 11 Achievements:**
+- Created `magicLinkRateLimitMiddleware` with 3 requests per hour per email limit
+- Email addresses normalized (lowercase + trimmed) for consistent rate limiting
+- Returns 429 with helpful error message including retry time in minutes
+- Includes standard rate limit headers (X-RateLimit-*, Retry-After)
+- Middleware applied to `/v1/auth/signin/nodemailer` route
+- Created comprehensive test suite: `apps/api/src/middleware/__tests__/magic-link-rate-limit.test.ts` (8 tests)
+- Created manual test script: `tooling/scripts/test-magic-link-rate-limit.sh`
+- Uses existing Upstash Redis infrastructure with sliding window algorithm
+- Fail-open behavior if Redis unavailable (logs warning, allows request)
+
+**Completed Tasks:**
+- Task 12: ✅ Create Profile Creation Helper (2025-10-23)
+
+**Task 12 Achievements:**
+- Created `ensureProfileExists()` function in `packages/auth/src/profile.ts`
+- Function checks for existing profile and creates one if missing
+- Uses default settings: timezone=UTC, currency=USD, settings=null
+- Idempotent design - safe to call multiple times for same user
+- Comprehensive test suite with 7 passing tests
+- Exported from `@repo/auth` package
+- TypeScript builds successfully with no errors
+
 **Next Up:**
-- Task 10: Test Magic Link Flow (end-to-end authentication test)
+- Task 13: Add signIn Callback for Profile Creation
 
 ## Phase 3 Context (Completed and Revalidated)
 

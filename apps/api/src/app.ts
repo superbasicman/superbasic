@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
-import { authRateLimitMiddleware } from './middleware/rate-limit.js';
+import { authRateLimitMiddleware, magicLinkRateLimitMiddleware } from './middleware/rate-limit.js';
 import { healthRoute } from './routes/v1/health.js';
 import { registerRoute } from './routes/v1/register.js';
 import { loginRoute } from './routes/v1/login.js';
@@ -23,7 +23,11 @@ app.route('/health', healthRoute);
 // Mount v1 routes
 const v1 = new Hono();
 
-// Mount Auth.js handler first (handles /v1/auth/*)
+// Apply magic link rate limiting (3 req/hour per email) before Auth.js handler
+// Auth.js uses "nodemailer" as the provider ID for email authentication
+v1.use('/auth/signin/nodemailer', magicLinkRateLimitMiddleware);
+
+// Mount Auth.js handler (handles /v1/auth/*)
 v1.route('/auth', authApp);
 
 v1.route('/health', healthRoute);

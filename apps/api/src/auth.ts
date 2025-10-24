@@ -26,8 +26,19 @@ authApp.all('/*', async (c) => {
     // Get the original request
     const request = c.req.raw;
 
+    console.log('[Auth.js Handler] Request:', {
+      method: request.method,
+      url: request.url,
+      headers: Object.fromEntries(request.headers.entries()),
+    });
+
     // Call Auth.js with the request and config
     const response = await Auth(request, authConfig);
+
+    console.log('[Auth.js Handler] Response:', {
+      status: response.status,
+      location: response.headers.get('location'),
+    });
 
     // For sign-out requests with JWT strategy, Auth.js doesn't clear the cookie by default
     // We need to manually add a Set-Cookie header to clear it
