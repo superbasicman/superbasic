@@ -1330,6 +1330,7 @@ cat apps/web/playwright.config.ts
 
 - Created `apiFormPost()` helper that automatically fetches CSRF token from `/v1/auth/csrf`
 - Helper converts data to `application/x-www-form-urlencoded` format
+- Helper uses `redirect: 'manual'` to prevent CORS errors on Auth.js 302 redirects
 - `login()` now calls `/v1/auth/callback/credentials` then fetches session
 - `loginWithGoogle()` performs full-page redirect to OAuth endpoint
 - `requestMagicLink()` calls `/v1/auth/signin/nodemailer` (Auth.js email provider ID)
@@ -1337,6 +1338,8 @@ cat apps/web/playwright.config.ts
 - `logout()` calls `/v1/auth/signout` with CSRF token
 - `register()` unchanged - still uses custom `/v1/register` endpoint
 - All methods maintain same TypeScript interfaces for backward compatibility
+
+**CORS Fix (2025-10-24)**: Added `redirect: 'manual'` to `apiFormPost()` to prevent browser from following Auth.js 302 redirects, which was causing CORS errors when trying to fetch the frontend URL from the API domain. Now treats status 302 or 0 (opaqueredirect) as success.
 
 **Acceptance Criteria**:
 

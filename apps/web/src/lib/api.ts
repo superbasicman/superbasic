@@ -84,6 +84,7 @@ async function apiFormPost<T>(
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: formData.toString(),
+    redirect: 'manual', // Don't follow redirects - we'll handle them ourselves
   });
 
   // Handle 401 globally
@@ -91,9 +92,15 @@ async function apiFormPost<T>(
     throw new ApiError('Unauthorized', 401);
   }
 
-  // Auth.js may return 302 redirects for success
-  // For our SPA, we'll treat redirects as success
-  if (response.status === 302 || response.status === 200) {
+  // Auth.js returns 302 redirects for successful authentication
+  // For our SPA, we treat redirects as success and don't follow them
+  if (response.status === 302 || response.status === 0) {
+    // Status 0 means opaqueredirect (redirect: 'manual' with CORS)
+    return {} as T;
+  }
+
+  // Handle 200 OK responses
+  if (response.status === 200) {
     // Try to parse JSON response
     const text = await response.text();
     if (text) {

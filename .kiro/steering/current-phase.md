@@ -256,6 +256,7 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 **Task 21 Achievements:**
 - Created `apiFormPost()` helper for form-encoded requests with CSRF token handling
+- Fixed CORS issue by adding `redirect: 'manual'` to prevent following Auth.js 302 redirects
 - Updated `authApi.login()` to use `/v1/auth/callback/credentials`
 - Added `authApi.loginWithGoogle()` for OAuth redirect
 - Added `authApi.requestMagicLink()` for magic link authentication
@@ -263,7 +264,9 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Updated `authApi.logout()` to use `/v1/auth/signout`
 - Maintained backward compatible interfaces
 - All TypeScript builds passing
+- All 273 API tests passing (3 known rate limit failures)
 - No breaking changes to existing code
+- Login flow working in web UI without CORS errors
 
 ## Phase 3 Context (Completed and Revalidated)
 
