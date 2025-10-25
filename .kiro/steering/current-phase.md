@@ -1,8 +1,8 @@
 # Current Phase Context
 
 **Active Phase**: Phase 2.1 - Auth.js Migration  
-**Status**: 🔄 IN PROGRESS - Sub-Phase 4 (Task 19 Next)  
-**Current Task**: Task 19 - Add Magic Link Tests  
+**Status**: 🔄 IN PROGRESS - Sub-Phase 5 (Task 21 Next)  
+**Current Task**: Task 21 - Update API Client with Auth.js Endpoints  
 **Spec Location**: `.kiro/specs/authjs-migration/`  
 **Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, revalidated with Auth.js)
 
@@ -226,11 +226,44 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Core magic link functionality fully validated
 - Sanity checks completed successfully
 
+**Completed Tasks:**
+- Task 16: ✅ Update Auth Middleware (2025-10-24) - No changes needed
+- Task 17: ✅ Migrate Integration Tests (2025-10-24)
+- Task 18: ✅ Add OAuth Flow Tests (2025-10-24)
+- Task 19: ✅ Add Magic Link Tests (2025-10-24) - Sanity checks verified
+- Task 20: ✅ Update E2E Tests (2025-10-24)
+
+**Task 20 Achievements:**
+- Reviewed existing E2E tests for Auth.js compatibility
+- Confirmed 50+ E2E tests remain valid with Auth.js backend
+- Documented OAuth and magic link E2E testing requirements
+- OAuth/magic link E2E tests deferred until web UI updated (Tasks 21-23)
+- Playwright configuration verified and working
+- Manual testing procedures documented
+
 **Sub-Phase 4 Summary:**
 - All critical middleware and integration tests complete
-- OAuth and magic link flows fully tested
+- OAuth and magic link flows fully tested at API level
+- E2E tests reviewed and confirmed compatible
 - Total: 30+ new tests added for Auth.js integration
 - All core functionality working as expected
+- Ready to proceed with web client integration (Sub-Phase 5)
+
+### Sub-Phase 5 Progress (Tasks 21-27): 🔄 IN PROGRESS
+
+**Completed Tasks:**
+- Task 21: ✅ Update API Client with Auth.js Endpoints (2025-10-24)
+
+**Task 21 Achievements:**
+- Created `apiFormPost()` helper for form-encoded requests with CSRF token handling
+- Updated `authApi.login()` to use `/v1/auth/callback/credentials`
+- Added `authApi.loginWithGoogle()` for OAuth redirect
+- Added `authApi.requestMagicLink()` for magic link authentication
+- Updated `authApi.me()` to use `/v1/auth/session`
+- Updated `authApi.logout()` to use `/v1/auth/signout`
+- Maintained backward compatible interfaces
+- All TypeScript builds passing
+- No breaking changes to existing code
 
 ## Phase 3 Context (Completed and Revalidated)
 
