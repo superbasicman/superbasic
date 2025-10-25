@@ -8,8 +8,13 @@
 import { Hono } from 'hono';
 import { Auth } from '@auth/core';
 import { authConfig } from '@repo/auth';
+import { magicLinkRateLimitMiddleware } from './middleware/rate-limit.js';
 
 const authApp = new Hono();
+
+// Apply magic link rate limiting (3 req/hour per email) before Auth.js handler
+// Auth.js uses "nodemailer" as the provider ID for email authentication
+authApp.use('/signin/nodemailer', magicLinkRateLimitMiddleware);
 
 /**
  * Mount Auth.js handler at all routes
