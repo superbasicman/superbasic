@@ -1123,10 +1123,10 @@ pnpm test --filter=@repo/api | grep "skipped"
 
 **Acceptance Criteria**:
 
-- [ ] OAuth tests added (5+ tests)
-- [ ] Google OAuth flow tested
-- [ ] Account linking tested
-- [ ] Error cases tested
+- [x] OAuth tests added (5+ tests)
+- [x] Google OAuth flow tested
+- [x] Account linking tested
+- [x] Error cases tested
 
 **Sanity Check**:
 
