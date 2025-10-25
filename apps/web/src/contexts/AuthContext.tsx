@@ -5,17 +5,20 @@ import {
   useEffect,
   type ReactNode,
 } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
 import { authApi, ApiError } from '../lib/api';
 
 interface AuthContextType {
   user: UserResponse | null;
   login: (credentials: LoginInput) => Promise<void>;
+  loginWithGoogle: () => void;
+  requestMagicLink: (email: string) => Promise<void>;
   register: (data: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
   isAuthenticated: boolean;
+  authError: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,12 +30,20 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  // Check auth status on initialization
+  // Check auth status on initialization and after navigation
   useEffect(() => {
     checkAuthStatus();
-  }, []);
+  }, [location.pathname]);
+
+  // Handle OAuth/auth errors from query params
+  useEffect(() => {
+    handleAuthErrors();
+  }, [location.search]);
 
   /**
    * Check if user is authenticated by calling /v1/me
@@ -53,6 +64,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  /**
+   * Handle authentication errors from query params
+   * Auth.js redirects with ?error=... on OAuth failures
+   */
+  function handleAuthErrors() {
+    const error = searchParams.get('error');
+
+    if (error) {
+      const errorDescription = searchParams.get('error_description') || 'Authentication failed';
+      console.log('[AuthContext] Auth error detected:', error, errorDescription);
+      setAuthError(errorDescription);
+      
+      // Clear error params after showing message
+      setTimeout(() => {
+        setSearchParams({});
+        setAuthError(null);
+      }, 5000);
     }
   }
 
@@ -91,6 +122,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /**
+   * Login with Google OAuth
+   * Redirects to Google OAuth consent screen
+   */
+  function loginWithGoogle(): void {
+    authApi.loginWithGoogle();
+  }
+
+  /**
+   * Request magic link via email
+   * Sends email with sign-in link
+   */
+  async function requestMagicLink(email: string): Promise<void> {
+    try {
+      await authApi.requestMagicLink(email);
+      // Success - caller should show "Check your email" message
+    } catch (error) {
+      // Re-throw to allow UI to handle error display
+      throw error;
+    }
+  }
+
+  /**
    * Logout - clears httpOnly cookie and local state
    * Redirects to login page
    */
@@ -110,10 +163,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const value: AuthContextType = {
     user,
     login,
+    loginWithGoogle,
+    requestMagicLink,
     register,
     logout,
     isLoading,
     isAuthenticated: user !== null,
+    authError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

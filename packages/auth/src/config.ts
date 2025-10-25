@@ -197,12 +197,28 @@ export const authConfig: AuthConfig = {
       }
       return session;
     },
-    async redirect() {
-      // Always redirect to the web app after OAuth sign-in
-      // Auth.js default behavior is to redirect to baseUrl (API server)
-      // We want users to land in the React app instead
+    async redirect({ url, baseUrl }) {
+      // Auth.js redirect callback receives:
+      // - url: The URL to redirect to (Auth.js processes callbackUrl internally)
+      // - baseUrl: The base URL of the application (API server)
+      
+      // Auth.js handles the callbackUrl parameter internally and provides
+      // the final destination as 'url'. We just need to ensure it redirects
+      // to the web app instead of the API server.
       const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
-      return webAppUrl;
+      
+      // If url starts with baseUrl (API server), replace with web app URL
+      if (url.startsWith(baseUrl)) {
+        return url.replace(baseUrl, webAppUrl);
+      }
+      
+      // If url is relative, prepend web app URL
+      if (url.startsWith('/')) {
+        return `${webAppUrl}${url}`;
+      }
+      
+      // Otherwise return the url as-is (may be external or already correct)
+      return url;
     },
   },
   pages: {

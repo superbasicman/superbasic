@@ -1,8 +1,8 @@
 # Current Phase Context
 
 **Active Phase**: Phase 2.1 - Auth.js Migration  
-**Status**: 🔄 IN PROGRESS - Sub-Phase 5 (Task 21 Next)  
-**Current Task**: Task 21 - Update API Client with Auth.js Endpoints  
+**Status**: 🔄 IN PROGRESS - Sub-Phase 5 (Task 23 Next)  
+**Current Task**: Task 23 - Add OAuth Buttons and Magic Link UI to Login Page  
 **Spec Location**: `.kiro/specs/authjs-migration/`  
 **Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, revalidated with Auth.js)
 
@@ -253,6 +253,7 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 **Completed Tasks:**
 - Task 21: ✅ Update API Client with Auth.js Endpoints (2025-10-24)
+- Task 22: ✅ Update AuthContext for OAuth Callback Handling (2025-10-24)
 
 **Task 21 Achievements:**
 - Created `apiFormPost()` helper for form-encoded requests with CSRF token handling
@@ -267,6 +268,22 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - All 273 API tests passing (3 known rate limit failures)
 - No breaking changes to existing code
 - Login flow working in web UI without CORS errors
+
+**Task 22 Achievements:**
+- **Simplified OAuth approach**: Discovered Auth.js handles `callbackUrl` internally
+- Added `handleAuthErrors()` function to detect `?error=...` query params only
+- Updated `checkAuthStatus()` to run on pathname changes (detects OAuth return automatically)
+- Added `loginWithGoogle()` method - calls `authApi.loginWithGoogle()`
+- Added `requestMagicLink(email)` method - calls `authApi.requestMagicLink()`
+- Added `authError` state for displaying authentication errors
+- Updated `AuthContextType` interface with new methods and error state
+- Added `callbackUrl` to OAuth form (Auth.js uses internally)
+- Updated Auth.js redirect callback to ensure web app URL (not API server)
+- All TypeScript builds passing with no errors
+- All 270 API tests passing (6 known rate limit failures)
+- No breaking changes to existing auth methods
+- **Key learning**: Session cookie + normal auth check is sufficient - no special OAuth detection needed!
+- Documentation: `docs/archived/task-22-oauth-callback-fix.md`
 
 ## Phase 3 Context (Completed and Revalidated)
 

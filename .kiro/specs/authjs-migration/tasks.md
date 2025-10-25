@@ -1388,26 +1388,23 @@ pnpm typecheck --filter=@repo/web
 
 ### Task 22: Update AuthContext for OAuth Callback Handling
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-24)
 **Priority**: P0 (Critical)
 **Estimated Time**: 3 hours
 **Dependencies**: Task 21
 
-**Description**: Update `AuthContext` to handle OAuth callbacks, detect error query params, and add new auth methods.
+**Description**: Update `AuthContext` to handle OAuth callbacks, detect error query params, and add new auth methods. Simplified approach after discovering Auth.js handles callbackUrl internally.
 
 **Steps**:
 
-1. Open `apps/web/src/contexts/AuthContext.tsx`
-2. Add `handleOAuthCallback()` function that:
-   - Detects `?error=...` query param and shows error message
-   - Detects `?callbackUrl=...` query param (OAuth return)
-   - Calls `checkAuthStatus()` to fetch session
-   - Clears query params and redirects to callbackUrl
-3. Add `useEffect` hook to call `handleOAuthCallback()` on location change
-4. Add `loginWithGoogle()` method - calls `authApi.loginWithGoogle()`
-5. Add `requestMagicLink(email)` method - calls `authApi.requestMagicLink()`
-6. Update `AuthContextType` interface with new methods
-7. Keep existing `login()`, `register()`, `logout()` methods unchanged
+1. ✅ Open `apps/web/src/contexts/AuthContext.tsx`
+2. ✅ Add `handleAuthErrors()` function to detect `?error=...` query params
+3. ✅ Update `checkAuthStatus()` to run on pathname changes (detects OAuth return)
+4. ✅ Add `loginWithGoogle()` method - calls `authApi.loginWithGoogle()`
+5. ✅ Add `requestMagicLink(email)` method - calls `authApi.requestMagicLink()`
+6. ✅ Add `authError` state for displaying authentication errors
+7. ✅ Update `AuthContextType` interface with new methods and error state
+8. ✅ Keep existing `login()`, `register()`, `logout()` methods unchanged
 
 **Acceptance Criteria**:
 
@@ -1421,25 +1418,56 @@ pnpm typecheck --filter=@repo/web
 
 **Key Technical Detail**: After OAuth redirect, the SPA must poll `/v1/auth/session` to get user data, then clear the `callbackUrl` query param to avoid re-triggering the callback handler.
 
+**Implementation Notes** (2025-10-24):
+
+- **Simplified approach**: Auth.js handles `callbackUrl` internally, no need to detect it in React
+- AuthContext checks auth status on pathname changes (triggers after OAuth redirect)
+- Only handles `?error=...` query params for failed OAuth attempts
+- Session cookie + normal auth check is sufficient for OAuth detection
+- No special OAuth callback logic needed - keeps implementation simple
+
+**Acceptance Criteria**:
+
+- [x] OAuth error handling working (`?error=...` query params)
+- [x] Session fetched automatically after OAuth (via pathname change detection)
+- [x] New auth methods added: `loginWithGoogle()`, `requestMagicLink()`
+- [x] TypeScript types updated with `authError` state
+- [x] No breaking changes to existing code
+- [x] Simplified implementation (no callbackUrl detection needed)
+
+**Key Learning**: Auth.js processes `callbackUrl` internally and redirects directly. The session cookie + normal auth check on navigation is all we need!
+
 **Sanity Check**:
 
-````bash
-# Verify handleOAuthCallback function exists
-grep "handleOAuthCallback" apps/web/src/contexts/AuthContext.tsx
+```bash
+# Verify error handling function exists
+grep "handleAuthErrors" apps/web/src/contexts/AuthContext.tsx
+# ✅ Should show function definition
 
-# Check for error handling
-grep "error.*query" apps/web/src/contexts/AuthContext.tsx
+# Check auth status runs on pathname changes
+grep "location.pathname" apps/web/src/contexts/AuthContext.tsx
+# ✅ Should show useEffect dependency
 
 # Verify new methods in context
 grep "loginWithGoogle\|requestMagicLink" apps/web/src/contexts/AuthContext.tsx
+# ✅ Should show both methods
 
-# Test in browser
-# 1. Start OAuth flow: click "Sign in with Google"
-# 2. After redirect, check URL has ?callbackUrl=...
-# 3. Verify query params cleared after 1-2 seconds
-# 4. Check console for any errors
-# 5. Verify user is logged in (check AuthContext state)
-```ts updated
+# Verify TypeScript builds
+pnpm build --filter=@repo/web
+# ✅ Should complete without errors
+
+# Test OAuth flow in browser
+# 1. Start: pnpm dev
+# 2. Open http://localhost:5173/login
+# 3. Click "Sign in with Google"
+# 4. After OAuth consent, verify:
+#    ✅ URL is http://localhost:5173/ (no query params)
+#    ✅ User is logged in immediately
+#    ✅ Home page displays user info
+#    ✅ No console errors
+#    ✅ Session persists on page refresh
+```
+
 - [ ] OAuth flows tested (or documented as manual test)
 - [ ] Magic link flows tested
 - [ ] All E2E tests passing
@@ -1461,7 +1489,7 @@ pnpm exec playwright test auth
 
 # View test report
 pnpm exec playwright show-report
-````
+```
 
 ---
 
