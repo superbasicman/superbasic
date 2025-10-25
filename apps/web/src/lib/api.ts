@@ -151,9 +151,33 @@ export const authApi = {
    * Login with Google OAuth
    * Redirects to Google OAuth consent screen
    */
-  loginWithGoogle(): void {
-    // Redirect to Auth.js Google OAuth endpoint
-    window.location.href = `${API_URL}/v1/auth/signin/google`;
+  async loginWithGoogle(): Promise<void> {
+    // Auth.js requires POST with CSRF token for OAuth signin
+    // We need to submit a form programmatically
+    const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
+      credentials: 'include',
+    });
+    const { csrfToken } = await csrfResponse.json();
+
+    // Create and submit form programmatically
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `${API_URL}/v1/auth/signin/google`;
+
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfToken';
+    csrfInput.value = csrfToken;
+    form.appendChild(csrfInput);
+
+    const callbackInput = document.createElement('input');
+    callbackInput.type = 'hidden';
+    callbackInput.name = 'callbackUrl';
+    callbackInput.value = `${window.location.origin}/`;
+    form.appendChild(callbackInput);
+
+    document.body.appendChild(form);
+    form.submit();
   },
 
   /**

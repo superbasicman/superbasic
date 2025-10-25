@@ -12,7 +12,7 @@ import { authApi, ApiError } from '../lib/api';
 interface AuthContextType {
   user: UserResponse | null;
   login: (credentials: LoginInput) => Promise<void>;
-  loginWithGoogle: () => void;
+  loginWithGoogle: () => Promise<void>;
   requestMagicLink: (email: string) => Promise<void>;
   register: (data: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -125,8 +125,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Login with Google OAuth
    * Redirects to Google OAuth consent screen
    */
-  function loginWithGoogle(): void {
-    authApi.loginWithGoogle();
+  async function loginWithGoogle(): Promise<void> {
+    await authApi.loginWithGoogle();
   }
 
   /**

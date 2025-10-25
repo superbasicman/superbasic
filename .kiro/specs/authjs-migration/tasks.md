@@ -1495,7 +1495,7 @@ pnpm exec playwright show-report
 
 ### Task 23: Add OAuth Buttons and Magic Link UI to Login Page
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-25)
 **Priority**: P0 (Critical)
 **Estimated Time**: 2 hours
 **Dependencies**: Task 22
