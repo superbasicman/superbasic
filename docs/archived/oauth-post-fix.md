@@ -82,7 +82,7 @@ pnpm dev
 # Open browser
 open http://localhost:5173/login
 
-# Click "Continue with Gmail"
+# Click "Continue with Google"
 # Should:
 # 1. ✅ Redirect to Google OAuth consent screen (no error)
 # 2. ✅ After consent, redirect back to app

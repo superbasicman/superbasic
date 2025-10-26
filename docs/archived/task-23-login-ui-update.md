@@ -23,7 +23,7 @@ Created `packages/design-system/src/Input.tsx`:
 Updated `apps/web/src/pages/Login.tsx`:
 - **Multi-step flow**: Email → Password/Magic Link
 - **Theme toggle**: Dark/light mode switcher (☀/☾)
-- **OAuth integration**: "Continue with Gmail" button
+- **OAuth integration**: "Continue with Google" button
 - **Magic link**: Email-based passwordless authentication
 - **Sign-in/Sign-up modes**: Toggle between modes
 - **Error handling**: Displays OAuth errors and API errors
@@ -77,7 +77,7 @@ The new UI features:
 - Clean, minimal design with border-only elements
 - Dark/light theme toggle in top-right corner
 - "SuperBasic" branding with tagline
-- OAuth button with Gmail integration
+- OAuth button with Google integration
 - Email input with continue button
 - Password step with magic link option
 - Sign-in/sign-up mode toggle

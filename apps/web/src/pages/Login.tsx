@@ -1,29 +1,37 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Input } from '@repo/design-system';
 import { useAuth } from '../contexts/AuthContext';
-import { ApiError } from '../lib/api';
+import { useAuthForm } from '../hooks/useAuthForm';
 
 export default function Login() {
-  const navigate = useNavigate();
-  const { login, loginWithGoogle, requestMagicLink, authError } = useAuth();
+  const { loginWithGoogle, authError } = useAuth();
+  const {
+    email,
+    password,
+    confirmPassword,
+    isLoading,
+    error,
+    magicLinkSent,
+    setEmail,
+    setPassword,
+    setConfirmPassword,
+    setError,
+    handleLogin,
+    handleRegister,
+    handleMagicLink,
+    resetForm,
+  } = useAuthForm();
 
   const [isDark, setIsDark] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [step, setStep] = useState<'initial' | 'password'>('initial');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
 
   // Display auth errors from context (e.g., OAuth errors)
   useEffect(() => {
     if (authError) {
       setError(authError);
     }
-  }, [authError]);
+  }, [authError, setError]);
 
   const handleEmailContinue = () => {
     if (email) {
@@ -32,88 +40,17 @@ export default function Login() {
     }
   };
 
-  const handlePasswordContinue = async () => {
-    if (!password) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await login({ email, password });
-      navigate('/');
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleCreateAccount = async () => {
-    if (!password || !confirmPassword) return;
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Registration logic would go here
-      // For now, just show error that registration needs to be implemented
-      setError('Account creation not yet implemented');
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('An unexpected error occurred. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMagicLink = async () => {
-    if (!email) return;
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await requestMagicLink(email);
-      setMagicLinkSent(true);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to send magic link. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleBack = () => {
     setStep('initial');
     setPassword('');
     setConfirmPassword('');
     setError(null);
-    setMagicLinkSent(false);
   };
 
   const toggleMode = () => {
     setMode(mode === 'signin' ? 'signup' : 'signin');
     setStep('initial');
-    setEmail('');
-    setPassword('');
-    setConfirmPassword('');
-    setError(null);
-    setMagicLinkSent(false);
+    resetForm();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent, action: () => void) => {
@@ -185,9 +122,9 @@ export default function Login() {
 
         {/* Header */}
         <div className="mb-12 text-center">
-          <div className="text-2xl mb-2">SuperBasic</div>
+          <div className="text-2xl mb-2">SuperBasic Finance</div>
           <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Money you can use
+            Track Every Penny
           </div>
         </div>
 
@@ -223,7 +160,7 @@ export default function Login() {
             {/* OAuth button */}
             <div className="space-y-3 mb-6">
               <CustomButton onClick={loginWithGoogle}>
-                {mode === 'signin' ? 'Continue' : 'Sign up'} with Gmail
+                {mode === 'signin' ? 'Continue' : 'Sign up'} with Google
               </CustomButton>
             </div>
 
@@ -298,7 +235,7 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handlePasswordContinue)}
+                onKeyPress={(e) => handleKeyPress(e, handleLogin)}
                 placeholder="Password"
                 autoFocus
                 isDark={isDark}
@@ -306,7 +243,7 @@ export default function Login() {
             </div>
 
             <div className="mb-6">
-              <CustomButton onClick={handlePasswordContinue} disabled={isLoading}>
+              <CustomButton onClick={handleLogin} disabled={isLoading}>
                 {isLoading ? 'Signing in...' : 'Continue'}
               </CustomButton>
             </div>
@@ -375,14 +312,14 @@ export default function Login() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleCreateAccount)}
+                onKeyPress={(e) => handleKeyPress(e, handleRegister)}
                 placeholder="Retype password"
                 isDark={isDark}
               />
             </div>
 
             <div className="mb-6">
-              <CustomButton onClick={handleCreateAccount} disabled={isLoading}>
+              <CustomButton onClick={handleRegister} disabled={isLoading}>
                 {isLoading ? 'Creating account...' : 'Create account'}
               </CustomButton>
             </div>
