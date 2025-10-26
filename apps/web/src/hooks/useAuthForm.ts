@@ -54,6 +54,7 @@ export function useAuthForm(): UseAuthFormReturn {
       navigate('/');
     } catch (err) {
       if (err instanceof ApiError) {
+        // Auth.js CredentialsSignin error is already mapped to user-friendly message
         setError(err.message);
       } else {
         setError('An unexpected error occurred. Please try again.');

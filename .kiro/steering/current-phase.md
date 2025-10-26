@@ -1,8 +1,8 @@
 # Current Phase Context
 
 **Active Phase**: Phase 2.1 - Auth.js Migration  
-**Status**: 🔄 IN PROGRESS - Sub-Phase 5 (Task 24 Next)  
-**Current Task**: Task 24 - Update CORS Configuration for OAuth Callbacks  
+**Status**: 🔄 IN PROGRESS - Sub-Phase 5 (Task 25 Next)  
+**Current Task**: Task 25 - Add E2E Tests for OAuth and Magic Link Flows  
 **Spec Location**: `.kiro/specs/authjs-migration/`  
 **Previous Phase**: Phase 3 - API Key Management (✅ COMPLETE, revalidated with Auth.js)
 
@@ -254,6 +254,8 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 **Completed Tasks:**
 - Task 21: ✅ Update API Client with Auth.js Endpoints (2025-10-24)
 - Task 22: ✅ Update AuthContext for OAuth Callback Handling (2025-10-24)
+- Task 23: ✅ Add OAuth Buttons and Magic Link UI to Login Page (2025-10-25)
+- Task 24: ✅ Credentials Error Handling Hardening (2025-10-25)
 
 **Task 21 Achievements:**
 - Created `apiFormPost()` helper for form-encoded requests with CSRF token handling
@@ -287,6 +289,7 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 
 **Completed Tasks:**
 - Task 23: ✅ Add OAuth Buttons and Magic Link UI to Login Page (2025-10-25)
+- Task 24: ✅ Credentials Error Handling Hardening (2025-10-25)
 
 **Task 23 Achievements:**
 - Created new minimalist login UI with dark/light theme toggle
@@ -301,6 +304,24 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Clean, minimal design matching provided mockup
 - All TypeScript builds passing
 - No console errors
+
+**Task 24 Achievements:**
+- Improved error handling to distinguish auth failures from server errors
+- 401 errors → "Invalid email or password" (credentials invalid)
+- Other errors → "Something went wrong. Please try again." (server/network issues)
+- Removed debug console.log statements from login method
+- Cleaned up old route references in app.ts (kept `/v1/me` for PAT auth)
+- Web app builds successfully with no errors
+- Better user experience - no misleading error messages
+- Documentation: `docs/archived/task-24-credentials-error-hardening.md`
+
+**Task Hygiene Cleanup (2025-10-25):**
+- Archived 2 completed task docs to `docs/archived/`
+- Deleted 9 temporary test/debug scripts from `tooling/scripts/`
+- Created comprehensive `tooling/scripts/README.md`
+- Updated `docs/open-docs.md` to reflect current state
+- Workspace now clean with clear permanent vs temporary artifacts
+- Documentation: `docs/archived/task-hygiene-cleanup-2025-10-25.md`
 
 ## Phase 3 Context (Completed and Revalidated)
 

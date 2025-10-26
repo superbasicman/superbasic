@@ -2,7 +2,7 @@
 
 Quick reference list of documentation files that should be reviewed and updated after completing tasks or phases.
 
-**Last Updated**: 2024-10-23
+**Last Updated**: 2025-10-25
 
 ---
 
@@ -21,9 +21,11 @@ Phase-specific documentation that should be updated during and after phase work:
 
 ### Active Phases
 
-- `docs/oauth-setup-guide.md` - OAuth provider setup instructions (Phase 2.1)
-- `docs/task-7-resend-setup.md` - Task 7 Resend email service setup (Phase 2.1)
-- `docs/archived/task-12-profile-helper.md` - Task 12 profile helper completion (Phase 2.1)
+**Phase 2.1 - Auth.js Migration** (In Progress - Sub-Phase 5)
+- `docs/oauth-setup-guide.md` - OAuth provider setup instructions
+- `docs/authjs-session-payload.md` - Auth.js session structure reference
+- `docs/authjs-test-helpers.md` - Test utilities for Auth.js integration
+- `docs/authjs-test-log-suppression.md` - Test logging configuration
 
 ### Completed Phases
 

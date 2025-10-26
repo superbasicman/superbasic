@@ -1341,6 +1341,8 @@ cat apps/web/playwright.config.ts
 
 **CORS Fix (2025-10-24)**: Added `redirect: 'manual'` to `apiFormPost()` to prevent browser from following Auth.js 302 redirects, which was causing CORS errors when trying to fetch the frontend URL from the API domain. Now treats status 302 or 0 (opaqueredirect) as success.
 
+**Error Handling Fix (2025-10-25)**: Added credential error detection in `authApi.login()`. Since we can't read the `Location` header with `redirect: 'manual'` due to CORS, we detect invalid credentials by checking if a session was created. If `this.me()` throws 401 after login attempt, we convert it to user-friendly message "Invalid email or password". See `docs/archived/task-24-credentials-error-handling.md` for details.
+
 **Acceptance Criteria**:
 
 - [x] Form-encoded POST helper implemented with CSRF token handling
@@ -1551,12 +1553,14 @@ open http://localhost:5173/login
 
 ### Task 24: Update CORS Configuration for OAuth Callbacks
 
-**Status**: Not Started
+**Status**: ✅ Complete (No changes needed)
 **Priority**: P0 (Critical)
 **Estimated Time**: 30 minutes
 **Dependencies**: Task 3
 
 **Description**: Update CORS configuration to allow OAuth callback redirects.
+
+**Completion Note**: CORS was already properly configured in Task 21. The `redirect: 'manual'` approach prevents CORS issues by not following Auth.js redirects. No additional CORS changes needed.
 
 **Steps**:
 

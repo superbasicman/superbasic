@@ -1,6 +1,6 @@
-import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
+import type { LoginInput, RegisterInput, UserResponse } from "@repo/types";
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 /**
  * API client error class for structured error handling
@@ -12,7 +12,7 @@ export class ApiError extends Error {
     public details?: Record<string, string[]>
   ) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
@@ -27,16 +27,16 @@ async function apiFetch<T>(
 
   const response = await fetch(url, {
     ...options,
-    credentials: 'include', // Required for cross-origin cookie support
+    credentials: "include", // Required for cross-origin cookie support
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...options.headers,
     },
   });
 
   // Handle 401 globally - will be caught by AuthContext
   if (response.status === 401) {
-    throw new ApiError('Unauthorized', 401);
+    throw new ApiError("Unauthorized", 401);
   }
 
   // Parse response body
@@ -45,7 +45,7 @@ async function apiFetch<T>(
   // Handle non-2xx responses
   if (!response.ok) {
     throw new ApiError(
-      data.error || 'An error occurred',
+      data.error || "An error occurred",
       response.status,
       data.details
     );
@@ -66,7 +66,7 @@ async function apiFormPost<T>(
 
   // First, get CSRF token
   const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
-    credentials: 'include',
+    credentials: "include",
   });
   const csrfData = await csrfResponse.json();
   const csrfToken = csrfData.csrfToken;
@@ -78,24 +78,25 @@ async function apiFormPost<T>(
   });
 
   const response = await fetch(url, {
-    method: 'POST',
-    credentials: 'include',
+    method: "POST",
+    credentials: "include",
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
+      "Content-Type": "application/x-www-form-urlencoded",
     },
     body: formData.toString(),
-    redirect: 'manual', // Don't follow redirects - we'll handle them ourselves
+    redirect: "manual", // Don't follow redirects - we'll handle them ourselves
   });
 
   // Handle 401 globally
   if (response.status === 401) {
-    throw new ApiError('Unauthorized', 401);
+    throw new ApiError("Unauthorized", 401);
   }
 
-  // Auth.js returns 302 redirects for successful authentication
-  // For our SPA, we treat redirects as success and don't follow them
+  // Auth.js returns 302 redirects for both success and failure
+  // With redirect: 'manual', we get status 0 (opaque response) and can't read headers
+  // We'll detect errors by checking if session creation succeeded
   if (response.status === 302 || response.status === 0) {
-    // Status 0 means opaqueredirect (redirect: 'manual' with CORS)
+    // Return empty object - caller will check if session was created
     return {} as T;
   }
 
@@ -119,7 +120,7 @@ async function apiFormPost<T>(
 
   if (!response.ok) {
     throw new ApiError(
-      errorData.error || 'An error occurred',
+      errorData.error || "An error occurred",
       response.status,
       errorData.details
     );
@@ -137,14 +138,26 @@ export const authApi = {
    * Sets httpOnly cookie on success
    */
   async login(credentials: LoginInput): Promise<{ user: UserResponse }> {
-    // Auth.js credentials endpoint expects form-encoded data
-    await apiFormPost('/v1/auth/callback/credentials', {
+    // Step 1: Submit credentials to Auth.js
+    await apiFormPost("/v1/auth/callback/credentials", {
       email: credentials.email,
       password: credentials.password,
     });
 
-    // After successful login, fetch user session
-    return this.me();
+    // Step 2: Check if session was created
+    try {
+      const result = await this.me();
+      return result;
+    } catch (error) {
+      // Only convert to "Invalid credentials" if we got a clean 401
+      // (meaning Auth.js returned 200 with null session)
+      if (error instanceof ApiError && error.status === 401) {
+        throw new ApiError("Invalid email or password", 401);
+      }
+      // For any other error (5xx, network, etc), surface generic error
+      // This prevents showing "Invalid credentials" when the API is down
+      throw new ApiError("Something went wrong. Please try again.", 500);
+    }
   },
 
   /**
@@ -155,24 +168,24 @@ export const authApi = {
     // Auth.js requires POST with CSRF token for OAuth signin
     // We need to submit a form programmatically
     const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
-      credentials: 'include',
+      credentials: "include",
     });
     const { csrfToken } = await csrfResponse.json();
 
     // Create and submit form programmatically
-    const form = document.createElement('form');
-    form.method = 'POST';
+    const form = document.createElement("form");
+    form.method = "POST";
     form.action = `${API_URL}/v1/auth/signin/google`;
 
-    const csrfInput = document.createElement('input');
-    csrfInput.type = 'hidden';
-    csrfInput.name = 'csrfToken';
+    const csrfInput = document.createElement("input");
+    csrfInput.type = "hidden";
+    csrfInput.name = "csrfToken";
     csrfInput.value = csrfToken;
     form.appendChild(csrfInput);
 
-    const callbackInput = document.createElement('input');
-    callbackInput.type = 'hidden';
-    callbackInput.name = 'callbackUrl';
+    const callbackInput = document.createElement("input");
+    callbackInput.type = "hidden";
+    callbackInput.name = "callbackUrl";
     callbackInput.value = `${window.location.origin}/`;
     form.appendChild(callbackInput);
 
@@ -186,7 +199,7 @@ export const authApi = {
    */
   async requestMagicLink(email: string): Promise<void> {
     // Auth.js email provider expects form-encoded data
-    await apiFormPost('/v1/auth/signin/nodemailer', {
+    await apiFormPost("/v1/auth/signin/nodemailer", {
       email,
     });
   },
@@ -196,8 +209,8 @@ export const authApi = {
    * Does NOT set session cookie - call login() after registration
    */
   async register(data: RegisterInput): Promise<{ user: UserResponse }> {
-    return apiFetch('/v1/register', {
-      method: 'POST',
+    return apiFetch("/v1/register", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
@@ -206,7 +219,7 @@ export const authApi = {
    * Logout - clears httpOnly cookie (Auth.js signout)
    */
   async logout(): Promise<void> {
-    await apiFormPost('/v1/auth/signout', {});
+    await apiFormPost("/v1/auth/signout", {});
   },
 
   /**
@@ -214,13 +227,16 @@ export const authApi = {
    * Requires valid session cookie
    */
   async me(): Promise<{ user: UserResponse }> {
-    const response = await apiFetch<{ user?: UserResponse }>('/v1/auth/session', {
-      method: 'GET',
-    });
+    const response = await apiFetch<{ user?: UserResponse } | null>(
+      "/v1/auth/session",
+      {
+        method: "GET",
+      }
+    );
 
-    // Auth.js returns null for no session
-    if (!response.user) {
-      throw new ApiError('Not authenticated', 401);
+    // Auth.js returns null for no session, or { user: null }
+    if (!response || !response.user) {
+      throw new ApiError("Not authenticated", 401);
     }
 
     return { user: response.user };
@@ -234,9 +250,9 @@ export const tokenApi = {
   /**
    * List all API tokens for the authenticated user
    */
-  async list(): Promise<import('@repo/types').ListTokensResponse> {
-    return apiFetch('/v1/tokens', {
-      method: 'GET',
+  async list(): Promise<import("@repo/types").ListTokensResponse> {
+    return apiFetch("/v1/tokens", {
+      method: "GET",
     });
   },
 
@@ -245,10 +261,10 @@ export const tokenApi = {
    * Returns plaintext token (shown once only)
    */
   async create(
-    data: import('@repo/types').CreateTokenRequest
-  ): Promise<import('@repo/types').CreateTokenResponse> {
-    return apiFetch('/v1/tokens', {
-      method: 'POST',
+    data: import("@repo/types").CreateTokenRequest
+  ): Promise<import("@repo/types").CreateTokenResponse> {
+    return apiFetch("/v1/tokens", {
+      method: "POST",
       body: JSON.stringify(data),
     });
   },
@@ -258,7 +274,7 @@ export const tokenApi = {
    */
   async revoke(tokenId: string): Promise<void> {
     return apiFetch(`/v1/tokens/${tokenId}`, {
-      method: 'DELETE',
+      method: "DELETE",
     });
   },
 
@@ -267,10 +283,10 @@ export const tokenApi = {
    */
   async update(
     tokenId: string,
-    data: import('@repo/types').UpdateTokenRequest
-  ): Promise<import('@repo/types').TokenResponse> {
+    data: import("@repo/types").UpdateTokenRequest
+  ): Promise<import("@repo/types").TokenResponse> {
     return apiFetch(`/v1/tokens/${tokenId}`, {
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   },
