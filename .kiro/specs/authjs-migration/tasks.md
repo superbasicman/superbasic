@@ -1621,19 +1621,31 @@ curl -i http://localhost:3000/v1/health \
 **Implementation Notes**:
 
 - Updated `docs/api-authentication.md` with comprehensive OAuth and magic link documentation
-- Added detailed flow diagrams and curl examples for all three aut
-3. Document magic link flow
-4. Add OAuth setup instructions
-5. Add environment variable documentation
-6. Add troubleshooting section
+- Added detailed flow diagrams and curl examples for all three authentication methods
+- Documented Google OAuth setup process with step-by-step instructions
+- Documented Resend email service configuration for magic links
+- Added rate limiting details (3 requests per hour for magic links)
+- Added troubleshooting section with common issues and solutions
+- Added architecture notes explaining REST-first design decisions
+- Included 47 code examples across all sections
+- Updated last modified date and phase information
+
+**Steps**:
+
+1. ✅ Update `docs/api-authentication.md`
+2. ✅ Document OAuth flows (Google)
+3. ✅ Document magic link flow
+4. ✅ Add OAuth setup instructions
+5. ✅ Add environment variable documentation
+6. ✅ Add troubleshooting section
 
 **Acceptance Criteria**:
 
-- [ ] Documentation updated
-- [ ] OAuth flows documented
-- [ ] Magic link flow documented
-- [ ] Setup instructions clear
-- [ ] Examples provided
+- [x] Documentation updated
+- [x] OAuth flows documented (Google OAuth with OIDC)
+- [x] Magic link flow documented (with rate limiting details)
+- [x] Setup instructions clear (Google Cloud Console + Resend)
+- [x] Examples provided (47 code blocks with curl commands)
 
 **Sanity Check**:
 

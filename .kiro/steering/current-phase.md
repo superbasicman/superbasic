@@ -256,6 +256,7 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Task 22: ✅ Update AuthContext for OAuth Callback Handling (2025-10-24)
 - Task 23: ✅ Add OAuth Buttons and Magic Link UI to Login Page (2025-10-25)
 - Task 24: ✅ Credentials Error Handling Hardening (2025-10-25)
+- Task 25: ✅ Update API Documentation (2025-10-26)
 
 **Task 21 Achievements:**
 - Created `apiFormPost()` helper for form-encoded requests with CSRF token handling
@@ -322,6 +323,16 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Updated `docs/open-docs.md` to reflect current state
 - Workspace now clean with clear permanent vs temporary artifacts
 - Documentation: `docs/archived/task-hygiene-cleanup-2025-10-25.md`
+
+**Task 25 Achievements (2025-10-26):**
+- Updated `docs/api-authentication.md` with comprehensive Auth.js documentation
+- Added detailed OAuth (Google) flow documentation with setup guide
+- Added magic link authentication documentation with rate limiting details
+- Added troubleshooting section for common authentication issues
+- Added architecture notes explaining REST-first design
+- Included 47 code examples with curl commands
+- Documentation now covers all three session authentication methods
+- Setup guides for Google Cloud Console and Resend email service
 
 ## Phase 3 Context (Completed and Revalidated)
 
