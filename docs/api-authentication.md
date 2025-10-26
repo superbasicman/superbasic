@@ -1,11 +1,14 @@
 # API Authentication Guide
 
-SuperBasic Finance provides two authentication methods for accessing the API: session-based authentication (for web clients) and Bearer token authentication (for programmatic access).
+SuperBasic Finance provides multiple authentication methods for accessing the API: session-based authentication (credentials, OAuth, magic links) for web clients and Bearer token authentication (PATs) for programmatic access.
 
 ## Table of Contents
 
 - [Authentication Methods](#authentication-methods)
   - [Session Authentication](#session-authentication)
+    - [Credentials (Email/Password)](#credentials-emailpassword)
+    - [OAuth (Google)](#oauth-google)
+    - [Magic Link (Email)](#magic-link-email)
   - [Bearer Token Authentication](#bearer-token-authentication)
 - [Token Management Endpoints](#token-management-endpoints)
   - [Create API Key](#create-api-key)
@@ -25,47 +28,309 @@ SuperBasic Finance provides two authentication methods for accessing the API: se
 
 ### Session Authentication
 
-Session authentication uses JWT tokens stored in httpOnly cookies. This method is used by the web client and provides full access to all API endpoints without scope restrictions.
+Session authentication uses JWT tokens stored in httpOnly cookies, powered by Auth.js. This method is used by the web client and provides full access to all API endpoints without scope restrictions. SuperBasic Finance supports three session authentication methods:
+
+1. **Credentials** - Traditional email/password login
+2. **OAuth** - Sign in with Google (GitHub and Apple coming in Phase 16)
+3. **Magic Link** - Passwordless email authentication
+
+All session authentication methods result in the same session cookie format and provide identical access levels.
+
+**Session Cookie Details:**
+
+- **Cookie name:** `authjs.session-token`
+- **httpOnly:** `true` - Prevents JavaScript access
+- **secure:** `true` - HTTPS only (production)
+- **sameSite:** `lax` - CSRF protection
+- **maxAge:** 30 days - Session expiration
+
+**Session Endpoints:**
+
+- `GET /v1/auth/session` - Get current session data
+- `POST /v1/auth/signout` - Sign out and clear session
+- `GET /v1/auth/csrf` - Get CSRF token (required for sign-in requests)
+- `GET /v1/auth/providers` - List available authentication providers
+
+---
+
+#### Credentials (Email/Password)
+
+Traditional email and password authentication.
+
+**Endpoint:** `POST /v1/auth/callback/credentials`
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+**CSRF Protection:** Required - obtain token from `GET /v1/auth/csrf` first
 
 **How it works:**
 
-1. User logs in via `POST /v1/login` with email and password
-2. Server validates credentials and creates a JWT session
-3. Session token is stored in an httpOnly cookie (`__Host-sbfin_auth` in production, `__sbfin_auth` in development)
-4. Cookie is automatically sent with subsequent requests
-5. Server validates JWT and attaches user context to the request
+1. Client fetches CSRF token from `/v1/auth/csrf`
+2. Client POSTs credentials to `/v1/auth/callback/credentials` with CSRF token
+3. Server validates credentials against hashed password in database
+4. Server creates JWT session and sets `authjs.session-token` cookie
+5. Server redirects to callback URL (302 redirect)
+6. Client fetches session data from `/v1/auth/session`
 
-**Cookie attributes:**
-
-- `httpOnly: true` - Prevents JavaScript access
-- `secure: true` - HTTPS only (production)
-- `sameSite: 'lax'` - CSRF protection
-- `maxAge: 30 days` - Session expiration
-
-**Example login request:**
+**Example request:**
 
 ```bash
-curl -X POST https://api.superbasic.finance/v1/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "user@example.com",
-    "password": "SecurePassword123!"
-  }'
+# Step 1: Get CSRF token
+CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | \
+  grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
+
+# Step 2: Sign in with credentials
+curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
+  -b /tmp/cookies.txt \
+  -c /tmp/cookies.txt \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=user@example.com&password=SecurePassword123!&csrfToken=$CSRF_TOKEN"
+
+# Response: HTTP/1.1 302 Found
+# Set-Cookie: authjs.session-token=<jwt>; Path=/; HttpOnly; SameSite=Lax
+
+# Step 3: Get session data
+curl http://localhost:3000/v1/auth/session -b /tmp/cookies.txt
 ```
 
-**Response:**
+**Response (session data):**
 
 ```json
 {
   "user": {
     "id": "user_abc123",
     "email": "user@example.com",
-    "name": "John Doe"
-  }
+    "name": "John Doe",
+    "image": null
+  },
+  "expires": "2025-02-20T10:30:00.000Z"
 }
 ```
 
-The session cookie is set automatically in the response headers.
+**Error Responses:**
+
+- `401 Unauthorized` - Invalid email or password
+- `400 Bad Request` - Missing required fields
+- `403 Forbidden` - CSRF token invalid or missing
+
+---
+
+#### OAuth (Google)
+
+Sign in with Google account using OAuth 2.0 + OpenID Connect.
+
+**Endpoint:** `GET /v1/auth/signin/google`
+
+**How it works:**
+
+1. Client redirects user to `/v1/auth/signin/google?callbackUrl=<return_url>`
+2. Server redirects to Google OAuth consent screen
+3. User authorizes application on Google
+4. Google redirects back to `/v1/auth/callback/google` with authorization code
+5. Server exchanges code for access token and user profile
+6. Server creates or links user account (by email)
+7. Server creates JWT session and sets `authjs.session-token` cookie
+8. Server redirects to `callbackUrl`
+9. Client fetches session data from `/v1/auth/session`
+
+**Example flow:**
+
+```bash
+# Step 1: Initiate OAuth flow (in browser)
+open "http://localhost:3000/v1/auth/signin/google?callbackUrl=http://localhost:5173/"
+
+# User completes Google OAuth consent...
+
+# Step 2: After redirect, get session data
+curl http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token_from_browser>"
+```
+
+**Response (session data):**
+
+```json
+{
+  "user": {
+    "id": "user_abc123",
+    "email": "user@gmail.com",
+    "name": "John Doe",
+    "image": "https://lh3.googleusercontent.com/..."
+  },
+  "expires": "2025-02-20T10:30:00.000Z"
+}
+```
+
+**Account Linking:**
+
+If a user with the same email already exists (created via credentials or magic link), the OAuth account is linked to the existing user. No duplicate accounts are created.
+
+**Database Records:**
+
+OAuth authentication creates records in two tables:
+- `users` - User identity (shared across all auth methods)
+- `accounts` - OAuth provider linkage (provider: 'google', providerAccountId: '<google_user_id>')
+
+**Error Responses:**
+
+OAuth errors are returned as query parameters in the callback URL:
+
+- `?error=OAuthAccountNotLinked` - Email already in use with different provider
+- `?error=OAuthCallback` - OAuth provider returned an error
+- `?error=AccessDenied` - User denied authorization
+
+**Setup Requirements:**
+
+See [OAuth Setup Guide](oauth-setup-guide.md) for detailed instructions on:
+- Creating Google OAuth app in Google Cloud Console
+- Configuring redirect URIs
+- Obtaining client ID and secret
+- Setting environment variables
+
+**Environment Variables:**
+
+```bash
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+AUTH_URL=http://localhost:3000  # API base URL
+AUTH_TRUST_HOST=true            # Required for development
+```
+
+---
+
+#### Magic Link (Email)
+
+Passwordless authentication via email link.
+
+**Endpoint:** `POST /v1/auth/signin/nodemailer`
+
+**Content-Type:** `application/x-www-form-urlencoded`
+
+**CSRF Protection:** Required - obtain token from `GET /v1/auth/csrf` first
+
+**Rate Limiting:** 3 requests per hour per email address
+
+**How it works:**
+
+1. Client fetches CSRF token from `/v1/auth/csrf`
+2. Client POSTs email to `/v1/auth/signin/nodemailer` with CSRF token
+3. Server generates secure verification token (256 bits entropy)
+4. Server sends email with magic link via Resend
+5. Server redirects to verify-request page (302 redirect)
+6. User clicks magic link in email
+7. Server validates token and creates JWT session
+8. Server sets `authjs.session-token` cookie
+9. Server redirects to callback URL
+10. Client fetches session data from `/v1/auth/session`
+
+**Example request:**
+
+```bash
+# Step 1: Get CSRF token
+CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | \
+  grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
+
+# Step 2: Request magic link
+curl -i -X POST http://localhost:3000/v1/auth/signin/nodemailer \
+  -b /tmp/cookies.txt \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "email=user@example.com&csrfToken=$CSRF_TOKEN"
+
+# Response: HTTP/1.1 302 Found
+# Location: /v1/auth/verify-request?provider=nodemailer&type=email
+
+# Step 3: Check email inbox for magic link
+# Email subject: "Sign in to SuperBasic Finance"
+# Link format: http://localhost:3000/v1/auth/callback/email?token=...&email=...
+
+# Step 4: Click link (or curl it)
+curl -i "http://localhost:3000/v1/auth/callback/email?token=<token>&email=user@example.com"
+
+# Response: HTTP/1.1 302 Found
+# Set-Cookie: authjs.session-token=<jwt>; Path=/; HttpOnly; SameSite=Lax
+# Location: http://localhost:5173/  # Callback URL
+
+# Step 5: Get session data
+curl http://localhost:3000/v1/auth/session \
+  -H "Cookie: authjs.session-token=<token>"
+```
+
+**Response (session data):**
+
+```json
+{
+  "user": {
+    "id": "user_abc123",
+    "email": "user@example.com",
+    "name": null,
+    "image": null
+  },
+  "expires": "2025-02-20T10:30:00.000Z"
+}
+```
+
+**Email Template:**
+
+The magic link email includes:
+- Styled "Sign In" button (HTML version)
+- Plain text link (for email clients without HTML support)
+- 24-hour expiration notice
+- Support contact information
+
+**Rate Limiting:**
+
+Magic link requests are rate limited to prevent abuse:
+- **Limit:** 3 requests per hour per email address
+- **Window:** Sliding 1-hour window
+- **Scope:** Per email (normalized: lowercase + trimmed)
+- **Headers:** `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, `Retry-After`
+
+**Rate limit exceeded response:**
+
+```
+HTTP/1.1 429 Too Many Requests
+X-RateLimit-Limit: 3
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1640000000
+Retry-After: 3600
+
+{
+  "error": "Too many magic link requests",
+  "message": "Rate limit exceeded. You can request another magic link in 60 minutes."
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request` - Invalid email format
+- `403 Forbidden` - CSRF token invalid or missing
+- `429 Too Many Requests` - Rate limit exceeded (3 per hour)
+- `401 Unauthorized` - Invalid or expired token (when clicking link)
+
+**Token Security:**
+
+- Tokens are 256-bit cryptographically secure random values
+- Tokens are hashed (SHA-256) before storage in database
+- Tokens expire after 24 hours
+- Tokens can only be used once
+- Tokens are tied to specific email address
+
+**Setup Requirements:**
+
+Magic link authentication requires email service configuration:
+
+**Environment Variables:**
+
+```bash
+RESEND_API_KEY=re_your_api_key_here
+EMAIL_FROM=noreply@superbasicfinance.com
+```
+
+**Email Service:** Resend (https://resend.com)
+- Modern API with excellent deliverability
+- Domain verification required for production
+- Free tier: 100 emails/day, 3,000 emails/month
+
+See Task 7 documentation for detailed Resend setup instructions.
 
 ### Bearer Token Authentication
 
@@ -858,6 +1123,235 @@ Retry-After: 3600
 
 ---
 
-**Last Updated:** 2025-01-20  
+## OAuth Setup Guide
+
+### Google OAuth Configuration
+
+To enable Google OAuth authentication, you need to create an OAuth app in Google Cloud Console.
+
+**Step-by-step instructions:**
+
+1. **Create Google Cloud Project**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create new project or select existing one
+   - Note the project ID
+
+2. **Enable Google+ API**
+   - Navigate to "APIs & Services" → "Library"
+   - Search for "Google+ API"
+   - Click "Enable"
+
+3. **Create OAuth 2.0 Credentials**
+   - Navigate to "APIs & Services" → "Credentials"
+   - Click "Create Credentials" → "OAuth client ID"
+   - Application type: "Web application"
+   - Name: "SuperBasic Finance"
+
+4. **Configure Authorized Redirect URIs**
+   - Development: `http://localhost:3000/v1/auth/callback/google`
+   - Production: `https://api.superbasicfinance.com/v1/auth/callback/google`
+
+5. **Copy Credentials**
+   - Copy "Client ID" and "Client secret"
+   - Add to `.env.local`:
+     ```bash
+     GOOGLE_CLIENT_ID=your_client_id_here
+     GOOGLE_CLIENT_SECRET=your_client_secret_here
+     ```
+
+6. **Configure Auth.js**
+   - Credentials are automatically loaded from environment variables
+   - Google provider is configured in `packages/auth/src/config.ts`
+
+**Verification:**
+
+```bash
+# Check provider is available
+curl http://localhost:3000/v1/auth/providers | jq
+
+# Should include:
+# {
+#   "id": "google",
+#   "name": "Google",
+#   "type": "oidc",
+#   "signinUrl": "http://localhost:3000/v1/auth/signin/google",
+#   "callbackUrl": "http://localhost:3000/v1/auth/callback/google"
+# }
+```
+
+**Future OAuth Providers:**
+
+GitHub and Apple OAuth will be added in Phase 16 (Advanced Features). The setup process is similar:
+- GitHub: Create OAuth app in GitHub Developer Settings
+- Apple: Create Sign in with Apple identifier in Apple Developer Portal
+
+---
+
+## Magic Link Setup Guide
+
+### Resend Email Service Configuration
+
+Magic link authentication requires an email service to send verification emails. SuperBasic Finance uses Resend for its modern API and excellent deliverability.
+
+**Step-by-step instructions:**
+
+1. **Create Resend Account**
+   - Go to [resend.com](https://resend.com)
+   - Sign up for free account
+   - Verify your email address
+
+2. **Verify Domain**
+   - Navigate to "Domains" in Resend dashboard
+   - Click "Add Domain"
+   - Enter your domain: `superbasicfinance.com`
+   - Add DNS records to your domain:
+     - 1 MX record (for receiving bounces)
+     - 2 TXT records (SPF and DKIM for authentication)
+   - Wait for verification (usually < 5 minutes)
+
+3. **Create API Key**
+   - Navigate to "API Keys" in Resend dashboard
+   - Click "Create API Key"
+   - Name: "SuperBasic Finance API"
+   - Permissions: "Sending access" (recommended for security)
+   - Copy the API key (starts with `re_`)
+
+4. **Configure Environment Variables**
+   - Add to `.env.local`:
+     ```bash
+     RESEND_API_KEY=re_your_api_key_here
+     EMAIL_FROM=noreply@superbasicfinance.com
+     ```
+
+5. **Test Email Sending**
+   - Run test script:
+     ```bash
+     export $(cat apps/api/.env.local | xargs)
+     pnpm tsx tooling/scripts/test-resend.ts your-email@example.com
+     ```
+   - Check inbox for test email
+
+**Email Template Customization:**
+
+The magic link email template is defined in `packages/auth/src/email.ts`. It includes:
+- HTML version with styled button
+- Plain text version for compatibility
+- 24-hour expiration notice
+- Support contact information
+
+To customize the template, edit the `sendMagicLinkEmail()` function.
+
+**Rate Limiting:**
+
+Magic link requests are automatically rate limited:
+- 3 requests per hour per email address
+- Sliding window algorithm using Upstash Redis
+- Clear error messages with retry time
+
+**Troubleshooting:**
+
+- **Emails not arriving:** Check domain verification status in Resend dashboard
+- **Rate limit errors:** Wait 1 hour or use clear script: `pnpm tsx tooling/scripts/clear-magic-link-rate-limit.ts <email>`
+- **CSRF errors:** Ensure CSRF token is fetched and included in request
+- **Token expired:** Magic links expire after 24 hours - request a new one
+
+---
+
+## Troubleshooting
+
+### Common Authentication Issues
+
+**Session Cookie Not Set:**
+
+- **Symptom:** Login succeeds but `/v1/auth/session` returns null
+- **Cause:** Cookie domain mismatch or SameSite restrictions
+- **Solution:** Ensure API and web client are on same domain or use proper CORS configuration
+
+**CSRF Token Errors:**
+
+- **Symptom:** `403 Forbidden` when signing in
+- **Cause:** Missing or invalid CSRF token
+- **Solution:** Always fetch CSRF token from `/v1/auth/csrf` before sign-in requests
+
+**OAuth Redirect Loop:**
+
+- **Symptom:** Infinite redirects between app and OAuth provider
+- **Cause:** Misconfigured redirect URI or callback URL
+- **Solution:** Verify redirect URI in OAuth provider settings matches Auth.js callback URL exactly
+
+**Magic Link Not Working:**
+
+- **Symptom:** Clicking magic link shows error
+- **Cause:** Token expired, already used, or invalid
+- **Solution:** Request a new magic link (tokens expire after 24 hours and can only be used once)
+
+**Rate Limit Exceeded:**
+
+- **Symptom:** `429 Too Many Requests` when requesting magic link
+- **Cause:** More than 3 requests in 1 hour for same email
+- **Solution:** Wait for rate limit to reset (check `Retry-After` header) or contact support
+
+**Account Linking Issues:**
+
+- **Symptom:** OAuth error "OAuthAccountNotLinked"
+- **Cause:** Email already registered with different authentication method
+- **Solution:** Sign in with original method first, then link OAuth account in settings (Phase 16 feature)
+
+### Debug Mode
+
+Enable Auth.js debug logging for troubleshooting:
+
+```bash
+# Add to .env.local
+AUTH_DEBUG=true
+```
+
+This will log detailed authentication flow information to the console.
+
+---
+
+## Architecture Notes
+
+### REST-First Design
+
+SuperBasic Finance uses a REST-first architecture for authentication:
+
+- **No `@auth/react` dependency** - Web client remains a thin REST consumer
+- **Auth.js lives entirely in API tier** - All authentication logic server-side
+- **Standard HTTP endpoints** - Compatible with any client (web, mobile, CLI)
+- **Capacitor-ready** - Architecture supports wrapping for iOS/Android apps
+
+This design ensures:
+- Clear separation of concerns
+- Easy testing and debugging
+- Platform independence
+- Future-proof for mobile apps
+
+### Session vs Token Authentication
+
+**When to use session authentication:**
+- Web client user interactions
+- OAuth flows
+- Magic link authentication
+- Full access to all endpoints
+
+**When to use Bearer token authentication:**
+- CLI tools and scripts
+- CI/CD pipelines
+- Third-party integrations
+- Mobile applications (with scope restrictions)
+- Automation workflows
+
+**Key differences:**
+- Sessions have full access (no scope checks)
+- Tokens are scope-restricted (least privilege)
+- Sessions expire after 30 days of inactivity
+- Tokens have configurable expiration (1-365 days)
+- Sessions use httpOnly cookies (CSRF protection)
+- Tokens use Authorization header (no CSRF needed)
+
+---
+
+**Last Updated:** 2025-10-26  
 **API Version:** v1  
-**Phase:** 3 - API Key Management
+**Phase:** 2.1 - Auth.js Migration

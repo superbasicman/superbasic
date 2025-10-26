@@ -206,7 +206,7 @@ export default function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleEmailContinue)}
+                onKeyDown={(e) => handleKeyPress(e, handleEmailContinue)}
                 placeholder="Email"
                 isDark={isDark}
               />
@@ -262,7 +262,7 @@ export default function Login() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleLogin)}
+                onKeyDown={(e) => handleKeyPress(e, handleLogin)}
                 placeholder="Password"
                 autoFocus
                 isDark={isDark}
@@ -351,7 +351,7 @@ export default function Login() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                onKeyPress={(e) => handleKeyPress(e, handleRegister)}
+                onKeyDown={(e) => handleKeyPress(e, handleRegister)}
                 placeholder="Retype password"
                 isDark={isDark}
               />

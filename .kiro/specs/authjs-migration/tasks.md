@@ -1611,17 +1611,17 @@ curl -i http://localhost:3000/v1/health \
 
 ### Task 25: Update API Documentation
 
-**Status**: Not Started
+**Status**: ✅ Complete (2025-10-26)
 **Priority**: P1 (High)
 **Estimated Time**: 3 hours
 **Dependencies**: All previous tasks
 
 **Description**: Update API documentation with OAuth and magic link flows.
 
-**Steps**:
+**Implementation Notes**:
 
-1. Update `docs/api-authentication.md`
-2. Document OAuth flows (Google)
+- Updated `docs/api-authentication.md` with comprehensive OAuth and magic link documentation
+- Added detailed flow diagrams and curl examples for all three aut
 3. Document magic link flow
 4. Add OAuth setup instructions
 5. Add environment variable documentation

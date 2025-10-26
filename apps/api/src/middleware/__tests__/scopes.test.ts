@@ -15,6 +15,7 @@ import {
   makeAuthenticatedRequest,
   createTestUser,
   extractCookie,
+  signInWithCredentials,
 } from '../../test/helpers.js';
 import { generateToken, hashToken, COOKIE_NAME } from '@repo/auth';
 
@@ -65,15 +66,14 @@ describe('Scope Enforcement Middleware', () => {
         name: 'Test User',
       });
 
-      // Login to get session
-      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      // Login to get session using Auth.js
+      const loginResponse = await signInWithCredentials(
+        testApp,
+        credentials.email,
+        credentials.password
+      );
 
-      expect(loginResponse.status).toBe(200);
+      expect(loginResponse.status).toBe(302);
 
       const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
       expect(sessionCookie).toBeTruthy();
@@ -182,13 +182,12 @@ describe('Scope Enforcement Middleware', () => {
         name: 'Test User',
       });
 
-      // Login to get session
-      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      // Login to get session using Auth.js
+      const loginResponse = await signInWithCredentials(
+        testApp,
+        credentials.email,
+        credentials.password
+      );
 
       const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
 
@@ -408,13 +407,12 @@ describe('Scope Enforcement Middleware', () => {
     it('should allow session auth full access regardless of endpoint scope', async () => {
       const { credentials } = await createTestUser();
 
-      // Login to get session
-      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      // Login to get session using Auth.js
+      const loginResponse = await signInWithCredentials(
+        testApp,
+        credentials.email,
+        credentials.password
+      );
 
       const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
 
@@ -468,12 +466,11 @@ describe('Scope Enforcement Middleware', () => {
       expect(patWriteResponse.status).toBe(403);
 
       // Session should have write access
-      const loginResponse = await makeRequest(testApp, 'POST', '/v1/login', {
-        body: {
-          email: credentials.email,
-          password: credentials.password,
-        },
-      });
+      const loginResponse = await signInWithCredentials(
+        testApp,
+        credentials.email,
+        credentials.password
+      );
 
       const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
 
