@@ -53,7 +53,6 @@ export function useAuthForm(): UseAuthFormReturn {
       await login({ email, password });
       navigate('/');
     } catch (err) {
-      console.log(err);
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
