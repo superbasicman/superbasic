@@ -31,6 +31,7 @@ Phase-specific documentation that should be updated during and after phase work:
 
 - `docs/phase-1-readme.md` - Phase 1 completion summary
 - `docs/phase-2-readme.md` - Phase 2 completion summary
+- `docs/phase-2.1-readme.md` - Phase 2.1 completion summary (Auth.js migration)
 - `docs/phase-3-readme.md` - Phase 3 completion summary
 
 ---
@@ -63,6 +64,8 @@ Architecture and standards documents (update less frequently):
 Completed work and troubleshooting docs (no updates needed):
 
 - `docs/archived/` - Historical documentation and troubleshooting guides
+  - `docs/archived/task-26-completion.md` - Task 26 completion (no action required)
+  - `docs/archived/task-27-completion.md` - Task 27 completion (no action required)
 
 ---
 
