@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd ../.. && pnpm install && turbo run build --filter=@repo/web",
+  "buildCommand": "cd ../.. && turbo run build --filter=@repo/web",
   "outputDirectory": "dist",
-  "installCommand": "echo 'Skipping install, using buildCommand'"
+  "installCommand": "pnpm install --no-frozen-lockfile"
 }
