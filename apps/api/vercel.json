@@ -1,0 +1,6 @@
+{
+  "version": 2,
+  "buildCommand": "cd ../.. && pnpm install && turbo run build --filter=@repo/api",
+  "outputDirectory": "dist",
+  "installCommand": "echo 'Skipping install, using buildCommand'"
+}
