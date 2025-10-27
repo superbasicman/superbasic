@@ -35,7 +35,8 @@ createTokenRoute.post(
     const userId = c.get("userId") as string;
     const profileId = c.get("profileId") as string | undefined;
     const requestId = c.get("requestId") || "unknown";
-    const { name, scopes, expiresInDays } = c.req.valid("json");
+    const validatedData = c.req.valid("json");
+    const { name, scopes, expiresInDays } = validatedData;
 
     // Validate scopes (defense in depth - Zod already validates enum)
     if (!validateScopes(scopes)) {
