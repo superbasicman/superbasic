@@ -16,11 +16,7 @@ import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import {
   makeRequest,
   createTestUser,
-  extractCookie,
 } from '../../../test/helpers.js';
-
-// Auth.js uses this cookie name
-const COOKIE_NAME = 'authjs.session-token';
 
 describe('OAuth Flows', () => {
   beforeEach(async () => {
@@ -84,8 +80,8 @@ describe('OAuth Flows', () => {
         (p: any) => p.id === 'google' || p.name === 'Google'
       );
       
-      expect(googleProvider).toBeTruthy();
-      expect(googleProvider.id).toBe('google');
+      expect(googleProvider).toBeDefined();
+      expect((googleProvider as any)?.id).toBe('google');
     });
 
     it('should verify OAuth redirect URI configuration', async () => {

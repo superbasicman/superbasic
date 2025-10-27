@@ -6,7 +6,7 @@
  * Email sending is mocked to avoid external dependencies.
  */
 
-import { describe, it, expect, beforeEach, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
@@ -16,11 +16,7 @@ import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import {
   makeRequest,
   postAuthJsForm,
-  extractCookie,
 } from '../../../test/helpers.js';
-
-// Auth.js uses this cookie name
-const COOKIE_NAME = 'authjs.session-token';
 
 // Mock Resend to avoid hitting API rate limits in tests
 vi.mock('resend', () => {
@@ -113,14 +109,16 @@ describe('Magic Link Flows', () => {
       });
 
       expect(tokens.length).toBeGreaterThan(0);
-      expect(tokens[0].identifier).toBe(email);
-      expect(tokens[0].token).toBeTruthy();
-      expect(tokens[0].expires).toBeInstanceOf(Date);
+      const token = tokens[0];
+      expect(token).toBeDefined();
+      expect(token!.identifier).toBe(email);
+      expect(token!.token).toBeTruthy();
+      expect(token!.expires).toBeInstanceOf(Date);
       
       // Token should expire in the future (check it's at least 1 hour from now)
       const oneHourFromNow = Date.now() + (60 * 60 * 1000);
-      expect(tokens[0].expires.getTime()).toBeGreaterThan(Date.now());
-      expect(tokens[0].expires.getTime()).toBeLessThan(oneHourFromNow * 2); // Within 2 hours
+      expect(token!.expires.getTime()).toBeGreaterThan(Date.now());
+      expect(token!.expires.getTime()).toBeLessThan(oneHourFromNow * 2); // Within 2 hours
     });
   });
 
@@ -249,8 +247,8 @@ describe('Magic Link Flows', () => {
         (p: any) => p.id === 'nodemailer' || p.type === 'email'
       );
       
-      expect(emailProvider).toBeTruthy();
-      expect(emailProvider.type).toBe('email');
+      expect(emailProvider).toBeDefined();
+      expect((emailProvider as any)?.type).toBe('email');
     });
 
     it('should verify email utility function exists', async () => {
@@ -299,7 +297,7 @@ describe('Magic Link Flows', () => {
       
       // Verify tokens are different
       if (tokens.length >= 2) {
-        expect(tokens[0].token).not.toBe(tokens[1].token);
+        expect(tokens[0]!.token).not.toBe(tokens[1]!.token);
       }
     });
 

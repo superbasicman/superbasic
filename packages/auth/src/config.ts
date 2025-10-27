@@ -89,8 +89,6 @@ export const authConfig: AuthConfig = {
           user: "",
           pass: "",
         },
-        // Disable connection pooling and TLS to avoid validation errors
-        pool: false,
         secure: false,
         tls: {
           rejectUnauthorized: false,
@@ -106,7 +104,7 @@ export const authConfig: AuthConfig = {
           throw error;
         }
       },
-    }),
+    }) as any, // Type cast to avoid Auth.js provider type strictness issues
   ],
   session: {
     strategy: "jwt", // Stateless sessions; no database session rows created
@@ -143,11 +141,11 @@ export const authConfig: AuthConfig = {
               type: account.type,
               provider: account.provider,
               providerAccountId: account.providerAccountId,
-              access_token: account.access_token,
-              expires_at: account.expires_at,
-              token_type: account.token_type,
-              scope: account.scope,
-              id_token: account.id_token,
+              access_token: account.access_token ?? null,
+              expires_at: account.expires_at ?? null,
+              token_type: account.token_type ?? null,
+              scope: account.scope ?? null,
+              id_token: account.id_token ?? null,
             },
           });
         } else {
@@ -171,11 +169,11 @@ export const authConfig: AuthConfig = {
                 type: account.type,
                 provider: account.provider,
                 providerAccountId: account.providerAccountId,
-                access_token: account.access_token,
-                expires_at: account.expires_at,
-                token_type: account.token_type,
-                scope: account.scope,
-                id_token: account.id_token,
+                access_token: account.access_token ?? null,
+                expires_at: account.expires_at ?? null,
+                token_type: account.token_type ?? null,
+                scope: account.scope ?? null,
+                id_token: account.id_token ?? null,
               },
             });
           }

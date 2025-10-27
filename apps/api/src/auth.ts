@@ -34,7 +34,7 @@ authApp.all('/*', async (c) => {
     console.log('[Auth.js Handler] Request:', {
       method: request.method,
       url: request.url,
-      headers: Object.fromEntries(request.headers.entries()),
+      contentType: request.headers.get('content-type'),
     });
 
     // Call Auth.js with the request and config

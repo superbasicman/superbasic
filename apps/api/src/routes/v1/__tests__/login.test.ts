@@ -19,7 +19,6 @@ import {
   extractCookie,
   signInWithCredentials,
 } from '../../../test/helpers.js';
-import { authEvents } from '@repo/auth';
 
 // Auth.js uses this cookie name
 const COOKIE_NAME = 'authjs.session-token';

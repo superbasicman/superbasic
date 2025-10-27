@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "buildCommand": "cd ../.. && pnpm install --no-frozen-lockfile && turbo run build --filter=@repo/api",
+  "buildCommand": "cd ../.. && turbo run build --filter=@repo/api",
   "outputDirectory": "dist",
   "installCommand": "pnpm install --no-frozen-lockfile"
 }

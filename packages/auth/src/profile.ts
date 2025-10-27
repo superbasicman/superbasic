@@ -39,7 +39,6 @@ export async function ensureProfileExists(userId: string): Promise<string> {
       userId,
       timezone: "UTC",
       currency: "USD",
-      settings: null,
     },
     select: { id: true },
   });
