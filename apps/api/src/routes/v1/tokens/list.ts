@@ -40,7 +40,7 @@ listTokensRoute.get("/", authMiddleware, async (c) => {
   });
 
   // Mask tokens (show last 4 chars from stored value)
-  const maskedTokens = tokens.map((token) => ({
+  const maskedTokens = tokens.map((token: any) => ({
     id: token.id,
     name: token.name,
     scopes: token.scopes as string[],

@@ -252,7 +252,7 @@ export async function createTestUser(
   const hashedPassword = await hashPassword(credentials.password);
 
   // Create user and profile in a transaction (matching register endpoint behavior)
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const newUser = await tx.user.create({
       data: {
         email: credentials.email,

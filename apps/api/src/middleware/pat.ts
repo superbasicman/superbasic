@@ -172,7 +172,7 @@ export async function patMiddleware(c: Context, next: Next) {
         where: { id: apiKey.id },
         data: { lastUsedAt: new Date() },
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         console.error("Failed to update token lastUsedAt:", err);
       });
 

@@ -23,7 +23,7 @@ registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
 
   // Hash password and create user with profile in a transaction
   const hashedPassword = await hashPassword(password);
-  const user = await prisma.$transaction(async (tx) => {
+  const user = await prisma.$transaction(async (tx: any) => {
     // Create user
     const newUser = await tx.user.create({
       data: {
