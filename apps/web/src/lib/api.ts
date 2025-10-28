@@ -1,6 +1,7 @@
 import type { LoginInput, RegisterInput, UserResponse } from "@repo/types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+// Remove trailing slash from API_URL to prevent double slashes
+const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
 
 /**
  * API client error class for structured error handling

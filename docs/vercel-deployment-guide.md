@@ -274,6 +274,35 @@ Should return:
 
 **Solution**: Turborepo is installed as a workspace dependency. The `cd ../..` in `buildCommand` ensures it runs from the root where `turbo` is available.
 
+### Build Fails with esbuild Version Mismatch
+
+**Problem**: Multiple versions of esbuild causing conflicts during build
+
+**Error Example**: `Error: Expected "0.25.11" but got "0.21.5"`
+
+**Solution**: Add esbuild override to root `package.json`:
+
+```json
+{
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.21.5"
+    }
+  }
+}
+```
+
+Then reinstall and push:
+
+```bash
+pnpm install
+git add package.json pnpm-lock.yaml
+git commit -m "fix: force esbuild version"
+git push
+```
+
+Vercel will automatically redeploy with the unified esbuild version.
+
 ### API Returns 404 for All Routes
 
 **Problem**: Vercel serverless function not configured correctly

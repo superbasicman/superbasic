@@ -31,6 +31,12 @@ authApp.all('/*', async (c) => {
     // Get the original request
     const request = c.req.raw;
 
+    // Skip Auth.js for OPTIONS requests - let CORS middleware handle them
+    // This prevents Auth.js from trying to redirect preflight requests
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204 });
+    }
+
     console.log('[Auth.js Handler] Request:', {
       method: request.method,
       url: request.url,
