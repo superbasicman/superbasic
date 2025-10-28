@@ -45,18 +45,48 @@ authApp.all("/*", async (c) => {
       method: request.method,
       url: request.url,
       contentType: request.headers.get("content-type"),
+      origin: request.headers.get("origin"),
     });
 
     // Call Auth.js with the request and config
-    const response = await Auth(request, authConfig);
+    const authResponse = await Auth(request, authConfig);
 
-    // Log Set-Cookie headers for debugging
+    // Auth.js returns a new Response without CORS headers
+    // We need to add them manually for cross-origin cookie support
+    const origin = request.headers.get("origin");
+    const headers = new Headers(authResponse.headers);
+    
+    if (origin) {
+      // Check if origin is allowed (same logic as CORS middleware)
+      const isAllowed = 
+        origin === "https://app.superbasicfinance.com" ||
+        /^https:\/\/.*\.vercel\.app$/.test(origin) ||
+        /^http:\/\/localhost:\d+$/.test(origin);
+      
+      if (isAllowed) {
+        headers.set("Access-Control-Allow-Origin", origin);
+        headers.set("Access-Control-Allow-Credentials", "true");
+        headers.set("Vary", "Origin");
+      }
+    }
+
+    const response = new Response(authResponse.body, {
+      status: authResponse.status,
+      statusText: authResponse.statusText,
+      headers,
+    });
+
+    // Log Set-Cookie headers and CORS headers for debugging
     const setCookieHeaders = response.headers.getSetCookie?.() || [];
     console.log("[Auth.js Handler] Response:", {
       status: response.status,
       location: response.headers.get("location"),
       setCookieCount: setCookieHeaders.length,
       setCookies: setCookieHeaders.map((c) => c.substring(0, 50) + "..."),
+      corsHeaders: {
+        accessControlAllowOrigin: response.headers.get("access-control-allow-origin"),
+        accessControlAllowCredentials: response.headers.get("access-control-allow-credentials"),
+      },
     });
 
     // For sign-out requests with JWT strategy, Auth.js doesn't clear the cookie by default
