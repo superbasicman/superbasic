@@ -338,11 +338,19 @@ Vercel will automatically redeploy with the unified esbuild version.
 
 **Problem**: Web app can't connect to API
 
+**Common Errors**:
+
+- `Response to preflight request doesn't pass access control check: Redirect is not allowed`
+- `Access to fetch has been blocked by CORS policy`
+
 **Solutions**:
 
-1. Verify `VITE_API_URL` in web app environment variables
-2. Check API CORS middleware allows your web app domain
+1. **Remove trailing slash from `VITE_API_URL`**: Should be `https://api.vercel.app` not `https://api.vercel.app/`
+2. Verify API CORS middleware allows your web app domain (check `apps/api/src/middleware/cors.ts`)
 3. Ensure both apps are deployed (not mixing local + production)
+4. Check browser console for the actual failing URL (look for double slashes like `//v1/auth/session`)
+
+**Note**: The API client automatically strips trailing slashes, but double-check your environment variable.
 
 ### Database Connection Fails
 
@@ -353,6 +361,50 @@ Vercel will automatically redeploy with the unified esbuild version.
 1. Verify `DATABASE_URL` includes `?sslmode=require`
 2. Check Neon database is not paused (free tier auto-pauses)
 3. Verify connection string has correct credentials
+
+---
+
+## Common Deployment Mistakes
+
+### ❌ Trailing Slash in VITE_API_URL
+
+**Wrong**: `VITE_API_URL=https://api.vercel.app/`  
+**Right**: `VITE_API_URL=https://api.vercel.app`
+
+Trailing slashes cause double slashes in URLs (`//v1/auth/session`).
+
+### ❌ Mismatched AUTH_URL and WEB_APP_URL
+
+**Wrong**: Both pointing to same domain  
+**Right**: AUTH_URL = API domain, WEB_APP_URL = web domain
+
+```bash
+# API environment variables
+AUTH_URL=https://superbasic-api.vercel.app
+WEB_APP_URL=https://superbasic-web.vercel.app
+```
+
+### ❌ Forgetting to Redeploy API After Adding WEB_APP_URL
+
+After deploying web app, you must:
+
+1. Add `WEB_APP_URL` to API environment variables
+2. **Redeploy the API** (environment changes don't auto-deploy)
+
+### ❌ Using Wrong Google OAuth Redirect URI
+
+**Wrong**: `http://localhost:3000/v1/auth/callback/google`  
+**Right**: `https://your-api-domain.vercel.app/v1/auth/callback/google`
+
+Must match your production API domain exactly.
+
+### ❌ Auth.js Redirecting to /login on API Server (404)
+
+**Error**: `GET https://api.vercel.app/login?error=MissingCSRF 404`
+
+**Cause**: Missing or incorrect `WEB_APP_URL` environment variable on API
+
+**Fix**: Ensure `WEB_APP_URL` is set correctly in API environment variables and redeploy
 
 ---
 
