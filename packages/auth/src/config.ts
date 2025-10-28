@@ -23,18 +23,18 @@ export const authConfig: AuthConfig = {
       name: "authjs.session-token",
       options: {
         httpOnly: true,
-        sameSite: "none", // Required for cross-origin (API and web on different domains)
+        sameSite: "lax", // Same-site cookies (api.superbasicfinance.com and www.superbasicfinance.com)
         path: "/",
-        secure: true, // Required when sameSite=none (HTTPS only)
+        secure: true, // HTTPS only
       },
     },
     csrfToken: {
       name: "authjs.csrf-token",
       options: {
         httpOnly: true,
-        sameSite: "none", // Required for cross-origin CSRF protection
+        sameSite: "lax", // Same-site cookies for CSRF protection
         path: "/",
-        secure: true, // Required when sameSite=none (HTTPS only)
+        secure: true, // HTTPS only
       },
     },
   },
