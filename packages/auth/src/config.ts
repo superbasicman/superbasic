@@ -218,30 +218,36 @@ export const authConfig: AuthConfig = {
       
       const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
       
+      console.log('[Auth.js redirect]', { url, baseUrl, webAppUrl });
+      
       // If url is already pointing to the web app, return as-is
       if (url.startsWith(webAppUrl)) {
+        console.log('[Auth.js redirect] Already web app URL, returning as-is');
         return url;
       }
       
       // If url is relative, prepend web app URL
       if (url.startsWith('/')) {
-        return `${webAppUrl}${url}`;
+        const result = `${webAppUrl}${url}`;
+        console.log('[Auth.js redirect] Relative URL, prepending web app:', result);
+        return result;
       }
       
       // If url starts with baseUrl (API server), extract the path and redirect to web app
       if (url.startsWith(baseUrl)) {
         const path = url.substring(baseUrl.length);
-        return `${webAppUrl}${path}`;
+        const result = `${webAppUrl}${path}`;
+        console.log('[Auth.js redirect] API URL, extracting path and redirecting to web app:', result);
+        return result;
       }
       
       // For external URLs (OAuth providers), return as-is
+      console.log('[Auth.js redirect] External URL, returning as-is');
       return url;
     },
   },
   pages: {
-    // Use absolute URLs to web app for error/signin pages
-    // Auth.js will redirect to these URLs when errors occur
-    signIn: `${process.env.WEB_APP_URL || "http://localhost:5173"}/login`,
-    error: `${process.env.WEB_APP_URL || "http://localhost:5173"}/login`,
+    // Don't set pages - let redirect callback handle all redirects
+    // This ensures WEB_APP_URL is evaluated at request time, not module load time
   },
 };
