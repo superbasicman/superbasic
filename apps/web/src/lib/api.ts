@@ -168,25 +168,11 @@ export const authApi = {
   async loginWithGoogle(): Promise<void> {
     // Auth.js requires POST with CSRF token for OAuth signin
     // We need to submit a form programmatically
-    console.log('[loginWithGoogle] Fetching CSRF token...');
     const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
       credentials: "include",
     });
     
-    console.log('[loginWithGoogle] CSRF response status:', csrfResponse.status);
-    console.log('[loginWithGoogle] CSRF response headers:', {
-      contentType: csrfResponse.headers.get('content-type'),
-      accessControlAllowCredentials: csrfResponse.headers.get('access-control-allow-credentials'),
-      accessControlAllowOrigin: csrfResponse.headers.get('access-control-allow-origin'),
-    });
-    
     const { csrfToken } = await csrfResponse.json();
-    console.log('[loginWithGoogle] CSRF token received:', csrfToken?.substring(0, 10) + '...');
-    
-    // Note: document.cookie won't show HttpOnly cookies (security feature)
-    // But the browser should still send them with requests
-    console.log('[loginWithGoogle] Visible cookies (non-HttpOnly):', document.cookie || '(none)');
-    console.log('[loginWithGoogle] Note: HttpOnly cookies are hidden but should still be sent by browser');
 
     // Wait a moment to ensure cookie is processed
     await new Promise(resolve => setTimeout(resolve, 100));
@@ -208,8 +194,6 @@ export const authApi = {
     callbackInput.value = `${window.location.origin}/`;
     form.appendChild(callbackInput);
 
-    console.log('[loginWithGoogle] Submitting form to:', form.action);
-    console.log('[loginWithGoogle] Form will include cookies automatically (including HttpOnly)');
     document.body.appendChild(form);
     form.submit();
   },

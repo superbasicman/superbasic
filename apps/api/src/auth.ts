@@ -9,12 +9,8 @@ import { Hono } from "hono";
 import { Auth } from "@auth/core";
 import { authConfig } from "@repo/auth";
 import { magicLinkRateLimitMiddleware } from "./middleware/rate-limit.js";
-import { corsMiddleware } from "./middleware/cors.js";
 
 const authApp = new Hono();
-
-// Apply CORS middleware to auth routes (sub-apps don't inherit parent middleware)
-authApp.use("/*", corsMiddleware);
 
 // Apply magic link rate limiting (3 req/hour per email) before Auth.js handler
 // Auth.js uses "nodemailer" as the provider ID for email authentication
@@ -40,15 +36,6 @@ authApp.all("/*", async (c) => {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204 });
     }
-
-    console.log("[Auth.js Handler] Request:", {
-      method: request.method,
-      url: request.url,
-      contentType: request.headers.get("content-type"),
-      origin: request.headers.get("origin"),
-      cookies: request.headers.get("cookie"),
-      hasCsrfCookie: request.headers.get("cookie")?.includes("authjs.csrf-token"),
-    });
 
     // Call Auth.js with the request and config
     const authResponse = await Auth(request, authConfig);
@@ -76,23 +63,6 @@ authApp.all("/*", async (c) => {
       status: authResponse.status,
       statusText: authResponse.statusText,
       headers,
-    });
-
-    // Log Set-Cookie headers and CORS headers for debugging
-    const setCookieHeaders = response.headers.getSetCookie?.() || [];
-    console.log("[Auth.js Handler] Response:", {
-      status: response.status,
-      location: response.headers.get("location"),
-      setCookieCount: setCookieHeaders.length,
-      setCookies: setCookieHeaders.map((c) => c.substring(0, 50) + "..."),
-      corsHeaders: {
-        accessControlAllowOrigin: response.headers.get(
-          "access-control-allow-origin"
-        ),
-        accessControlAllowCredentials: response.headers.get(
-          "access-control-allow-credentials"
-        ),
-      },
     });
 
     // For sign-out requests with JWT strategy, Auth.js doesn't clear the cookie by default

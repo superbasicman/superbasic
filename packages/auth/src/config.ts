@@ -212,37 +212,25 @@ export const authConfig: AuthConfig = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      // Auth.js redirect callback receives:
-      // - url: The URL to redirect to (Auth.js processes callbackUrl internally)
-      // - baseUrl: The base URL of the application (API server)
-      
       const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
-      
-      console.log('[Auth.js redirect]', { url, baseUrl, webAppUrl });
       
       // If url is already pointing to the web app, return as-is
       if (url.startsWith(webAppUrl)) {
-        console.log('[Auth.js redirect] Already web app URL, returning as-is');
         return url;
       }
       
       // If url is relative, prepend web app URL
       if (url.startsWith('/')) {
-        const result = `${webAppUrl}${url}`;
-        console.log('[Auth.js redirect] Relative URL, prepending web app:', result);
-        return result;
+        return `${webAppUrl}${url}`;
       }
       
       // If url starts with baseUrl (API server), extract the path and redirect to web app
       if (url.startsWith(baseUrl)) {
         const path = url.substring(baseUrl.length);
-        const result = `${webAppUrl}${path}`;
-        console.log('[Auth.js redirect] API URL, extracting path and redirecting to web app:', result);
-        return result;
+        return `${webAppUrl}${path}`;
       }
       
       // For external URLs (OAuth providers), return as-is
-      console.log('[Auth.js redirect] External URL, returning as-is');
       return url;
     },
   },
