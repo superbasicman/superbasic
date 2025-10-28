@@ -46,6 +46,8 @@ authApp.all("/*", async (c) => {
       url: request.url,
       contentType: request.headers.get("content-type"),
       origin: request.headers.get("origin"),
+      cookies: request.headers.get("cookie"),
+      hasCsrfCookie: request.headers.get("cookie")?.includes("authjs.csrf-token"),
     });
 
     // Call Auth.js with the request and config
