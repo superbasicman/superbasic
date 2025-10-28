@@ -1,23 +1,30 @@
 import { cors } from "hono/cors";
 
-/**
- * CORS middleware for cross-origin cookie support
- * 
- * Configuration:
- * - Specific origins (not wildcard) required for credentials: true
- * - credentials: true allows cookies to be sent cross-origin
- * - Hono automatically sets Vary: Origin header for proper caching
- * 
- * How it works:
- * - Host-only cookie on api.superbasicfinance.com is sent when web client
- *   at app.superbasicfinance.com makes requests with credentials: "include"
- * - CORS with credentials: true allows the browser to send and accept cookies
- *   despite different subdomains
- */
+// Get allowed origins from environment
+const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
+
+// Parse the web app URL to allow both with and without www
+const allowedOrigins = new Set<string>();
+allowedOrigins.add(webAppUrl);
+
+// If the web app URL has www, also allow without www (and vice versa)
+try {
+  const url = new URL(webAppUrl);
+  if (url.hostname.startsWith("www.")) {
+    const withoutWww = `${url.protocol}//${url.hostname.replace(/^www\./, "")}${url.port ? `:${url.port}` : ""}`;
+    allowedOrigins.add(withoutWww);
+  } else if (!url.hostname.includes("localhost")) {
+    const withWww = `${url.protocol}//www.${url.hostname}${url.port ? `:${url.port}` : ""}`;
+    allowedOrigins.add(withWww);
+  }
+} catch (error) {
+  console.warn("Failed to parse WEB_APP_URL for CORS configuration:", error);
+}
+
 export const corsMiddleware = cors({
   origin: (origin) => {
-    // Allow production domains
-    if (origin === "https://www.superbasicfinance.com" || origin === "https://superbasicfinance.com") {
+    // Allow configured web app URL (and www variant)
+    if (origin && allowedOrigins.has(origin)) {
       return origin;
     }
     
