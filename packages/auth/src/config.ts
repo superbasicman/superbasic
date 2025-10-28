@@ -227,7 +227,9 @@ export const authConfig: AuthConfig = {
     },
   },
   pages: {
-    signIn: "/login",
-    error: "/login",
+    // Use absolute URLs to web app for error/signin pages
+    // Auth.js will redirect to these URLs when errors occur
+    signIn: `${process.env.WEB_APP_URL || "http://localhost:5173"}/login`,
+    error: `${process.env.WEB_APP_URL || "http://localhost:5173"}/login`,
   },
 };
