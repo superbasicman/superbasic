@@ -23,7 +23,7 @@ updateTokenRoute.patch(
   authMiddleware, // Requires session auth
   zValidator("json", UpdateTokenRequestSchema, (result, c) => {
     if (!result.success) {
-      return c.json({ error: "Validation failed", issues: result.error.issues }, 400);
+      return c.json({ error: "Validation failed", issues: (result as any).error.issues }, 400);
     }
   }),
   async (c) => {
