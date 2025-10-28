@@ -7,11 +7,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
       "default": "./dist/index.js"
     }
   },
   "types": "./dist/index.d.ts",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
   "scripts": {
     "generate": "dotenv -e .env.local -- prisma generate",
     "migrate": "dotenv -e .env.local -- prisma migrate dev",
