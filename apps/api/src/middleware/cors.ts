@@ -16,8 +16,8 @@ import { cors } from "hono/cors";
  */
 export const corsMiddleware = cors({
   origin: (origin) => {
-    // Allow production domain
-    if (origin === "https://app.superbasicfinance.com") {
+    // Allow production domains
+    if (origin === "https://www.superbasicfinance.com" || origin === "https://superbasicfinance.com") {
       return origin;
     }
     
