@@ -207,14 +207,11 @@ export const authConfig: AuthConfig = {
       // - url: The URL to redirect to (Auth.js processes callbackUrl internally)
       // - baseUrl: The base URL of the application (API server)
       
-      // Auth.js handles the callbackUrl parameter internally and provides
-      // the final destination as 'url'. We just need to ensure it redirects
-      // to the web app instead of the API server.
       const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
       
-      // If url starts with baseUrl (API server), replace with web app URL
-      if (url.startsWith(baseUrl)) {
-        return url.replace(baseUrl, webAppUrl);
+      // If url is already pointing to the web app, return as-is
+      if (url.startsWith(webAppUrl)) {
+        return url;
       }
       
       // If url is relative, prepend web app URL
@@ -222,7 +219,13 @@ export const authConfig: AuthConfig = {
         return `${webAppUrl}${url}`;
       }
       
-      // Otherwise return the url as-is (may be external or already correct)
+      // If url starts with baseUrl (API server), extract the path and redirect to web app
+      if (url.startsWith(baseUrl)) {
+        const path = url.substring(baseUrl.length);
+        return `${webAppUrl}${path}`;
+      }
+      
+      // For external URLs (OAuth providers), return as-is
       return url;
     },
   },
