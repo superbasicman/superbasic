@@ -37,5 +37,6 @@ export const corsMiddleware = cors({
   credentials: true, // Required for cookies
   allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization"],
+  exposeHeaders: ["Set-Cookie"], // Allow browser to read Set-Cookie headers
   maxAge: 86400, // 24 hours - browser caches preflight response
 });

@@ -168,10 +168,21 @@ export const authApi = {
   async loginWithGoogle(): Promise<void> {
     // Auth.js requires POST with CSRF token for OAuth signin
     // We need to submit a form programmatically
+    console.log('[loginWithGoogle] Fetching CSRF token...');
     const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
       credentials: "include",
     });
+    
+    console.log('[loginWithGoogle] CSRF response headers:', {
+      setCookie: csrfResponse.headers.get('set-cookie'),
+      status: csrfResponse.status,
+    });
+    
     const { csrfToken } = await csrfResponse.json();
+    console.log('[loginWithGoogle] CSRF token received:', csrfToken?.substring(0, 10) + '...');
+    
+    // Log current cookies
+    console.log('[loginWithGoogle] Current cookies:', document.cookie);
 
     // Create and submit form programmatically
     const form = document.createElement("form");
@@ -190,6 +201,7 @@ export const authApi = {
     callbackInput.value = `${window.location.origin}/`;
     form.appendChild(callbackInput);
 
+    console.log('[loginWithGoogle] Submitting form to:', form.action);
     document.body.appendChild(form);
     form.submit();
   },
