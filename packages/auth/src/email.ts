@@ -16,7 +16,7 @@ export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams):
     const result = await resend.emails.send({
     from,
     to,
-    subject: 'Sign in to SuperBasic Finance',
+    subject: 'Your sign-in link for SuperBasic Finance',
     html: `
       <!DOCTYPE html>
       <html>
@@ -25,11 +25,11 @@ export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams):
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h1 style="color: #2563eb; margin-bottom: 24px;">Sign in to SuperBasic Finance</h1>
+          <h1 style="color: #2563eb; margin-bottom: 24px;">Welcome back!</h1>
           
-          <p style="margin-bottom: 24px;">Click the button below to sign in to your account:</p>
+          <p style="margin-bottom: 24px;">You requested a sign-in link for your SuperBasic Finance account. Click the button below to continue:</p>
           
-          <a href="${url}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-bottom: 24px;">Sign In</a>
+          <a href="${url}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin-bottom: 24px;">Continue to SuperBasic Finance</a>
           
           <p style="margin-bottom: 16px; color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
           <p style="margin-bottom: 24px; word-break: break-all; color: #2563eb; font-size: 14px;">${url}</p>
