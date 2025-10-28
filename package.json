@@ -8,6 +8,11 @@
     "pnpm": ">=9.0.0"
   },
   "packageManager": "pnpm@9.0.0",
+  "pnpm": {
+    "overrides": {
+      "esbuild": "^0.21.5"
+    }
+  },
   "scripts": {
     "dev": "turbo run dev",
     "dev:prod": "NODE_ENV=production turbo run dev",
