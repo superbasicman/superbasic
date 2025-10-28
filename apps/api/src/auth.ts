@@ -52,7 +52,7 @@ authApp.all("/*", async (c) => {
       status: response.status,
       location: response.headers.get("location"),
       setCookieCount: setCookieHeaders.length,
-      setCookies: setCookieHeaders.map(c => c.substring(0, 50) + '...'),
+      setCookies: setCookieHeaders.map((c) => c.substring(0, 50) + "..."),
     });
 
     // For sign-out requests with JWT strategy, Auth.js doesn't clear the cookie by default
