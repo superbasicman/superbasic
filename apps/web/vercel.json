@@ -2,5 +2,11 @@
   "version": 2,
   "buildCommand": "cd ../.. && turbo run build --filter=@repo/web",
   "outputDirectory": "dist",
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

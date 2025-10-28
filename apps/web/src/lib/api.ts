@@ -173,16 +173,23 @@ export const authApi = {
       credentials: "include",
     });
     
+    console.log('[loginWithGoogle] CSRF response status:', csrfResponse.status);
     console.log('[loginWithGoogle] CSRF response headers:', {
-      setCookie: csrfResponse.headers.get('set-cookie'),
-      status: csrfResponse.status,
+      contentType: csrfResponse.headers.get('content-type'),
+      accessControlAllowCredentials: csrfResponse.headers.get('access-control-allow-credentials'),
+      accessControlAllowOrigin: csrfResponse.headers.get('access-control-allow-origin'),
     });
     
     const { csrfToken } = await csrfResponse.json();
     console.log('[loginWithGoogle] CSRF token received:', csrfToken?.substring(0, 10) + '...');
     
-    // Log current cookies
-    console.log('[loginWithGoogle] Current cookies:', document.cookie);
+    // Note: document.cookie won't show HttpOnly cookies (security feature)
+    // But the browser should still send them with requests
+    console.log('[loginWithGoogle] Visible cookies (non-HttpOnly):', document.cookie || '(none)');
+    console.log('[loginWithGoogle] Note: HttpOnly cookies are hidden but should still be sent by browser');
+
+    // Wait a moment to ensure cookie is processed
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Create and submit form programmatically
     const form = document.createElement("form");
@@ -202,6 +209,7 @@ export const authApi = {
     form.appendChild(callbackInput);
 
     console.log('[loginWithGoogle] Submitting form to:', form.action);
+    console.log('[loginWithGoogle] Form will include cookies automatically (including HttpOnly)');
     document.body.appendChild(form);
     form.submit();
   },
