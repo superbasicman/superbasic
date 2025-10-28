@@ -95,6 +95,13 @@ Guidelines to keep work focused, production-ready, and simple while we reshape t
 - Keep `.env.example` updated with only the vars needed by each app.
 - When removing packages/apps, archive them first so we can resurrect if needed.
 
+## Git Workflow
+
+- **NEVER run git commands** (`git add`, `git commit`, `git push`, etc.) when making code changes
+- **User handles version control** - focus only on making the requested code changes
+- **Exception**: Reading git state is fine (`git status`, `git log`, `git diff`) if needed for context
+- **Rationale**: User maintains control over commit messages, staging, and push timing
+
 ## Culture & Collaboration
 
 - Keep comments concise; prefer clear naming over verbose explanations.

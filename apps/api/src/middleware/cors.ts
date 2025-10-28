@@ -11,10 +11,14 @@ allowedOrigins.add(webAppUrl);
 try {
   const url = new URL(webAppUrl);
   if (url.hostname.startsWith("www.")) {
-    const withoutWww = `${url.protocol}//${url.hostname.replace(/^www\./, "")}${url.port ? `:${url.port}` : ""}`;
+    const withoutWww = `${url.protocol}//${url.hostname.replace(/^www\./, "")}${
+      url.port ? `:${url.port}` : ""
+    }`;
     allowedOrigins.add(withoutWww);
   } else if (!url.hostname.includes("localhost")) {
-    const withWww = `${url.protocol}//www.${url.hostname}${url.port ? `:${url.port}` : ""}`;
+    const withWww = `${url.protocol}//www.${url.hostname}${
+      url.port ? `:${url.port}` : ""
+    }`;
     allowedOrigins.add(withWww);
   }
 } catch (error) {
@@ -27,17 +31,17 @@ export const corsMiddleware = cors({
     if (origin && allowedOrigins.has(origin)) {
       return origin;
     }
-    
+
     // Allow Vercel preview deployments (e.g., https://sbfin-web-abc123.vercel.app)
     if (origin && /^https:\/\/.*\.vercel\.app$/.test(origin)) {
       return origin;
     }
-    
+
     // Allow localhost for development
     if (origin && /^http:\/\/localhost:\d+$/.test(origin)) {
       return origin;
     }
-    
+
     // Reject all other origins
     return "";
   },

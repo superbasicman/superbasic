@@ -1,4 +1,5 @@
 {
   "buildCommand": "cd ../.. && turbo run build --filter=@repo/api",
-  "installCommand": "pnpm install --no-frozen-lockfile"
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "ignoreCommand": "bash -c 'if [ \"$VERCEL_ENV\" == \"production\" ]; then git diff --quiet HEAD^ HEAD -- apps/api packages/auth packages/database packages/types packages/observability packages/rate-limit || exit 1; else exit 1; fi'"
 }
