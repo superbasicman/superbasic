@@ -55,14 +55,14 @@ authApp.all("/*", async (c) => {
     // We need to add them manually for cross-origin cookie support
     const origin = request.headers.get("origin");
     const headers = new Headers(authResponse.headers);
-    
+
     if (origin) {
       // Check if origin is allowed (same logic as CORS middleware)
-      const isAllowed = 
+      const isAllowed =
         origin === "https://app.superbasicfinance.com" ||
         /^https:\/\/.*\.vercel\.app$/.test(origin) ||
         /^http:\/\/localhost:\d+$/.test(origin);
-      
+
       if (isAllowed) {
         headers.set("Access-Control-Allow-Origin", origin);
         headers.set("Access-Control-Allow-Credentials", "true");
@@ -84,8 +84,12 @@ authApp.all("/*", async (c) => {
       setCookieCount: setCookieHeaders.length,
       setCookies: setCookieHeaders.map((c) => c.substring(0, 50) + "..."),
       corsHeaders: {
-        accessControlAllowOrigin: response.headers.get("access-control-allow-origin"),
-        accessControlAllowCredentials: response.headers.get("access-control-allow-credentials"),
+        accessControlAllowOrigin: response.headers.get(
+          "access-control-allow-origin"
+        ),
+        accessControlAllowCredentials: response.headers.get(
+          "access-control-allow-credentials"
+        ),
       },
     });
 
