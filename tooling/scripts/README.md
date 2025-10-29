@@ -6,6 +6,15 @@ Utility scripts for development, testing, and operations.
 
 ### Authentication & Environment
 
+**`setup-env.ts`** ⭐ **NEW**
+- Interactive wizard for complete environment setup
+- Configures database, auth, Redis, OAuth, and email
+- Perfect for first-time setup or cloning the starter template
+
+```bash
+pnpm tsx tooling/scripts/setup-env.ts
+```
+
 **`check-auth-env.ts`**
 - Validates Auth.js environment variables
 - Checks for required secrets (NEXTAUTH_SECRET, OAuth credentials)
