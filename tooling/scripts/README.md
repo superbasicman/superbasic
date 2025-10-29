@@ -35,6 +35,24 @@ pnpm tsx tooling/scripts/check-auth-env.ts
 pnpm tsx tooling/scripts/backfill-profiles.ts
 ```
 
+**`setup-neon-branches.ts`**
+- Interactive setup wizard for Neon database branch configuration
+- Walks you through configuring dev/main branch isolation
+- Updates local files and provides Vercel instructions
+
+```bash
+pnpm tsx tooling/scripts/setup-neon-branches.ts
+```
+
+**`check-db-branch.ts`**
+- Shows which Neon database branch you're connected to
+- Helps verify environment configuration
+- Run after setup to confirm everything is correct
+
+```bash
+pnpm tsx tooling/scripts/check-db-branch.ts
+```
+
 ### Rate Limiting
 
 **`clear-magic-link-rate-limit.ts`**

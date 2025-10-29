@@ -4,12 +4,16 @@ Complete guide for deploying to Vercel.
 
 ## TL;DR - Quick Deploy
 
-1. **API**: Import repo → Set root to `apps/api` → Add env vars → Deploy
-2. **Web**: Import repo → Set root to `apps/web` → Add `VITE_API_URL` → Deploy
-3. **Update**: Add web URL to API's `WEB_APP_URL` → Redeploy API
-4. **Test**: Visit web app, try logging in
+1. **Neon Setup**: Create `main` and `dev` branches in Neon dashboard
+2. **API**: Import repo → Set root to `apps/api` → Add env vars (DATABASE_URL twice!) → Deploy
+3. **Web**: Import repo → Set root to `apps/web` → Add `VITE_API_URL` → Deploy
+4. **Update**: Add web URL to API's `WEB_APP_URL` → Redeploy API
+5. **Test**: Visit web app, try logging in
 
-**Critical**: Both apps need their own Vercel project. Don't try to deploy as one project.
+**Critical Points**:
+- Both apps need their own Vercel project (don't deploy as one)
+- Add `DATABASE_URL` **twice** in Vercel - once for Production (main branch), once for Preview (dev branch)
+- Local development uses `dev` branch via `.env.local` files
 
 **Deployment Flow**:
 
@@ -24,16 +28,93 @@ GitHub Repo
         └── dist/ → Static site output
 ```
 
+**Database Branch Strategy**:
+
+```
+Neon Database
+    ├── main branch (production data)
+    │   └── Used by: Vercel Production
+    │
+    └── dev branch (test data)
+        └── Used by: Local development + Vercel Preview
+```
+
+**Environment Mapping**:
+
+| Environment | Vercel Env | Neon Branch | Use Case |
+|-------------|------------|-------------|----------|
+| Local Dev | N/A | `dev` | Development on your machine |
+| Preview | Preview | `dev` | PR preview deployments |
+| Production | Production | `main` | Live production site |
+
+**Complete Flow Diagram**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Developer Workflow                                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Local Development                                          │
+│  ├─ .env.local → Neon dev branch                           │
+│  └─ pnpm dev → http://localhost:3000                        │
+│                                                             │
+│  Push to Feature Branch                                     │
+│  ├─ git push origin feature/xyz                            │
+│  ├─ Vercel Preview Deploy                                  │
+│  ├─ Uses Preview env vars                                  │
+│  └─ Connects to Neon dev branch                            │
+│                                                             │
+│  Merge to Main                                              │
+│  ├─ git push origin main                                   │
+│  ├─ Vercel Production Deploy                               │
+│  ├─ Uses Production env vars                               │
+│  └─ Connects to Neon main branch                           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ---
 
 ## Prerequisites
 
 - Vercel account (sign up at https://vercel.com)
 - GitHub repository with your code pushed
-- Neon database (or other Postgres provider)
+- Neon database with branches configured (see below)
 - Upstash Redis account (for rate limiting)
 - Resend account (for magic links)
 - Google OAuth credentials (for social login)
+
+### Neon Database Branch Setup
+
+This project uses Neon database branches to isolate environments:
+
+- **`main` branch** - Production data (used by Vercel Production)
+- **`dev` branch** - Development/testing data (used by local dev and Vercel Preview)
+
+**Why Branches?**
+- Prevents preview deployments from affecting production data
+- Allows testing migrations safely before production
+- Each branch has its own connection string
+
+**Setup Steps**:
+
+1. Go to https://console.neon.tech and select your project
+2. Click "Branches" in the sidebar
+3. You should see a `main` branch (created automatically)
+4. Click "Create Branch" to create a `dev` branch:
+   - **Branch name**: `dev`
+   - **Parent branch**: `main`
+   - **Include data**: Yes (copies current schema and data)
+5. Copy both connection strings:
+   - `main` branch → for Vercel Production
+   - `dev` branch → for Vercel Preview and local development
+
+**Connection String Format**:
+```
+postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/dbname?sslmode=require
+```
+
+The branch name is encoded in the hostname (`ep-xxx` identifier).
 
 ## Pre-Deployment Checklist
 
@@ -59,6 +140,86 @@ This project uses **pnpm workspaces** and **Turborepo**. Each app has a `vercel.
 - `apps/api/vercel.json` - API build configuration
 - `apps/api/api/index.js` - Vercel serverless function entry point
 - `apps/web/vercel.json` - Web app build configuration
+
+---
+
+## How to Set Environment-Specific Variables in Vercel
+
+When adding environment variables in Vercel, you'll see checkboxes for:
+- **Production** - Used by production deployments (main branch)
+- **Preview** - Used by preview deployments (PRs, non-main branches)
+- **Development** - Not used (we use local `.env.local` files)
+
+### Step-by-Step: Configure DATABASE_URL for Multiple Environments
+
+**Step 1: Add Production Database URL**
+
+1. Go to your Vercel project → Settings → Environment Variables
+2. Click "Add New" environment variable
+3. Fill in:
+   - **Key**: `DATABASE_URL`
+   - **Value**: `postgresql://user:password@ep-xxx-pooler.region.aws.neon.tech/dbname?sslmode=require`
+     (Use your Neon `main` branch connection string)
+4. **Environment Selection**:
+   - ✅ Check "Production"
+   - ❌ Uncheck "Preview"
+   - ❌ Uncheck "Development"
+5. Click "Save"
+
+**Step 2: Add Preview Database URL**
+
+6. Click "Add New" again (yes, same variable name)
+7. Fill in:
+   - **Key**: `DATABASE_URL` (same name as before)
+   - **Value**: `postgresql://user:password@ep-yyy-pooler.region.aws.neon.tech/dbname?sslmode=require`
+     (Use your Neon `dev` branch connection string - note different hostname)
+8. **Environment Selection**:
+   - ❌ Uncheck "Production"
+   - ✅ Check "Preview"
+   - ❌ Uncheck "Development"
+9. Click "Save"
+
+**Result**: You'll see `DATABASE_URL` listed twice in the environment variables table:
+- One with "Production" badge
+- One with "Preview" badge
+
+Vercel automatically selects the correct one based on deployment type.
+
+### For All Other Variables
+
+**Shared Variables** (AUTH_SECRET, GOOGLE_CLIENT_ID, etc.):
+
+1. Click "Add New"
+2. Enter key and value
+3. **Check both "Production" and "Preview"** (they can share the same values)
+4. Click "Save"
+
+**Optional**: If you want different OAuth apps or API keys for preview vs production:
+- Add the variable twice (like DATABASE_URL)
+- Use different values for Production vs Preview
+
+### Understanding Vercel's Environment Selection
+
+**How Vercel Chooses Which Environment Variables to Use**:
+
+| Git Action | Vercel Environment | Database Used | Example |
+|------------|-------------------|---------------|---------|
+| Push to `main` | Production | Neon `main` branch | `git push origin main` |
+| Push to `dev` | Preview | Neon `dev` branch | `git push origin dev` |
+| Open PR | Preview | Neon `dev` branch | PR from `feature/xyz` → `main` |
+| Push to feature branch | Preview | Neon `dev` branch | `git push origin feature/new-thing` |
+
+**Key Points**:
+
+- Only pushes to your **production branch** (usually `main`) trigger Production deployments
+- Everything else (PRs, feature branches, dev branch) uses Preview environment
+- You can configure which branch is "production" in Vercel project settings
+
+**To Change Production Branch**:
+
+1. Go to Vercel project → Settings → Git
+2. Find "Production Branch" setting
+3. Change from `main` to another branch if needed (not recommended)
 
 ---
 
@@ -92,10 +253,37 @@ This project uses **pnpm workspaces** and **Turborepo**. Each app has a `vercel.
 
 Click "Environment Variables" and add these (use your actual values):
 
-```bash
-# Required - Database
-DATABASE_URL=postgresql://user:password@your-neon-host.neon.tech/your_app?sslmode=require
+**Important**: For each variable, select which environments it applies to:
+- **Production** - Uses Neon `main` branch
+- **Preview** - Uses Neon `dev` branch  
+- **Development** - Not used (local development uses `.env.local`)
 
+#### Database Configuration (Environment-Specific)
+
+```bash
+# Production Environment ONLY
+DATABASE_URL=postgresql://user:password@your-neon-host.neon.tech/your_app?sslmode=require
+# ☝️ This should be your Neon MAIN branch connection string
+# When adding: Check ONLY "Production"
+
+# Preview Environment ONLY  
+DATABASE_URL=postgresql://user:password@your-neon-host-dev.neon.tech/your_app?sslmode=require
+# ☝️ This should be your Neon DEV branch connection string
+# When adding: Check ONLY "Preview"
+```
+
+**How to Get Neon Branch URLs**:
+1. Go to https://console.neon.tech
+2. Select your project
+3. Click "Branches" in sidebar
+4. Copy connection string for `main` branch (for Production)
+5. Copy connection string for `dev` branch (for Preview)
+
+#### Shared Environment Variables (All Environments)
+
+These apply to both Production and Preview:
+
+```bash
 # Required - Authentication
 AUTH_SECRET=your-super-secret-auth-key-min-32-chars-change-in-production
 AUTH_URL=https://your-api-domain.vercel.app
@@ -124,6 +312,7 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 - `AUTH_URL` should be your API domain (e.g., `https://api-yourapp.vercel.app`)
 - `WEB_APP_URL` should be your web app domain (you'll get this after deploying the web app)
 - Generate `AUTH_SECRET` with: `openssl rand -base64 32`
+- For `DATABASE_URL`, add it **twice** - once for Production, once for Preview
 
 ### Step 4: Deploy API
 
@@ -361,10 +550,61 @@ Vercel will automatically redeploy with the unified esbuild version.
 1. Verify `DATABASE_URL` includes `?sslmode=require`
 2. Check Neon database is not paused (free tier auto-pauses)
 3. Verify connection string has correct credentials
+4. Ensure you're using the correct branch URL for the environment
+
+### Preview Deployment Using Production Database
+
+**Problem**: Preview deployments are writing to production database
+
+**Cause**: `DATABASE_URL` not configured separately for Preview environment
+
+**Solution**:
+
+1. Go to Vercel project → Settings → Environment Variables
+2. Find `DATABASE_URL` variable
+3. Click "Edit" and ensure:
+   - Production checkbox: Uses `main` branch URL
+   - Preview checkbox: Uses `dev` branch URL
+4. Redeploy preview to pick up new environment variable
+
+**Verify Branch Usage**:
+
+```bash
+# Check which database a deployment is using
+# Look at deployment logs for connection string (partially masked)
+# Or query the database:
+SELECT current_database();
+```
+
+### Local Development Using Wrong Branch
+
+**Problem**: Local development using production database
+
+**Solution**:
+
+1. Check `apps/api/.env.local` and `packages/database/.env.local`
+2. Ensure `DATABASE_URL` points to Neon `dev` branch
+3. Verify by checking the hostname in connection string
+4. Restart dev server after changing environment variables
 
 ---
 
 ## Common Deployment Mistakes
+
+### ❌ Using Same Database for All Environments
+
+**Wrong**: One `DATABASE_URL` checked for both Production and Preview  
+**Right**: Two separate `DATABASE_URL` entries with different branch URLs
+
+**Why This Matters**:
+- Preview deployments will write test data to production database
+- Database migrations tested in preview will affect production
+- No isolation between environments
+
+**How to Fix**:
+1. Delete the existing `DATABASE_URL` variable
+2. Add it twice following the steps above
+3. Redeploy both production and preview
 
 ### ❌ Trailing Slash in VITE_API_URL
 
@@ -412,7 +652,13 @@ Must match your production API domain exactly.
 
 ### API Project (apps/api)
 
-- [ ] `DATABASE_URL` - Neon connection string with SSL
+**Environment-Specific Variables** (add twice with different values):
+
+- [ ] `DATABASE_URL` (Production) - Neon `main` branch connection string
+- [ ] `DATABASE_URL` (Preview) - Neon `dev` branch connection string
+
+**Shared Variables** (add once, check both Production and Preview):
+
 - [ ] `AUTH_SECRET` - Random 32+ character string
 - [ ] `AUTH_URL` - Your API domain (https://...)
 - [ ] `AUTH_TRUST_HOST` - Set to `true`
@@ -428,7 +674,7 @@ Must match your production API domain exactly.
 
 ### Web Project (apps/web)
 
-- [ ] `VITE_API_URL` - Your API domain (https://...)
+- [ ] `VITE_API_URL` - Your API domain (https://...) - Both Production and Preview
 
 ---
 
@@ -553,4 +799,53 @@ After successful deployment:
 
 ---
 
-**Last Updated**: 2025-10-27
+---
+
+## Database Branch Configuration Checklist
+
+Use this checklist to verify your database branches are configured correctly:
+
+### Neon Dashboard
+
+- [ ] `main` branch exists with production data
+- [ ] `dev` branch exists (branched from `main`)
+- [ ] Both branches have connection strings copied
+
+### Local Development
+
+- [ ] `apps/api/.env.local` has `DATABASE_URL` pointing to `dev` branch
+- [ ] `packages/database/.env.local` has `DATABASE_URL` pointing to `dev` branch
+- [ ] Can connect to database: `pnpm db:studio` opens Prisma Studio
+
+### Vercel API Project
+
+- [ ] `DATABASE_URL` added with `main` branch URL (Production only)
+- [ ] `DATABASE_URL` added with `dev` branch URL (Preview only)
+- [ ] All other environment variables added (both Production and Preview)
+
+### Vercel Web Project
+
+- [ ] `VITE_API_URL` added (both Production and Preview)
+
+### Verification
+
+- [ ] Production deployment connects to `main` branch (check logs)
+- [ ] Preview deployment connects to `dev` branch (check logs)
+- [ ] Local development connects to `dev` branch (check Prisma Studio)
+- [ ] No cross-contamination between environments
+
+### Quick Test
+
+```bash
+# Test production API
+curl https://your-api-production.vercel.app/v1/health
+
+# Test preview API (from a PR deployment)
+curl https://your-api-preview-xyz.vercel.app/v1/health
+
+# Both should return 200 OK but connect to different databases
+```
+
+---
+
+**Last Updated**: 2025-10-28

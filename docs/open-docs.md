@@ -2,7 +2,7 @@
 
 Quick reference list of documentation files that should be reviewed and updated after completing tasks or phases.
 
-**Last Updated**: 2025-10-25
+**Last Updated**: 2025-10-28
 
 ---
 
@@ -41,6 +41,8 @@ Phase-specific documentation that should be updated during and after phase work:
 Core technical documentation that may need updates as features evolve:
 
 - `docs/api-authentication.md` - API authentication guide (update when adding auth methods)
+- `docs/vercel-deployment-guide.md` - Vercel deployment walkthrough (update for deployment changes)
+- `docs/SETUP-NEON-BRANCHES.md` - Quick database branch setup guide
 - `README.md` - Project overview and getting started (update for major changes)
 - `apps/web/e2e/README.md` - E2E testing guide (update when adding test suites)
 

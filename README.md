@@ -410,12 +410,15 @@ Configure email provider for passwordless authentication:
 
 - **API**: Vercel with Node.js runtime (ready to deploy)
 - **Web**: Vercel as static SPA (ready to deploy)
-- **Database**: Neon Postgres (configured)
+- **Database**: Neon Postgres with branch isolation
+  - `main` branch → Production
+  - `dev` branch → Local development + Preview deployments
 - **Redis**: Upstash for rate limiting (configured)
 - **Jobs**: Upstash QStash for background processing (Phase 5)
 
-Current environment: `dev` (local development)  
-Future environments: `preview`, `prod` with isolated databases
+**Deployment Guides**:
+- [Vercel Deployment Guide](docs/vercel-deployment-guide.md) - Complete deployment walkthrough
+- [Neon Branch Setup](docs/SETUP-NEON-BRANCHES.md) - Quick database branch configuration
 
 ## Documentation
 
