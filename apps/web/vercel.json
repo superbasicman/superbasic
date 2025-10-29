@@ -3,7 +3,7 @@
   "buildCommand": "cd ../.. && turbo run build --filter=@repo/web",
   "outputDirectory": "dist",
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "ignoreCommand": "bash -c 'if [ \"$VERCEL_ENV\" == \"production\" ]; then git diff --quiet HEAD^ HEAD -- apps/web packages/design-system packages/types && exit 1 || exit 0; else exit 0; fi'",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web packages/design-system packages/types && exit 1 || exit 0",
   "rewrites": [
     {
       "source": "/(.*)",
