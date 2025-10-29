@@ -122,14 +122,14 @@ export default function Login() {
         isDark ? "bg-black text-white" : "bg-white text-black"
       }`}
     >
-      <div className="w-full max-w-md relative">
-        {/* Theme toggle */}
-        <div className="absolute -top-4 right-0">
-          <CustomButton onClick={() => setIsDark(!isDark)} variant="toggle">
-            {isDark ? "☀" : "☾"}
-          </CustomButton>
-        </div>
+      {/* Theme toggle - fixed to top right of screen */}
+      <div className="fixed top-8 right-8">
+        <CustomButton onClick={() => setIsDark(!isDark)} variant="toggle">
+          {isDark ? "☀" : "☾"}
+        </CustomButton>
+      </div>
 
+      <div className="w-full max-w-md relative">
         {/* Header */}
         <div className="mb-12 text-center">
           <div className="text-2xl mb-2">SuperBasic Finance</div>
@@ -169,10 +169,6 @@ export default function Login() {
         {/* Initial step */}
         {step === "initial" && (
           <div>
-            <div className="text-sm mb-8 text-center">
-              {mode === "signin" ? "Sign in" : "Create account"}
-            </div>
-
             {/* OAuth button */}
             <div className="space-y-3 mb-6">
               <CustomButton onClick={loginWithGoogle}>
