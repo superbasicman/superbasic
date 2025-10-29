@@ -125,7 +125,7 @@ export default function Login() {
       {/* Theme toggle - fixed to top right of screen */}
       <div className="fixed top-8 right-8">
         <CustomButton onClick={() => setIsDark(!isDark)} variant="toggle">
-          {isDark ? "☀" : "☾"}
+          {isDark ? "Light" : "Dark"}
         </CustomButton>
       </div>
 
