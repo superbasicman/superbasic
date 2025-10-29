@@ -3,7 +3,7 @@
   "buildCommand": "cd ../.. && turbo run build --filter=@repo/web",
   "outputDirectory": "dist",
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web packages/design-system packages/types && exit 1 || exit 0",
+  "ignoreCommand": "npx turbo-ignore",
   "rewrites": [
     {
       "source": "/(.*)",
