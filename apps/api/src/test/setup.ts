@@ -4,9 +4,13 @@
  */
 
 import { PrismaClient } from '@repo/database';
+import { Redis } from '@repo/rate-limit';
 
 // Separate Prisma client for tests to avoid singleton conflicts
 let testPrisma: PrismaClient | null = null;
+
+// Redis client for test cleanup
+let testRedis: Redis | null = null;
 
 /**
  * Initialize test database connection
@@ -53,6 +57,19 @@ export async function setupTestDatabase(): Promise<void> {
     }
   }
 
+  // Initialize Redis client for test cleanup
+  if (!testRedis && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    try {
+      testRedis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      });
+    } catch (error) {
+      console.warn('Failed to initialize Redis client for tests:', error);
+      testRedis = null;
+    }
+  }
+
   // Note: Migrations should be run manually before tests or in CI
   // Run: DATABASE_URL="..." pnpm --filter=@repo/database exec prisma migrate deploy
 }
@@ -88,6 +105,73 @@ export async function resetDatabase(): Promise<void> {
 }
 
 /**
+ * Reset specific Redis rate limit key
+ * Called before rate limit tests to ensure clean state
+ * 
+ * @param key - The rate limit key to reset (e.g., 'magic-link:test@example.com')
+ */
+export async function resetRedisKey(key: string): Promise<void> {
+  // Initialize if not already done
+  if (!testRedis && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    testRedis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+
+  if (!testRedis) {
+    return; // Silently skip if Redis not available
+  }
+
+  try {
+    // Delete the specific rate limit key
+    await testRedis.del(`ratelimit:${key}`);
+  } catch (error) {
+    // Silently fail - don't block tests
+  }
+}
+
+/**
+ * Reset all Redis rate limit keys (use sparingly)
+ * This is a simpler approach that just deletes known test keys
+ */
+export async function resetRedis(): Promise<void> {
+  // Initialize if not already done
+  if (!testRedis && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    testRedis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+  }
+
+  if (!testRedis) {
+    return; // Silently skip if Redis not available
+  }
+
+  try {
+    // Delete common test rate limit keys
+    // This is faster than scanning and sufficient for tests
+    const testKeys = [
+      'ratelimit:magic-link:test@example.com',
+      'ratelimit:magic-link:ratelimit@example.com',
+      'ratelimit:magic-link:ratelimit2@example.com',
+      'ratelimit:magic-link:ratelimit3@example.com',
+      'ratelimit:magic-link:ratelimit4@example.com',
+      'ratelimit:magic-link:normalize@example.com',
+      'ratelimit:magic-link:unique@example.com',
+      'ratelimit:magic-link:expiry@example.com',
+      'ratelimit:magic-link:hashed@example.com',
+      'ratelimit:magic-link:token-test@example.com',
+    ];
+    
+    // Delete keys (Redis del command accepts multiple keys)
+    await testRedis.del(...testKeys);
+  } catch (error) {
+    // Silently fail - don't block tests
+  }
+}
+
+/**
  * Clean up test database connections
  * Called once after all tests complete
  */
@@ -96,6 +180,9 @@ export async function teardownTestDatabase(): Promise<void> {
     await testPrisma.$disconnect();
     testPrisma = null;
   }
+  
+  // Clean up Redis connection
+  testRedis = null;
 }
 
 /**

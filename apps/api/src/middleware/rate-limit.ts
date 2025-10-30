@@ -206,14 +206,14 @@ export async function magicLinkRateLimitMiddleware(c: Context, next: Next) {
   // Normalize email to lowercase for consistent rate limiting
   const normalizedEmail = email.toLowerCase().trim();
 
-  // Check rate limit (100 requests per hour per email - increased for debugging)
+  // Check rate limit (3 requests per hour per email)
   const result = await limiter.checkLimit(`magic-link:${normalizedEmail}`, {
-    limit: 100,
+    limit: 3,
     window: 3600, // 1 hour in seconds
   });
 
   // Set rate limit headers
-  c.header('X-RateLimit-Limit', '100');
+  c.header('X-RateLimit-Limit', '3');
   c.header('X-RateLimit-Remaining', result.remaining.toString());
   c.header('X-RateLimit-Reset', result.reset.toString());
 
