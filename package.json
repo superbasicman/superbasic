@@ -37,5 +37,8 @@
     "turbo": "^2.2.0",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
   }
 }
