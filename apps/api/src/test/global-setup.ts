@@ -23,7 +23,7 @@ export async function setup() {
       
       // Parse KEY=VALUE format
       const match = trimmed.match(/^([^=]+)=(.*)$/);
-      if (match) {
+      if (match && match[1] && match[2] !== undefined) {
         const key = match[1].trim();
         const value = match[2].trim();
         // Only set if not already defined (respect existing env vars)
