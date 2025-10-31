@@ -1,10 +1,34 @@
 # Current Phase Context
 
-**Active Phase**: Phase 4 - Plaid Bank Connections  
+**Active Phase**: Phase 3.5 - Architecture Refactor  
 **Status**: ✅ READY TO START  
-**Current Task**: Phase 4 Planning and Setup  
-**Spec Location**: `.kiro/specs/plaid-bank-connections/`  
-**Previous Phase**: Phase 2.1 - Auth.js Migration (✅ COMPLETE - 2025-10-30)
+**Current Task**: Task 1 - Tokens Repository Layer  
+**Spec Location**: `.kiro/specs/architecture-refactor/`  
+**Previous Phase**: Phase 2.1 - Auth.js Migration (✅ COMPLETE - 2025-10-27)
+
+---
+
+## Phase 3.5 Overview
+
+**Goal**: Refactor existing Phase 1-3 code to follow layered architecture (Service/Repository pattern) before Phase 4
+
+**Why Now**: Phase 1-3 implemented business logic directly in route handlers (fat controllers). Before adding Phase 4 complexity (Plaid integration), we're refactoring to create a consistent foundation and prevent mixing patterns.
+
+**Scope**: 
+- Extract business logic to `packages/core` services
+- Isolate database access in repositories
+- Thin route handlers to < 30 lines
+- Maintain all 234 passing tests
+- Zero breaking changes
+
+**Timeline**: ~5 days (39 hours estimated)
+
+**Exit Criteria**:
+- ✅ All route handlers < 30 lines
+- ✅ All business logic in `packages/core`
+- ✅ All database access in repositories
+- ✅ All 234 tests passing
+- ✅ TypeScript builds with zero errors
 
 ---
 

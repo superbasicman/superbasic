@@ -335,6 +335,165 @@ After 1 week of successful Auth.js operation:
 
 ---
 
+## Phase 3.5: Architecture Refactor (Service/Repository Pattern) 🔄
+
+**Goal**: Extract business logic from route handlers to service/repository layers before Phase 4
+
+**Status**: READY TO START
+
+**Rationale**: Phase 1-3 implemented business logic directly in route handlers (fat controllers). Before adding Phase 4 complexity (Plaid integration), we're refactoring existing code to follow the layered architecture pattern defined in `best-practices.md`. This creates a consistent foundation and prevents mixing patterns.
+
+### Deliverables
+
+- [ ] Create `packages/core/src/tokens/` domain structure
+  - [ ] `token-service.ts` - Business logic for token operations
+  - [ ] `token-repository.ts` - Data access layer for tokens
+  - [ ] `token-errors.ts` - Domain-specific error classes
+  - [ ] `token-types.ts` - Domain types and interfaces
+  - [ ] Unit tests for service layer (mocked repositories)
+  - [ ] Integration tests for repository layer (test database)
+- [ ] Create `packages/core/src/profiles/` domain structure
+  - [ ] `profile-service.ts` - Business logic for profile operations
+  - [ ] `profile-repository.ts` - Data access layer for profiles
+  - [ ] `profile-errors.ts` - Domain-specific error classes
+  - [ ] `profile-types.ts` - Domain types and interfaces
+  - [ ] Unit and integration tests
+- [ ] Create `packages/core/src/users/` domain structure
+  - [ ] `user-service.ts` - Business logic for user registration
+  - [ ] `user-repository.ts` - Data access layer for users
+  - [ ] `user-errors.ts` - Domain-specific error classes
+  - [ ] `user-types.ts` - Domain types and interfaces
+  - [ ] Unit and integration tests
+- [ ] Create dependency injection setup
+  - [ ] `apps/api/src/services/index.ts` - Service registry
+  - [ ] Initialize repositories with Prisma client
+  - [ ] Initialize services with repository dependencies
+- [ ] Refactor token route handlers to thin controllers
+  - [ ] `POST /v1/tokens` - Delegate to `tokenService.createToken()`
+  - [ ] `GET /v1/tokens` - Delegate to `tokenService.listTokens()`
+  - [ ] `PATCH /v1/tokens/:id` - Delegate to `tokenService.updateToken()`
+  - [ ] `DELETE /v1/tokens/:id` - Delegate to `tokenService.revokeToken()`
+- [ ] Refactor profile route handlers to thin controllers
+  - [ ] `GET /v1/me` - Delegate to `profileService.getCurrentProfile()`
+  - [ ] `PATCH /v1/me` - Delegate to `profileService.updateProfile()`
+- [ ] Refactor registration route handler
+  - [ ] `POST /v1/register` - Delegate to `userService.registerUser()`
+- [ ] Split rate limit middleware into separate files
+  - [ ] `middleware/rate-limit/auth-rate-limit.ts`
+  - [ ] `middleware/rate-limit/token-rate-limit.ts`
+  - [ ] `middleware/rate-limit/magic-link-rate-limit.ts`
+  - [ ] `middleware/rate-limit/index.ts` - Exports
+- [ ] Add Zod validation schemas for profile routes
+  - [ ] Replace inline validation with Zod schemas
+  - [ ] Consistent with other routes
+- [ ] Update all tests to work with new architecture
+  - [ ] Verify all 234 tests still pass
+  - [ ] Add new unit tests for services
+  - [ ] Update integration tests to use services
+
+### Exit Criteria
+
+- ✅ All route handlers are thin (< 30 lines, ideally < 20)
+- ✅ All business logic extracted to `packages/core` services
+- ✅ All database access isolated in repositories
+- ✅ Domain errors defined for each domain
+- ✅ Dependency injection setup complete
+- ✅ All 234 tests passing (no regressions)
+- ✅ TypeScript builds with no errors
+- ✅ Rate limit middleware split into focused files
+- ✅ Profile routes use Zod validation
+- ✅ Code follows Single Responsibility Principle
+- ✅ Documentation updated to reflect new architecture
+
+### Success Metrics
+
+- **Code Quality**: Average route handler < 25 lines (currently 60-80 lines)
+- **Test Coverage**: Maintain 100% of existing test coverage
+- **Build Time**: No significant increase in build time
+- **Type Safety**: Zero TypeScript errors
+- **Maintainability**: Clear separation of concerns across all layers
+
+### Migration Strategy
+
+**Week 1: Tokens Domain**
+1. Create `packages/core/src/tokens/` structure
+2. Extract token repository methods
+3. Extract token service methods
+4. Update route handlers to use service
+5. Verify all token tests pass (64 tests)
+
+**Week 1-2: Profiles Domain**
+1. Create `packages/core/src/profiles/` structure
+2. Extract profile repository methods
+3. Extract profile service methods
+4. Add Zod validation schemas
+5. Update route handlers to use service
+6. Verify all profile tests pass
+
+**Week 2: Users Domain**
+1. Create `packages/core/src/users/` structure
+2. Extract registration logic to service
+3. Update registration route handler
+4. Verify registration tests pass
+
+**Week 2: Middleware Cleanup**
+1. Split rate limit middleware into separate files
+2. Update imports across codebase
+3. Verify all middleware tests pass
+
+**Week 2: Final Verification**
+1. Run full test suite (234 tests)
+2. Run type checking
+3. Run linting
+4. Manual testing of all flows
+5. Update documentation
+
+### Technical Considerations
+
+**Backward Compatibility:**
+- No API contract changes
+- No database schema changes
+- All existing tests must pass
+- No breaking changes to middleware
+
+**Testing Strategy:**
+- Unit tests for services (mock repositories)
+- Integration tests for repositories (test database)
+- Existing integration tests verify end-to-end flows
+- No new E2E tests needed (behavior unchanged)
+
+**Performance:**
+- Service layer adds minimal overhead (function calls)
+- Repository layer is pass-through to Prisma
+- No expected performance degradation
+
+**Rollback Plan:**
+- Keep refactor in feature branch until complete
+- All tests passing before merge
+- Can revert entire branch if issues arise
+
+### Dependencies
+
+**Completed Prerequisites:**
+- ✅ Phase 1: Monorepo infrastructure
+- ✅ Phase 2: Authentication foundation
+- ✅ Phase 2.1: Auth.js migration
+- ✅ Phase 3: API key management
+- ✅ All 234 tests passing
+
+**Blockers:**
+- None (can start immediately)
+
+### Related Documentation
+
+- **Analysis**: `docs/soc-srp-analysis.md` - Detailed SoC/SRP analysis
+- **Best Practices**: `.kiro/steering/best-practices.md` - Architecture guidelines
+- **Spec**: `.kiro/specs/architecture-refactor/` - Detailed refactor spec
+
+**Spec**: `.kiro/specs/architecture-refactor/` (to be created)
+
+---
+
 ## Phase 4: Plaid Integration - Bank Connections
 
 **Goal**: Connect bank accounts via Plaid Link and sync account metadata

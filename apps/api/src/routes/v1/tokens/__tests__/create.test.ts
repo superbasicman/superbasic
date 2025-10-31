@@ -507,7 +507,7 @@ describe("POST /v1/tokens - Token Creation", () => {
       expect(response2.status).toBe(409);
 
       const data = await response2.json();
-      expect(data.error).toBe("Token name already exists");
+      expect(data.error).toBe('Token name "My Token" already exists');
     });
 
     it("should allow same token name for different users", async () => {

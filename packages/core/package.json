@@ -19,6 +19,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@repo/auth": "workspace:*",
     "@repo/database": "workspace:*",
     "@repo/types": "workspace:*"
   },

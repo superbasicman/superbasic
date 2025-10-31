@@ -21,13 +21,16 @@ Phase-specific documentation that should be updated during and after phase work:
 
 ### Active Phases
 
-**Phase 2.1 - Auth.js Migration** (In Progress - Sub-Phase 5)
-- `docs/oauth-setup-guide.md` - OAuth provider setup instructions
-- `docs/authjs-session-payload.md` - Auth.js session structure reference
-- `docs/authjs-test-helpers.md` - Test utilities for Auth.js integration
-- `docs/authjs-test-log-suppression.md` - Test logging configuration
+**Phase 3.5 - Architecture Refactor** (Ready to Start)
+- `.kiro/specs/architecture-refactor/requirements.md` - Refactor goals and success criteria
+- `.kiro/specs/architecture-refactor/design.md` - Layered architecture design and patterns
+- `.kiro/specs/architecture-refactor/tasks.md` - 12 tasks with detailed implementation steps
+- `docs/phase-3.5-kickoff.md` - Kickoff summary and plan
+- `docs/soc-srp-analysis.md` - SoC/SRP compliance analysis
 
 ### Completed Phases
+
+- `docs/phase-2.1-readme.md` - Phase 2.1 completion summary (Auth.js migration)
 
 - `docs/phase-1-readme.md` - Phase 1 completion summary
 - `docs/phase-2-readme.md` - Phase 2 completion summary

@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
 export { PrismaClient };
+export type { User, Profile, ApiKey, Account, Session, VerificationToken } from "@prisma/client";
 
 // Global singleton instance for use across the application
 // Prevents multiple instances in development with hot reloading
