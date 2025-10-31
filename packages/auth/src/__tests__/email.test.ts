@@ -35,7 +35,7 @@ describe("sendMagicLinkEmail", () => {
       expect.objectContaining({
         to: "test@example.com",
         from: "noreply@superbasicfinance.com",
-        subject: "Sign in to SuperBasic Finance",
+        subject: "Your sign-in link for SuperBasic Finance",
       })
     );
   });

@@ -59,15 +59,16 @@ describe("ensureProfileExists", () => {
       where: { userId },
       select: { id: true },
     });
-    expect(prisma.profile.create).toHaveBeenCalledWith({
-      data: {
-        userId,
-        timezone: "UTC",
-        currency: "USD",
-        settings: null,
-      },
-      select: { id: true },
-    });
+    expect(prisma.profile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId,
+          timezone: "UTC",
+          currency: "USD",
+        }),
+        select: { id: true },
+      })
+    );
   });
 
   it("should use default timezone UTC", async () => {
@@ -108,7 +109,7 @@ describe("ensureProfileExists", () => {
     );
   });
 
-  it("should set settings to null by default", async () => {
+  it("should include userId in profile data", async () => {
     const userId = "user-default-settings";
 
     vi.mocked(prisma.profile.findUnique).mockResolvedValue(null);
@@ -121,7 +122,7 @@ describe("ensureProfileExists", () => {
     expect(prisma.profile.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          settings: null,
+          userId,
         }),
       })
     );

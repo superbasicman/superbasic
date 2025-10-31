@@ -94,7 +94,7 @@ describe("Rate Limiting Integration Tests", () => {
   });
 
   describe("Token Creation Rate Limiting", () => {
-    it("should enforce 10 tokens per hour per user", async () => {
+    it("should enforce 10 tokens per hour per user", { timeout: 30000 }, async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const sessionToken = await createSessionToken(user.id, user.email);

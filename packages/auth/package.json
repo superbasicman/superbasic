@@ -25,6 +25,7 @@
     "bcrypt": "^5.1.1",
     "nodemailer": "6.9.16",
     "@repo/database": "workspace:*",
+    "@repo/types": "workspace:*",
     "resend": "^6.2.2"
   },
   "devDependencies": {
