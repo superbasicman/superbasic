@@ -14,13 +14,13 @@
     "test:e2e:run": "./scripts/run-e2e.sh"
   },
   "dependencies": {
+    "@repo/design-system": "workspace:*",
+    "@repo/sdk": "workspace:*",
+    "@repo/types": "workspace:*",
+    "@tanstack/react-query": "^5.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^6.20.0",
-    "@tanstack/react-query": "^5.0.0",
-    "@repo/sdk": "workspace:*",
-    "@repo/design-system": "workspace:*",
-    "@repo/types": "workspace:*"
+    "react-router-dom": "^6.20.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
@@ -30,6 +30,8 @@
     "postcss": "^8.4.32",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.3.3",
-    "vite": "^5.0.0"
+    "vite": "^5.0.0",
+    "vite-plugin-pwa": "^1.1.0",
+    "workbox-window": "^7.3.0"
   }
 }

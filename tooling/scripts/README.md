@@ -73,6 +73,26 @@ pnpm tsx tooling/scripts/check-db-branch.ts
 pnpm tsx tooling/scripts/clear-magic-link-rate-limit.ts user@example.com
 ```
 
+### PWA Assets
+
+**`create-placeholder-icons.sh`**
+- Generates placeholder PWA icons (192x192, 512x512, apple-touch-icon, favicons)
+- Creates minimal blue PNG files and SVG favicon with "SBF" text
+- Run once during initial setup or after deleting public directory
+
+```bash
+./tooling/scripts/create-placeholder-icons.sh
+```
+
+**`verify-pwa.sh`**
+- Verifies PWA setup is complete
+- Checks for required icon files and vite-plugin-pwa configuration
+- Run after icon generation or when troubleshooting PWA issues
+
+```bash
+./tooling/scripts/verify-pwa.sh
+```
+
 ## Script Guidelines
 
 ### Creating New Scripts
