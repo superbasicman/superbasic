@@ -11,7 +11,7 @@ import {
   authEvents,
 } from "@repo/auth";
 import { prisma } from "@repo/database";
-import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit.js";
+import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit/index.js";
 
 /**
  * PAT authentication middleware that validates Bearer tokens

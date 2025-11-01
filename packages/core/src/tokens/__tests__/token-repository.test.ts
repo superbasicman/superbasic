@@ -11,30 +11,38 @@ import type { User, Profile } from "@repo/database";
 
 describe("TokenRepository", () => {
   let tokenRepo: TokenRepository;
-  let testUser: User;
-  let testProfile: Profile;
+  let testUser!: User;
+  let testProfile!: Profile;
 
   beforeEach(async () => {
     tokenRepo = new TokenRepository(prisma);
 
     // Create test user with profile
-    testUser = await prisma.user.create({
-      data: {
-        email: `test-${Date.now()}@example.com`,
-        password: "hashed_password",
-        profile: {
-          create: {
-            timezone: "UTC",
-            currency: "USD",
+    try {
+      const created = await prisma.user.create({
+        data: {
+          email: `test-${Date.now()}@example.com`,
+          password: "hashed_password",
+          profile: {
+            create: {
+              timezone: "UTC",
+              currency: "USD",
+            },
           },
         },
-      },
-      include: {
-        profile: true,
-      },
-    });
-
-    testProfile = testUser.profile!;
+        include: {
+          profile: true,
+        },
+      });
+      testUser = created;
+      if (!created.profile) {
+        throw new Error("TokenRepository tests require profile creation");
+      }
+      testProfile = created.profile;
+    } catch (error) {
+      console.error("TokenRepository setup failed. Ensure test database is reachable.", error);
+      throw error;
+    }
   });
 
   afterEach(async () => {

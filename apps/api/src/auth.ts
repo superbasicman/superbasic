@@ -8,7 +8,7 @@
 import { Hono } from "hono";
 import { Auth } from "@auth/core";
 import { authConfig } from "@repo/auth";
-import { magicLinkRateLimitMiddleware } from "./middleware/rate-limit.js";
+import { magicLinkRateLimitMiddleware } from "./middleware/rate-limit/index.js";
 
 const authApp = new Hono();
 

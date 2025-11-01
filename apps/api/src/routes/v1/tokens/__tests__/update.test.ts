@@ -222,7 +222,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       expect(response.status).toBe(409);
 
       const data = await response.json();
-      expect(data.error).toBe("Token name already exists");
+      expect(data.error).toBe('Token name "Token 1" already exists');
 
       // Verify token2 name was not changed
       const unchangedToken = await prisma.apiKey.findUnique({

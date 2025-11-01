@@ -9,8 +9,12 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { UpdateTokenRequestSchema } from "@repo/types";
-import { prisma } from "@repo/database";
+import {
+  DuplicateTokenNameError,
+  TokenNotFoundError,
+} from "@repo/core";
 import { authMiddleware } from "../../../middleware/auth.js";
+import { tokenService } from "../../../services/index.js";
 
 type Variables = {
   userId: string;
@@ -31,47 +35,26 @@ updateTokenRoute.patch(
     const tokenId = c.req.param("id");
     const { name } = c.req.valid("json");
 
-    // Find token and verify ownership
-    const token = await prisma.apiKey.findUnique({
-      where: { id: tokenId },
-    });
+    try {
+      // Delegate business logic to service layer
+      const token = await tokenService.updateToken({
+        id: tokenId,
+        userId,
+        name,
+      });
 
-    // Return 404 if token not found, belongs to different user, or is revoked
-    if (!token || token.userId !== userId || token.revokedAt) {
-      return c.json({ error: "Token not found" }, 404);
+      return c.json(token);
+    } catch (error) {
+      if (error instanceof TokenNotFoundError) {
+        return c.json({ error: "Token not found" }, 404);
+      }
+
+      if (error instanceof DuplicateTokenNameError) {
+        return c.json({ error: error.message }, 409);
+      }
+
+      throw error;
     }
-
-    // Check for duplicate name (unique per user)
-    const existing = await prisma.apiKey.findUnique({
-      where: { 
-        userId_name: { 
-          userId, 
-          name 
-        } 
-      },
-    });
-
-    // If duplicate exists and it's not the current token, reject
-    if (existing && existing.id !== tokenId) {
-      return c.json({ error: "Token name already exists" }, 409);
-    }
-
-    // Update token name
-    const updated = await prisma.apiKey.update({
-      where: { id: tokenId },
-      data: { name },
-    });
-
-    // Return updated token metadata
-    return c.json({
-      id: updated.id,
-      name: updated.name,
-      scopes: updated.scopes as string[],
-      createdAt: updated.createdAt.toISOString(),
-      lastUsedAt: updated.lastUsedAt?.toISOString() ?? null,
-      expiresAt: updated.expiresAt?.toISOString() ?? null,
-      maskedToken: `sbf_****${updated.last4}`,
-    });
   }
 );
 

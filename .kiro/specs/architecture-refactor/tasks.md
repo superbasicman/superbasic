@@ -14,14 +14,14 @@
 | 1    | Tokens Repository           | 4 hours        | ✅ Complete    |
 | 2    | Tokens Service              | 6 hours        | ✅ Complete    |
 | 3    | Tokens Route Handlers       | 4 hours        | ⏳ Not Started |
-| 4    | Profiles Repository         | 3 hours        | ⏳ Not Started |
-| 5    | Profiles Service            | 4 hours        | ⏳ Not Started |
+| 4    | Profiles Repository         | 3 hours        | ✅ Complete    |
+| 5    | Profiles Service            | 4 hours        | ✅ Complete    |
 | 6    | Profiles Route Handlers     | 3 hours        | ⏳ Not Started |
-| 7    | Users Repository            | 2 hours        | ⏳ Not Started |
-| 8    | Users Service               | 3 hours        | ⏳ Not Started |
-| 9    | Users Route Handler         | 2 hours        | ⏳ Not Started |
+| 7    | Users Repository            | 2 hours        | ✅ Complete    |
+| 8    | Users Service               | 3 hours        | ✅ Complete    |
+| 9    | Users Route Handler         | 2 hours        | ✅ Complete    |
 | 10   | Rate Limit Middleware Split | 2 hours        | ⏳ Not Started |
-| 11   | Dependency Injection Setup  | 2 hours        | ⏳ Not Started |
+| 11   | Dependency Injection Setup  | 2 hours        | ✅ Complete    |
 | 12   | Final Verification          | 4 hours        | ⏳ Not Started |
 
 **Total Estimated Time**: 39 hours (~5 days at 8 hours/day)
@@ -152,7 +152,7 @@ packages/core/src/tokens/
 - [ ] Update `apps/api/src/routes/v1/tokens/update.ts`:
   - [ ] Import `tokenService`
   - [ ] Replace inline logic with `tokenService.updateToken()`
-  - [ ] Add domain error handling
+  - [x] Add domain error handling
   - [ ] Reduce handler to < 30 lines
 - [ ] Update `apps/api/src/routes/v1/tokens/revoke.ts`:
   - [ ] Import `tokenService`
@@ -230,28 +230,28 @@ packages/core/src/profiles/
 
 ### Subtasks
 
-- [ ] Create `packages/core/src/profiles/profile-service.ts`
-- [ ] Create `packages/core/src/profiles/profile-errors.ts` with error classes:
-  - [ ] `ProfileError` (base class)
-  - [ ] `ProfileNotFoundError`
-  - [ ] `InvalidProfileDataError`
-- [ ] Create `packages/core/src/profiles/profile-types.ts` with interfaces:
-  - [ ] `GetProfileParams`
-  - [ ] `ProfileResponse`
-  - [ ] `UpdateProfileParams`
-  - [ ] `UpdateProfileData`
-- [ ] Create Zod validation schemas:
-  - [ ] `UpdateProfileSchema` (replace inline validation)
-- [ ] Implement `ProfileService` class with methods:
-  - [ ] `getCurrentProfile(params): Promise<ProfileResponse>`
-  - [ ] `updateProfile(params): Promise<ProfileResponse>`
-- [ ] Extract helper methods:
-  - [ ] `validateProfileData(data): void`
-  - [ ] `mapToProfileResponse(user): ProfileResponse`
-- [ ] Create `packages/core/src/profiles/__tests__/profile-service.test.ts`
-- [ ] Write unit tests for each service method
-- [ ] Export service, errors, and types from `packages/core/src/profiles/index.ts`
-- [ ] Run tests: `pnpm test packages/core/src/profiles`
+- [x] Create `packages/core/src/profiles/profile-service.ts`
+- [x] Create `packages/core/src/profiles/profile-errors.ts` with error classes:
+  - [x] `ProfileError` (base class)
+  - [x] `ProfileNotFoundError`
+  - [x] `InvalidProfileDataError`
+- [x] Create `packages/core/src/profiles/profile-types.ts` with interfaces:
+  - [x] `GetProfileParams`
+  - [x] `ProfileResponse`
+  - [x] `UpdateProfileParams`
+  - [x] `UpdateProfileData`
+- [x] Create Zod validation schemas:
+  - [x] `UpdateProfileSchema` (replace inline validation)
+- [x] Implement `ProfileService` class with methods:
+  - [x] `getCurrentProfile(params): Promise<ProfileResponse>`
+  - [x] `updateProfile(params): Promise<ProfileResponse>`
+- [x] Extract helper methods:
+  - [x] `validateProfileData(data): void`
+  - [x] `mapToProfileResponse(user): ProfileResponse`
+- [x] Create `packages/core/src/profiles/__tests__/profile-service.test.ts`
+- [x] Write unit tests for each service method
+- [x] Export service, errors, and types from `packages/core/src/profiles/index.ts`
+- [x] Run tests: `pnpm test packages/core/src/profiles`
 
 ### Acceptance Criteria
 
@@ -285,17 +285,17 @@ packages/core/src/profiles/
 
 ### Subtasks
 
-- [ ] Update `apps/api/src/routes/v1/me.ts`:
-  - [ ] Import `profileService` from `../../services/index.js`
-  - [ ] Add Zod validator for PATCH endpoint
-  - [ ] Replace GET handler logic with `profileService.getCurrentProfile()`
-  - [ ] Replace PATCH handler logic with `profileService.updateProfile()`
-  - [ ] Add domain error handling
-  - [ ] Reduce GET handler to < 20 lines
-  - [ ] Reduce PATCH handler to < 25 lines
-- [ ] Run integration tests: `pnpm test apps/api/src/routes/v1/__tests__/me`
-- [ ] Verify all profile tests pass
-- [ ] Manual testing of profile flows
+- [x] Update `apps/api/src/routes/v1/me.ts`:
+  - [x] Import `profileService` from `../../services/index.js`
+  - [x] Add Zod validator for PATCH endpoint
+  - [x] Replace GET handler logic with `profileService.getCurrentProfile()`
+  - [x] Replace PATCH handler logic with `profileService.updateProfile()`
+  - [x] Add domain error handling
+  - [x] Reduce GET handler to < 20 lines
+  - [x] Reduce PATCH handler to < 25 lines
+- [x] Run integration tests: `pnpm test apps/api/src/routes/v1/__tests__/me`
+- [x] Verify all profile tests pass
+- [x] Manual testing of profile flows
 
 ### Acceptance Criteria
 
@@ -324,21 +324,21 @@ apps/api/src/routes/v1/
 
 ### Subtasks
 
-- [ ] Create `packages/core/src/users/` directory
-- [ ] Create `packages/core/src/users/user-repository.ts`
-- [ ] Implement `UserRepository` class with methods:
-  - [ ] `findByEmail(email): Promise<User | null>`
-  - [ ] `create(data): Promise<User>`
-  - [ ] `createWithProfile(userData, profileData): Promise<User>` (transaction)
-- [ ] Create `packages/core/src/users/__tests__/user-repository.test.ts`
-- [ ] Write integration tests for each repository method
-- [ ] Export repository from `packages/core/src/users/index.ts`
-- [ ] Run tests: `pnpm test packages/core/src/users`
+- [x] Create `packages/core/src/users/` directory
+- [x] Create `packages/core/src/users/user-repository.ts`
+- [x] Implement `UserRepository` class with methods:
+  - [x] `findByEmail(email): Promise<User | null>`
+  - [x] `create(data): Promise<User>`
+  - [x] `createWithProfile(userData, profileData): Promise<User>` (transaction)
+- [x] Create `packages/core/src/users/__tests__/user-repository.test.ts`
+- [x] Write integration tests for each repository method
+- [x] Export repository from `packages/core/src/users/index.ts`
+- [x] Run tests: `pnpm test packages/core/src/users`
 
 ### Acceptance Criteria
 
 - ✅ All repository methods implemented
-- ✅ All repository tests passing
+- ✅ All repository tests passing (10 tests)
 - ✅ Transaction logic for user + profile creation
 - ✅ No business logic in repository
 - ✅ TypeScript builds with no errors
@@ -363,27 +363,28 @@ packages/core/src/users/
 
 ### Subtasks
 
-- [ ] Create `packages/core/src/users/user-service.ts`
-- [ ] Create `packages/core/src/users/user-errors.ts` with error classes:
-  - [ ] `UserError` (base class)
-  - [ ] `DuplicateEmailError`
-  - [ ] `InvalidEmailError`
-  - [ ] `WeakPasswordError`
-- [ ] Create `packages/core/src/users/user-types.ts` with interfaces:
-  - [ ] `RegisterUserParams`
-  - [ ] `RegisterUserResult`
-  - [ ] `CreateUserData`
-  - [ ] `CreateProfileData`
-- [ ] Implement `UserService` class with methods:
-  - [ ] `registerUser(params): Promise<RegisterUserResult>`
-- [ ] Extract helper methods:
-  - [ ] `normalizeEmail(email): string`
-  - [ ] `validateRegistrationData(data): void`
-  - [ ] `mapToUserResponse(user): RegisterUserResult`
-- [ ] Create `packages/core/src/users/__tests__/user-service.test.ts`
-- [ ] Write unit tests for service method
-- [ ] Export service, errors, and types from `packages/core/src/users/index.ts`
-- [ ] Run tests: `pnpm test packages/core/src/users`
+- [x] Create `packages/core/src/users/user-service.ts`
+- [x] Create `packages/core/src/users/user-errors.ts` with error classes:
+  - [x] `UserError` (base class)
+  - [x] `DuplicateEmailError`
+  - [x] `InvalidEmailError`
+  - [x] `WeakPasswordError`
+- [x] Create `packages/core/src/users/user-types.ts` with interfaces:
+  - [x] `RegisterUserParams`
+  - [x] `RegisterUserResult`
+  - [x] `CreateUserData`
+  - [x] `UserProfileData` (renamed from CreateProfileData to avoid conflict)
+- [x] Implement `UserService` class with methods:
+  - [x] `registerUser(params): Promise<RegisterUserResult>`
+- [x] Extract helper methods:
+  - [x] `normalizeEmail(email): string`
+  - [x] `validateEmail(email): void`
+  - [x] `validatePassword(password): void`
+  - [x] `mapToUserResponse(user): RegisterUserResult`
+- [x] Create `packages/core/src/users/__tests__/user-service.test.ts`
+- [x] Write unit tests for service method (12 tests passing)
+- [x] Export service, errors, and types from `packages/core/src/users/index.ts`
+- [x] Run tests: `pnpm test packages/core/src/users`
 
 ### Acceptance Criteria
 
@@ -417,14 +418,14 @@ packages/core/src/users/
 
 ### Subtasks
 
-- [ ] Update `apps/api/src/routes/v1/register.ts`:
-  - [ ] Import `userService` from `../../services/index.js`
-  - [ ] Replace inline logic with `userService.registerUser()`
-  - [ ] Add domain error handling
-  - [ ] Reduce handler to < 25 lines
-- [ ] Run integration tests: `pnpm test apps/api/src/routes/v1/__tests__/register`
-- [ ] Verify all registration tests pass
-- [ ] Manual testing of registration flow
+- [x] Update `apps/api/src/routes/v1/register.ts`:
+  - [x] Import `userService` from `../../services/index.js`
+  - [x] Replace inline logic with `userService.registerUser()`
+  - [x] Add domain error handling
+  - [x] Reduce handler to < 25 lines
+- [x] Run integration tests: `pnpm test apps/api/src/routes/v1/__tests__/register`
+- [x] Verify all registration tests pass
+- [x] Manual testing of registration flow
 
 ### Acceptance Criteria
 
@@ -452,28 +453,28 @@ apps/api/src/routes/v1/
 
 ### Subtasks
 
-- [ ] Create `apps/api/src/middleware/rate-limit/` directory
-- [ ] Create `apps/api/src/middleware/rate-limit/auth-rate-limit.ts`:
-  - [ ] Move `authRateLimitMiddleware` function
-  - [ ] Keep 10 req/min per IP logic
-- [ ] Create `apps/api/src/middleware/rate-limit/token-rate-limit.ts`:
-  - [ ] Move `tokenCreationRateLimitMiddleware` function
-  - [ ] Keep 10 tokens/hour per user logic
-- [ ] Create `apps/api/src/middleware/rate-limit/magic-link-rate-limit.ts`:
-  - [ ] Move `magicLinkRateLimitMiddleware` function
-  - [ ] Keep 3 req/hour per email logic
-- [ ] Create `apps/api/src/middleware/rate-limit/failed-auth-tracking.ts`:
-  - [ ] Move `trackFailedAuth` and `checkFailedAuthRateLimit` functions
-- [ ] Create `apps/api/src/middleware/rate-limit/index.ts`:
-  - [ ] Export all middleware functions
-- [ ] Update imports across codebase:
-  - [ ] `apps/api/src/app.ts`
-  - [ ] `apps/api/src/auth.ts`
-  - [ ] `apps/api/src/routes/v1/tokens/create.ts`
-  - [ ] Test files
-- [ ] Delete old `apps/api/src/middleware/rate-limit.ts`
-- [ ] Run tests: `pnpm test apps/api/src/middleware`
-- [ ] Verify all middleware tests pass
+- [x] Create `apps/api/src/middleware/rate-limit/` directory
+- [x] Create `apps/api/src/middleware/rate-limit/auth-rate-limit.ts`:
+  - [x] Move `authRateLimitMiddleware` function
+  - [x] Keep 10 req/min per IP logic
+- [x] Create `apps/api/src/middleware/rate-limit/token-rate-limit.ts`:
+  - [x] Move `tokenCreationRateLimitMiddleware` function
+  - [x] Keep 10 tokens/hour per user logic
+- [x] Create `apps/api/src/middleware/rate-limit/magic-link-rate-limit.ts`:
+  - [x] Move `magicLinkRateLimitMiddleware` function
+  - [x] Keep 3 req/hour per email logic
+- [x] Create `apps/api/src/middleware/rate-limit/failed-auth-tracking.ts`:
+  - [x] Move `trackFailedAuth` and `checkFailedAuthRateLimit` functions
+- [x] Create `apps/api/src/middleware/rate-limit/index.ts`:
+  - [x] Export all middleware functions
+- [x] Update imports across codebase:
+  - [x] `apps/api/src/app.ts`
+  - [x] `apps/api/src/auth.ts`
+  - [x] `apps/api/src/routes/v1/tokens/create.ts`
+  - [x] Test files
+- [x] Delete old `apps/api/src/middleware/rate-limit.ts`
+- [x] Run tests: `pnpm test apps/api/src/middleware`
+- [x] Verify all middleware tests pass
 
 ### Acceptance Criteria
 
@@ -519,19 +520,19 @@ apps/api/src/middleware/rate-limit.ts
 
 ### Subtasks
 
-- [ ] Create `apps/api/src/services/` directory
-- [ ] Create `apps/api/src/services/index.ts`:
-  - [ ] Import Prisma client from `@repo/database`
-  - [ ] Import auth events from `@repo/auth`
-  - [ ] Import repositories from `@repo/core`
-  - [ ] Import services from `@repo/core`
-  - [ ] Create repository instances (inject Prisma)
-  - [ ] Create service instances (inject repositories and dependencies)
-  - [ ] Export service instances
-- [ ] Update `packages/core/src/index.ts`:
-  - [ ] Export all domain modules (tokens, profiles, users)
-- [ ] Verify imports work in route handlers
-- [ ] Run type checking: `pnpm typecheck`
+- [x] Create `apps/api/src/services/` directory
+- [x] Create `apps/api/src/services/index.ts`:
+  - [x] Import Prisma client from `@repo/database`
+  - [x] Import auth events from `@repo/auth`
+  - [x] Import repositories from `@repo/core`
+  - [x] Import services from `@repo/core`
+  - [x] Create repository instances (inject Prisma)
+  - [x] Create service instances (inject repositories and dependencies)
+  - [x] Export service instances
+- [x] Update `packages/core/src/index.ts`:
+  - [x] Export all domain modules (tokens, profiles, users)
+- [x] Verify imports work in route handlers
+- [x] Run type checking: `pnpm typecheck`
 
 ### Acceptance Criteria
 

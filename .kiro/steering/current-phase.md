@@ -1,8 +1,8 @@
 # Current Phase Context
 
 **Active Phase**: Phase 3.5 - Architecture Refactor  
-**Status**: ✅ READY TO START  
-**Current Task**: Task 1 - Tokens Repository Layer  
+**Status**: 🚧 IN PROGRESS (core layers delivered)  
+**Current Task**: Task 3 - Tokens Route Handlers Refactor  
 **Spec Location**: `.kiro/specs/architecture-refactor/`  
 **Previous Phase**: Phase 2.1 - Auth.js Migration (✅ COMPLETE - 2025-10-27)
 
@@ -21,14 +21,35 @@
 - Maintain all 234 passing tests
 - Zero breaking changes
 
-**Timeline**: ~5 days (39 hours estimated)
+**Timeline**: ~5 days (39 hours estimated)  
+**Elapsed**: 2.5 days focused work (Tokens + Profiles + Users domains complete)
 
-**Exit Criteria**:
-- ✅ All route handlers < 30 lines
-- ✅ All business logic in `packages/core`
-- ✅ All database access in repositories
-- ✅ All 234 tests passing
-- ✅ TypeScript builds with zero errors
+**Progress Snapshot (2025-10-31):**
+- ✅ Task 1: Tokens Repository Layer
+- ✅ Task 2: Tokens Service Layer
+- 🚧 Task 3: Tokens Route Handlers (create done; list/update/revoke outstanding)
+- ✅ Task 4: Profiles Repository Layer
+- ✅ Task 5: Profiles Service Layer
+- ✅ Task 6: Profiles Route Handlers
+- ✅ Task 7: Users Repository Layer
+- ✅ Task 8: Users Service Layer
+- ✅ Task 9: Users Route Handler
+- ✅ Task 10: Rate Limit Middleware Split
+- ✅ Task 11: Dependency Injection Setup
+- ⏳ Task 12: Final Verification (blocked on remaining token routes)
+
+**Exit Criteria Checklist:**
+- [ ] All route handlers < 30 lines
+- [x] All business logic in `packages/core`
+- [x] All database access in repositories
+- [ ] All 234 tests passing (final suite re-run pending)
+- [x] TypeScript builds with zero errors
+
+**Immediate Next Steps:**
+1. Refactor `apps/api/src/routes/v1/tokens/list.ts` to consume `tokenService.listTokens()`.
+2. Update `apps/api/src/routes/v1/tokens/update.ts` and `revoke.ts` to delegate to service with domain error handling.
+3. Refresh integration tests for token routes and rerun `pnpm deploy-check --full` (with `--run` flags to avoid watch mode).
+4. Document outcomes in `docs/project_plan.md` and prepare for Phase 3.5 final verification.
 
 ---
 

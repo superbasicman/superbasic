@@ -1,7 +1,7 @@
 # Phase 3.5: Architecture Refactor - Kickoff
 
 **Date**: 2025-10-31  
-**Status**: Ready to Start  
+**Status**: In Progress (core services complete; token routes pending)  
 **Estimated Duration**: 5 days (39 hours)
 
 ---
@@ -78,6 +78,15 @@ Repository (Data Access)
 
 ---
 
+## Progress Update (2025-10-31)
+
+- Services/repositories for tokens, profiles, and users are implemented with green unit/integration suites.
+- Service registry (`apps/api/src/services/index.ts`) is live and consumed by register/profile routes.
+- Rate limit middleware split is complete; old monolithic file removed.
+- Remaining work: refactor token list/update/revoke routes to use `tokenService`, run full deploy-check, and document outcomes.
+
+---
+
 ## The Plan
 
 ### Week 1: Core Refactoring (Days 1-7)
@@ -118,12 +127,12 @@ Repository (Data Access)
 
 ### Must Have
 
-- ✅ All route handlers < 30 lines (currently 60-80 lines)
-- ✅ All business logic in `packages/core/src/{domain}/`
-- ✅ All database access in repository classes
+- 🚧 Route handlers trending < 30 lines (token list/update/revoke pending)
+- 🚧 Business logic consolidated in `packages/core/src/{domain}/` (token routes WIP)
+- 🚧 Database access isolated in repository classes (token routes still touch Prisma)
 - ✅ Domain errors defined for each domain
 - ✅ Dependency injection setup complete
-- ✅ All 234 tests passing (no regressions)
+- ✅ 234 tests passing today (re-run planned post-token refactor)
 - ✅ TypeScript builds with zero errors
 - ✅ Linting passes with zero warnings
 
@@ -158,18 +167,18 @@ Repository (Data Access)
 
 | Task | Domain | Time | Status |
 |------|--------|------|--------|
-| 1 | Tokens Repository | 4h | ⏳ Not Started |
-| 2 | Tokens Service | 6h | ⏳ Not Started |
-| 3 | Tokens Route Handlers | 4h | ⏳ Not Started |
-| 4 | Profiles Repository | 3h | ⏳ Not Started |
-| 5 | Profiles Service | 4h | ⏳ Not Started |
-| 6 | Profiles Route Handlers | 3h | ⏳ Not Started |
-| 7 | Users Repository | 2h | ⏳ Not Started |
-| 8 | Users Service | 3h | ⏳ Not Started |
-| 9 | Users Route Handler | 2h | ⏳ Not Started |
-| 10 | Rate Limit Middleware Split | 2h | ⏳ Not Started |
-| 11 | Dependency Injection Setup | 2h | ⏳ Not Started |
-| 12 | Final Verification | 4h | ⏳ Not Started |
+| 1 | Tokens Repository | 4h | ✅ Complete |
+| 2 | Tokens Service | 6h | ✅ Complete |
+| 3 | Tokens Route Handlers | 4h | 🚧 In Progress (POST done) |
+| 4 | Profiles Repository | 3h | ✅ Complete |
+| 5 | Profiles Service | 4h | ✅ Complete |
+| 6 | Profiles Route Handlers | 3h | ✅ Complete |
+| 7 | Users Repository | 2h | ✅ Complete |
+| 8 | Users Service | 3h | ✅ Complete |
+| 9 | Users Route Handler | 2h | ✅ Complete |
+| 10 | Rate Limit Middleware Split | 2h | ✅ Complete |
+| 11 | Dependency Injection Setup | 2h | ✅ Complete |
+| 12 | Final Verification | 4h | ⏳ Pending (after token routes) |
 
 **Total**: 39 hours (~5 days at 8 hours/day)
 

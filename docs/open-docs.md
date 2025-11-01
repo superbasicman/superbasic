@@ -2,7 +2,7 @@
 
 Quick reference list of documentation files that should be reviewed and updated after completing tasks or phases.
 
-**Last Updated**: 2025-10-28
+**Last Updated**: 2025-10-31
 
 ---
 
@@ -21,7 +21,7 @@ Phase-specific documentation that should be updated during and after phase work:
 
 ### Active Phases
 
-**Phase 3.5 - Architecture Refactor** (Ready to Start)
+**Phase 3.5 - Architecture Refactor** (In Progress – token route refactor next)
 - `.kiro/specs/architecture-refactor/requirements.md` - Refactor goals and success criteria
 - `.kiro/specs/architecture-refactor/design.md` - Layered architecture design and patterns
 - `.kiro/specs/architecture-refactor/tasks.md` - 12 tasks with detailed implementation steps

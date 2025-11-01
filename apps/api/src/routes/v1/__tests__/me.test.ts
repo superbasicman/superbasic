@@ -291,7 +291,7 @@ describe('GET /v1/me', () => {
 
       const data = await response.json();
       expect(data).toHaveProperty('error');
-      expect(data.error).toBe('User not found');
+      expect(data.error).toContain('Profile not found for user:');
     });
   });
 

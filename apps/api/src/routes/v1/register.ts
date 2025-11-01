@@ -1,76 +1,42 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { RegisterSchema } from '@repo/types';
-import { hashPassword, authEvents } from '@repo/auth';
-import { prisma } from '@repo/database';
+import { userService } from '../../services/index.js';
+import { DuplicateEmailError, InvalidEmailError, WeakPasswordError } from '@repo/core';
 
 const registerRoute = new Hono();
 
 registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
   const { email, password, name } = c.req.valid('json');
 
-  // Normalize email to lowercase and trim
-  const normalizedEmail = email.toLowerCase().trim();
-
-  // Check if user exists
-  const existing = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-  });
-
-  if (existing) {
-    return c.json({ error: 'Email already in use' }, 409); // 409 Conflict
-  }
-
-  // Hash password and create user with profile in a transaction
-  const hashedPassword = await hashPassword(password);
-  const user = await prisma.$transaction(async (tx: any) => {
-    // Create user
-    const newUser = await tx.user.create({
-      data: {
-        email: normalizedEmail,
-        password: hashedPassword,
-        name: name ?? null,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true,
-      },
-    });
-
-    // Create profile with default settings
-    await tx.profile.create({
-      data: {
-        userId: newUser.id,
-        timezone: 'UTC',
-        currency: 'USD',
-      },
-    });
-
-    return newUser;
-  });
-
-  // Emit user.registered event
+  // Extract IP for audit logging
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || undefined;
-  authEvents.emit({
-    type: 'user.registered',
-    userId: user.id,
-    email: user.email,
-    ...(ip && { ip }),
-  });
 
-  return c.json(
-    {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        createdAt: user.createdAt.toISOString(),
-      },
-    },
-    201
-  );
+  try {
+    // Call service layer
+    const result = await userService.registerUser({
+      email,
+      password,
+      ...(name !== undefined && { name }),
+      ...(ip !== undefined && { ip }),
+    });
+
+    // Return success response
+    return c.json(result, 201);
+  } catch (error) {
+    // Handle domain errors
+    if (error instanceof DuplicateEmailError) {
+      return c.json({ error: 'Email already in use' }, 409);
+    }
+    if (error instanceof InvalidEmailError) {
+      return c.json({ error: 'Invalid email format' }, 400);
+    }
+    if (error instanceof WeakPasswordError) {
+      return c.json({ error: error.message }, 400);
+    }
+    // Let global error handler catch unexpected errors
+    throw error;
+  }
 });
 
 export { registerRoute };

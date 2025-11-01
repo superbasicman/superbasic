@@ -31,7 +31,7 @@ vi.mock('@repo/rate-limit', () => ({
 }));
 
 // Import after mocking
-const { magicLinkRateLimitMiddleware } = await import('../rate-limit.js');
+const { magicLinkRateLimitMiddleware } = await import('../rate-limit/index.js');
 
 // Create test app
 function createTestApp() {

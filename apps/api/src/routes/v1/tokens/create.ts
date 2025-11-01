@@ -11,7 +11,7 @@ import { zValidator } from "@hono/zod-validator";
 import { CreateTokenRequestSchema } from "@repo/types";
 import { DuplicateTokenNameError, InvalidScopesError, InvalidExpirationError } from "@repo/core";
 import { authMiddleware } from "../../../middleware/auth.js";
-import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit.js";
+import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit/index.js";
 import { tokenService } from "../../../services/index.js";
 
 type Variables = {
