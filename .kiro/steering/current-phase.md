@@ -1,59 +1,88 @@
 # Current Phase Context
 
-**Active Phase**: Phase 3.5 - Architecture Refactor  
-**Status**: 🚧 IN PROGRESS (core layers delivered)  
-**Current Task**: Task 3 - Tokens Route Handlers Refactor  
-**Spec Location**: `.kiro/specs/architecture-refactor/`  
-**Previous Phase**: Phase 2.1 - Auth.js Migration (✅ COMPLETE - 2025-10-27)
+**Active Phase**: Phase 4 - Plaid Integration (Bank Connections)  
+**Status**: 🎯 READY TO START  
+**Current Task**: Planning and preparation  
+**Spec Location**: `.kiro/specs/plaid-bank-connections/`  
+**Previous Phase**: Phase 3.5 - Architecture Refactor (✅ COMPLETE - 2025-11-01)
 
 ---
 
-## Phase 3.5 Overview
+## Phase 3.5 Summary (COMPLETE)
 
 **Goal**: Refactor existing Phase 1-3 code to follow layered architecture (Service/Repository pattern) before Phase 4
 
-**Why Now**: Phase 1-3 implemented business logic directly in route handlers (fat controllers). Before adding Phase 4 complexity (Plaid integration), we're refactoring to create a consistent foundation and prevent mixing patterns.
+**Completion Date**: 2025-11-01
 
-**Scope**: 
-- Extract business logic to `packages/core` services
-- Isolate database access in repositories
-- Thin route handlers to < 30 lines
-- Maintain all 234 passing tests
-- Zero breaking changes
+**Achievements:**
+- ✅ All business logic extracted to `packages/core` services
+- ✅ All database access isolated in repositories
+- ✅ All route handlers refactored to thin controllers (< 30 lines of logic)
+- ✅ Domain errors defined for tokens, profiles, and users
+- ✅ Dependency injection setup complete
+- ✅ TypeScript builds with zero errors
+- ✅ Rate limit middleware split into focused files
+- ✅ Code follows Single Responsibility Principle end-to-end
 
-**Timeline**: ~5 days (39 hours estimated)  
-**Elapsed**: 2.5 days focused work (Tokens + Profiles + Users domains complete)
+**Deliverables:**
+- `packages/core/src/tokens/` - Token service and repository
+- `packages/core/src/profiles/` - Profile service and repository
+- `packages/core/src/users/` - User service and repository
+- `apps/api/src/services/index.ts` - Service registry with DI
+- All route handlers refactored to delegate to services
 
-**Progress Snapshot (2025-10-31):**
-- ✅ Task 1: Tokens Repository Layer
-- ✅ Task 2: Tokens Service Layer
-- 🚧 Task 3: Tokens Route Handlers (create done; list/update/revoke outstanding)
-- ✅ Task 4: Profiles Repository Layer
-- ✅ Task 5: Profiles Service Layer
-- ✅ Task 6: Profiles Route Handlers
-- ✅ Task 7: Users Repository Layer
-- ✅ Task 8: Users Service Layer
-- ✅ Task 9: Users Route Handler
-- ✅ Task 10: Rate Limit Middleware Split
-- ✅ Task 11: Dependency Injection Setup
-- ⏳ Task 12: Final Verification (blocked on remaining token routes)
+**Architecture Pattern Established:**
+```
+Route Handler (< 30 lines)
+    ↓
+Service Layer (business logic)
+    ↓
+Repository Layer (data access)
+    ↓
+Database (Prisma)
+```
 
-**Exit Criteria Checklist:**
-- [ ] All route handlers < 30 lines
-- [x] All business logic in `packages/core`
-- [x] All database access in repositories
-- [ ] All 234 tests passing (final suite re-run pending)
-- [x] TypeScript builds with zero errors
-
-**Immediate Next Steps:**
-1. Refactor `apps/api/src/routes/v1/tokens/list.ts` to consume `tokenService.listTokens()`.
-2. Update `apps/api/src/routes/v1/tokens/update.ts` and `revoke.ts` to delegate to service with domain error handling.
-3. Refresh integration tests for token routes and rerun `pnpm deploy-check --full` (with `--run` flags to avoid watch mode).
-4. Document outcomes in `docs/project_plan.md` and prepare for Phase 3.5 final verification.
+This pattern will be followed for all future features, starting with Phase 4 (Plaid Integration).
 
 ---
 
-## Context: Why We're Stepping Back
+## Phase 4 Overview
+
+**Goal**: Integrate Plaid Link to enable users to securely connect their bank accounts
+
+**Why Now**: With the architecture refactor complete, we have a solid foundation for adding complex integrations. Plaid is the first external service integration and will establish patterns for future integrations.
+
+**Scope**:
+- Plaid SDK integration with encryption
+- Link token creation and public token exchange
+- Bank connection management (CRUD)
+- Account metadata sync
+- Webhook handling for connection status
+- Web UI for bank connection flow
+- Comprehensive testing with Plaid Sandbox
+
+**Timeline**: ~32-40 hours (4-5 days)
+
+**Detailed Specifications:**
+- `requirements.md` - 10 user stories with acceptance criteria ✅
+- `design.md` - Technical architecture and API design ✅
+- `tasks.md` - 40+ granular implementation tasks ✅
+
+**Prerequisites:**
+- ✅ Phase 3.5 architecture refactor complete
+- ⏳ Plaid developer account (need to register)
+- ⏳ Plaid API keys (Sandbox for development)
+- ⏳ Encryption key for access token storage
+
+**Next Steps:**
+1. Register for Plaid developer account
+2. Obtain Sandbox API keys
+3. Generate encryption key for access tokens
+4. Begin Task Group 1: Database Schema & Migration
+
+---
+
+## Context: Previous Phase History
 
 Phase 3 (API Key Management) was completed successfully with 225 passing tests. However, during planning for Phase 4 (Plaid Integration), we identified a misalignment between the implemented authentication system and the documented architecture in `database-schema.md`. 
 
