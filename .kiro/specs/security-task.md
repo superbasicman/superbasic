@@ -10,8 +10,8 @@
    • [x] Clean up small nits: consistent guards, shared window constants, and structured rate-limit logging.  
    • [x] Return rate-limit status (or emit an event) when the failed-auth ceiling is hit so callers can react.
 
-3. [ ] **MEDIUM** Remove or redact magic-link email logging to avoid leaking PII in application logs.  
+3. [x] **MEDIUM** Remove or redact magic-link email logging to avoid leaking PII in application logs.  
    _Refs:_ packages/auth/src/config.ts, packages/auth/src/email.ts
 
-4. [ ] **MEDIUM** Disable or narrow the service worker’s caching of authenticated API responses to prevent sensitive data from persisting offline.  
+4. [x] **MEDIUM** Disable or narrow the service worker’s caching of authenticated API responses to prevent sensitive data from persisting offline.  
    _Refs:_ apps/web/vite.config.ts

@@ -38,17 +38,13 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
+            // Never persist API responses that may contain sensitive account data
             urlPattern: /^https:\/\/api\./,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 5, // 5 minutes
-              },
-            },
+            handler: 'NetworkOnly',
+            method: 'GET',
           },
         ],
       },
