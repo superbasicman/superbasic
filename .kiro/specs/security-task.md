@@ -8,7 +8,7 @@
    • [x] Expose a read-only helper in the rate-limit package (or use the same abstraction) to avoid mixing direct Redis calls with the limiter contract.  
    • [x] Align key naming between `trackFailedAuth` and the read path (single source for the prefix).  
    • [x] Clean up small nits: consistent guards, shared window constants, and structured rate-limit logging.  
-   • [ ] Return rate-limit status (or emit an event) when the failed-auth ceiling is hit so callers can react.
+   • [x] Return rate-limit status (or emit an event) when the failed-auth ceiling is hit so callers can react.
 
 3. [ ] **MEDIUM** Remove or redact magic-link email logging to avoid leaking PII in application logs.  
    _Refs:_ packages/auth/src/config.ts, packages/auth/src/email.ts

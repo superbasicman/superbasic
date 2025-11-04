@@ -12,7 +12,8 @@ export type AuthEventType =
   | "token.used"
   | "token.revoked"
   | "token.auth_failed"
-  | "token.scope_denied";
+  | "token.scope_denied"
+  | "auth.failed_rate_limited";
 
 /**
  * Base authentication event structure
@@ -115,6 +116,17 @@ export interface TokenScopeDeniedEvent extends Omit<AuthEvent, "type"> {
     providedScopes: string[];
     ip: string;
     userAgent: string;
+    timestamp: string;
+  };
+}
+
+export interface AuthFailedRateLimitedEvent extends Omit<AuthEvent, "type"> {
+  type: "auth.failed_rate_limited";
+  metadata: {
+    ip: string;
+    windowSeconds: number;
+    maxAttempts: number;
+    attemptsRecorded: number;
     timestamp: string;
   };
 }

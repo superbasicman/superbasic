@@ -1,5 +1,6 @@
 import { Redis, createRateLimiter } from '@repo/rate-limit';
 import { logger } from '@repo/observability';
+import { authEvents } from '@repo/auth';
 
 // Initialize Redis client if credentials are available
 const redis =
@@ -37,6 +38,24 @@ export async function trackFailedAuth(ip: string): Promise<void> {
       limit: RATE_LIMIT,
       window: WINDOW_SECONDS,
     });
+
+    const attemptsRecorded = await limiter.getUsage(failedAuthKey(ip), {
+      limit: RATE_LIMIT,
+      window: WINDOW_SECONDS,
+    });
+
+    if (attemptsRecorded >= RATE_LIMIT) {
+      authEvents.emit({
+        type: 'auth.failed_rate_limited',
+        metadata: {
+          ip,
+          windowSeconds: WINDOW_SECONDS,
+          maxAttempts: RATE_LIMIT,
+          attemptsRecorded,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    }
   } catch (error) {
     // Log error but don't throw - tracking failures shouldn't block auth
     logger.error(
