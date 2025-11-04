@@ -15,3 +15,12 @@
 
 4. [x] **MEDIUM** Disable or narrow the service worker’s caching of authenticated API responses to prevent sensitive data from persisting offline.  
    _Refs:_ apps/web/vite.config.ts
+
+5. [x] **HIGH** Replace wildcard Vercel CORS matches with an explicit allowlist to keep credentials from leaking to attacker-controlled previews.  
+   _Refs:_ apps/api/src/middleware/cors.ts, apps/api/src/auth.ts
+
+6. [x] **HIGH** Add per-IP throttling (and audit hooks) to the Auth.js credentials callback so brute force attempts are rate limited like other auth surfaces.  
+   _Refs:_ apps/api/src/app.ts, apps/api/src/auth.ts, apps/api/src/middleware/rate-limit
+
+7. [x] **MEDIUM** Ensure the sign-out response mirrors the original cookie attributes (including `Secure`) so the session cookie actually clears in production.  
+   _Refs:_ apps/api/src/auth.ts, packages/auth/src/constants.ts

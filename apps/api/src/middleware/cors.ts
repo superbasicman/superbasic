@@ -32,10 +32,7 @@ export const corsMiddleware = cors({
       return origin;
     }
 
-    // Allow Vercel preview deployments (e.g., https://sbfin-web-abc123.vercel.app)
-    if (origin && /^https:\/\/.*\.vercel\.app$/.test(origin)) {
-      return origin;
-    }
+
 
     // Allow localhost for development
     if (origin && /^http:\/\/localhost:\d+$/.test(origin)) {

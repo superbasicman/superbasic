@@ -11,4 +11,5 @@
 export { authRateLimitMiddleware } from './auth-rate-limit.js';
 export { tokenCreationRateLimitMiddleware } from './token-rate-limit.js';
 export { magicLinkRateLimitMiddleware } from './magic-link-rate-limit.js';
+export { credentialsRateLimitMiddleware } from './credentials-rate-limit.js';
 export { trackFailedAuth, checkFailedAuthRateLimit } from './failed-auth-tracking.js';

@@ -8,9 +8,15 @@
 import { Hono } from "hono";
 import { Auth } from "@auth/core";
 import { authConfig } from "@repo/auth";
-import { magicLinkRateLimitMiddleware } from "./middleware/rate-limit/index.js";
+import {
+  credentialsRateLimitMiddleware,
+  magicLinkRateLimitMiddleware,
+} from "./middleware/rate-limit/index.js";
 
 const authApp = new Hono();
+
+// Apply credentials rate limiting (5 req/minute per IP) before Auth.js handler
+authApp.use("/callback/credentials", credentialsRateLimitMiddleware);
 
 // Apply magic link rate limiting (3 req/hour per email) before Auth.js handler
 // Auth.js uses "nodemailer" as the provider ID for email authentication
@@ -49,7 +55,6 @@ authApp.all("/*", async (c) => {
       // Check if origin is allowed (same logic as CORS middleware)
       const isAllowed =
         origin === "https://app.superbasicfinance.com" ||
-        /^https:\/\/.*\.vercel\.app$/.test(origin) ||
         /^http:\/\/localhost:\d+$/.test(origin);
 
       if (isAllowed) {
@@ -73,7 +78,7 @@ authApp.all("/*", async (c) => {
 
       // Add Set-Cookie header to clear the session cookie
       const cookieName = "authjs.session-token";
-      const clearCookie = `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+      const clearCookie = `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0`;
       headers.append("Set-Cookie", clearCookie);
 
       // Return new response with updated headers
