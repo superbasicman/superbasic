@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
 
 export interface SendMagicLinkEmailParams {
@@ -5,12 +6,20 @@ export interface SendMagicLinkEmailParams {
   url: string;
 }
 
+export function getRecipientLogId(email: string): string {
+  return createHash('sha256')
+    .update(email.trim().toLowerCase())
+    .digest('hex')
+    .slice(0, 12);
+}
+
 export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams): Promise<void> {
   // Lazy-load Resend client to avoid requiring API key at module load time
   const resend = new Resend(process.env.RESEND_API_KEY);
   const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+  const recipient = getRecipientLogId(to);
 
-  console.log('[sendMagicLinkEmail] Sending magic link email:', { to, from, urlLength: url.length });
+  console.log('[sendMagicLinkEmail] Sending magic link email:', { recipient, from, urlLength: url.length });
 
   try {
     const result = await resend.emails.send({
@@ -58,7 +67,7 @@ Need help? Contact us at support@superbasicfinance.com
     });
 
     console.log('[sendMagicLinkEmail] Email sent successfully:', { 
-      to, 
+      recipient, 
       emailId: result.data?.id,
       error: result.error 
     });
@@ -68,7 +77,7 @@ Need help? Contact us at support@superbasicfinance.com
       throw new Error(`Failed to send email: ${result.error.message}`);
     }
   } catch (error) {
-    console.error('[sendMagicLinkEmail] Failed to send email:', error);
+    console.error('[sendMagicLinkEmail] Failed to send email:', { recipient, error });
     throw error;
   }
 }

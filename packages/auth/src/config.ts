@@ -10,7 +10,7 @@ import Nodemailer from "@auth/core/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/database";
 import { verifyPassword } from "./password.js";
-import { sendMagicLinkEmail } from "./email.js";
+import { sendMagicLinkEmail, getRecipientLogId } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
 
@@ -145,12 +145,21 @@ export const authConfig: AuthConfig = {
         },
       },
       sendVerificationRequest: async ({ identifier: email, url }) => {
-        console.log('[Auth.js] sendVerificationRequest called:', { email, urlLength: url.length });
+        const recipient = getRecipientLogId(email);
+        console.log("[Auth.js] sendVerificationRequest called:", {
+          recipient,
+          urlLength: url.length,
+        });
         try {
           await sendMagicLinkEmail({ to: email, url });
-          console.log('[Auth.js] sendMagicLinkEmail completed successfully');
+          console.log("[Auth.js] sendMagicLinkEmail completed successfully:", {
+            recipient,
+          });
         } catch (error) {
-          console.error('[Auth.js] sendMagicLinkEmail failed:', error);
+          console.error("[Auth.js] sendMagicLinkEmail failed:", {
+            recipient,
+            error,
+          });
           throw error;
         }
       },

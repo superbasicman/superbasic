@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/database";
 import { TokenRepository } from "../token-repository.js";
 import type { User, Profile } from "@repo/database";
@@ -21,7 +22,7 @@ describe("TokenRepository", () => {
     try {
       const created = await prisma.user.create({
         data: {
-          email: `test-${Date.now()}@example.com`,
+          email: `test-${randomUUID()}@example.com`,
           password: "hashed_password",
           profile: {
             create: {
@@ -47,21 +48,27 @@ describe("TokenRepository", () => {
 
   afterEach(async () => {
     // Cleanup: delete all tokens for test user
-    await prisma.apiKey.deleteMany({
-      where: { userId: testUser.id },
-    });
+    const userId = testUser?.id;
+    if (userId) {
+      await prisma.apiKey.deleteMany({
+        where: { userId },
+      });
+    }
 
     // Delete test profile (cascades to user)
-    if (testProfile) {
-      await prisma.profile.delete({
-        where: { id: testProfile.id },
+    const profileId = testProfile?.id;
+    if (profileId) {
+      await prisma.profile.deleteMany({
+        where: { id: profileId },
       });
     }
 
     // Delete test user
-    await prisma.user.delete({
-      where: { id: testUser.id },
-    });
+    if (userId) {
+      await prisma.user.deleteMany({
+        where: { id: userId },
+      });
+    }
   });
 
   describe("existsByUserAndName", () => {
