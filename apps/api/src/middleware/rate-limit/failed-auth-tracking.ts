@@ -1,4 +1,5 @@
 import { Redis, createRateLimiter } from '@repo/rate-limit';
+import { logger } from '@repo/observability';
 
 // Initialize Redis client if credentials are available
 const redis =
@@ -11,6 +12,11 @@ const redis =
 
 const limiter = redis ? createRateLimiter(redis) : null;
 const RATE_LIMIT = 100; // Max 100 failed auth attempts per hour
+const WINDOW_SECONDS = 3600;
+
+function failedAuthKey(ip: string): string {
+  return `failed-auth:${ip}`;
+}
 
 /**
  * Track failed authentication attempt for rate limiting
@@ -27,13 +33,22 @@ export async function trackFailedAuth(ip: string): Promise<void> {
 
   try {
     // Increment failed auth counter (per hour per IP)
-    await limiter.checkLimit(`failed-auth:${ip}`, {
+    await limiter.checkLimit(failedAuthKey(ip), {
       limit: RATE_LIMIT,
-      window: 3600, // 1 hour in seconds
+      window: WINDOW_SECONDS,
     });
   } catch (error) {
     // Log error but don't throw - tracking failures shouldn't block auth
-    console.error('Failed to track failed auth attempt:', error);
+    logger.error(
+      {
+        err: error,
+        ip,
+        rateLimit: RATE_LIMIT,
+        windowSeconds: WINDOW_SECONDS,
+        context: 'failed-auth-tracking',
+      },
+      'Failed to record failed auth attempt'
+    );
   }
 }
 
@@ -51,15 +66,24 @@ export async function checkFailedAuthRateLimit(ip: string): Promise<boolean> {
   }
 
   try {
-    const failuresInWindow = await limiter.getUsage(`failed-auth:${ip}`, {
+    const failuresInWindow = await limiter.getUsage(failedAuthKey(ip), {
       limit: RATE_LIMIT,
-      window: 3600, // 1 hour in seconds
+      window: WINDOW_SECONDS,
     });
 
     return failuresInWindow >= RATE_LIMIT;
   } catch (error) {
     // On error, fail open (don't block legitimate requests)
-    console.error('Failed to check failed auth rate limit:', error);
+    logger.error(
+      {
+        err: error,
+        ip,
+        rateLimit: RATE_LIMIT,
+        windowSeconds: WINDOW_SECONDS,
+        context: 'failed-auth-tracking',
+      },
+      'Failed to evaluate failed auth rate limit'
+    );
     return false;
   }
 }
