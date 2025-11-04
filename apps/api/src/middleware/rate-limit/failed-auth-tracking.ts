@@ -10,6 +10,7 @@ const redis =
     : null;
 
 const limiter = redis ? createRateLimiter(redis) : null;
+const RATE_LIMIT = 100; // Max 100 failed auth attempts per hour
 
 /**
  * Track failed authentication attempt for rate limiting
@@ -25,9 +26,9 @@ export async function trackFailedAuth(ip: string): Promise<void> {
   }
 
   try {
-    // Increment failed auth counter (100 per hour per IP)
+    // Increment failed auth counter (per hour per IP)
     await limiter.checkLimit(`failed-auth:${ip}`, {
-      limit: 100,
+      limit: RATE_LIMIT,
       window: 3600, // 1 hour in seconds
     });
   } catch (error) {
@@ -50,13 +51,12 @@ export async function checkFailedAuthRateLimit(ip: string): Promise<boolean> {
   }
 
   try {
-    // Check rate limit (100 failed attempts per hour per IP)
-    const result = await limiter.checkLimit(`failed-auth:${ip}`, {
-      limit: 100,
+    const failuresInWindow = await limiter.getUsage(`failed-auth:${ip}`, {
+      limit: RATE_LIMIT,
       window: 3600, // 1 hour in seconds
     });
 
-    return !result.allowed;
+    return failuresInWindow >= RATE_LIMIT;
   } catch (error) {
     // On error, fail open (don't block legitimate requests)
     console.error('Failed to check failed auth rate limit:', error);

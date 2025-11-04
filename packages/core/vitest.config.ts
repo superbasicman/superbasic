@@ -30,6 +30,9 @@ loadEnvFile('../database/.env.test');
 // Fallback to local configuration if test config not present
 loadEnvFile('../database/.env.local');
 
+// Provide a deterministic, high-entropy secret for tests when none set
+process.env.AUTH_SECRET ??= 'test_auth_secret_for_vitest_1234567890';
+
 export default defineConfig({
   test: {
     globals: true,

@@ -4,6 +4,7 @@
  * Tests repository methods with real test database
  */
 
+import { randomUUID } from "crypto";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { prisma } from "@repo/database";
 import { UserRepository } from "../user-repository.js";
@@ -12,6 +13,7 @@ import type { User } from "@repo/database";
 describe("UserRepository", () => {
   let userRepo: UserRepository;
   let testUsers: User[] = [];
+  const uniqueEmail = () => `test-${randomUUID()}@example.com`;
 
   beforeEach(async () => {
     userRepo = new UserRepository(prisma);
@@ -38,7 +40,7 @@ describe("UserRepository", () => {
 
     it("should return user if found", async () => {
       // Create test user
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       const created = await userRepo.create({
         email,
         password: "hashed_password",
@@ -55,7 +57,7 @@ describe("UserRepository", () => {
 
     it("should be case-sensitive for email lookup", async () => {
       // Create user with lowercase email
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       const created = await userRepo.create({
         email: email.toLowerCase(),
         password: "hashed_password",
@@ -71,7 +73,7 @@ describe("UserRepository", () => {
 
   describe("create", () => {
     it("should create user successfully", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       const user = await userRepo.create({
         email,
         password: "hashed_password_123",
@@ -90,7 +92,7 @@ describe("UserRepository", () => {
     });
 
     it("should create user with null name", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       const user = await userRepo.create({
         email,
         password: "hashed_password",
@@ -102,7 +104,7 @@ describe("UserRepository", () => {
     });
 
     it("should fail if email already exists", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       
       // Create first user
       const user1 = await userRepo.create({
@@ -125,7 +127,7 @@ describe("UserRepository", () => {
 
   describe("createWithProfile", () => {
     it("should create user and profile in transaction", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       const user = await userRepo.createWithProfile(
         {
           email,
@@ -156,7 +158,7 @@ describe("UserRepository", () => {
     });
 
     it("should create user with default profile settings", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
       const user = await userRepo.createWithProfile(
         {
           email,
@@ -179,7 +181,7 @@ describe("UserRepository", () => {
     });
 
     it("should rollback both user and profile if profile creation fails", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
 
       // Create first user with profile
       const user1 = await userRepo.createWithProfile(
@@ -226,7 +228,7 @@ describe("UserRepository", () => {
     });
 
     it("should handle transaction atomicity", async () => {
-      const email = `test-${Date.now()}@example.com`;
+      const email = uniqueEmail();
 
       // Ensure no existing records for this email
       const existingUser = await prisma.user.findUnique({ where: { email } });

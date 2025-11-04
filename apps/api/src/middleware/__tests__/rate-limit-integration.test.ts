@@ -30,6 +30,7 @@ import type { RateLimitResult } from "@repo/rate-limit";
 
 // Mock checkLimit function
 let mockCheckLimit: ReturnType<typeof vi.fn>;
+let mockGetUsage: ReturnType<typeof vi.fn>;
 
 // Mock Redis and rate limiter before imports
 vi.mock("@repo/rate-limit", async () => {
@@ -39,6 +40,7 @@ vi.mock("@repo/rate-limit", async () => {
     Redis: vi.fn(() => ({})),
     createRateLimiter: vi.fn(() => ({
       checkLimit: (...args: any[]) => mockCheckLimit(...args),
+      getUsage: (...args: any[]) => mockGetUsage(...args),
       resetLimit: vi.fn(),
     })),
   };
@@ -87,6 +89,7 @@ describe("Rate Limiting Integration Tests", () => {
     await resetDatabase();
     // Initialize mock function
     mockCheckLimit = vi.fn();
+    mockGetUsage = vi.fn().mockResolvedValue(0);
   });
 
   afterEach(() => {
@@ -291,13 +294,19 @@ describe("Rate Limiting Integration Tests", () => {
         },
       });
 
-      // Mock rate limiter to allow first 200 calls (100 requests × 2 calls each: check + track)
+      // Mock rate limiter to allow first 100 failed attempts and track usage count
       let failedAttempts = 0;
+      mockGetUsage.mockImplementation(async (key: string) => {
+        if (key.startsWith("failed-auth:")) {
+          return failedAttempts;
+        }
+        return 0;
+      });
       mockCheckLimit.mockImplementation(async (key: string) => {
         if (key.startsWith("failed-auth:")) {
           failedAttempts++;
-          const remaining = Math.max(0, 200 - failedAttempts);
-          const allowed = failedAttempts <= 200;
+          const remaining = Math.max(0, 100 - failedAttempts);
+          const allowed = failedAttempts <= 100;
           const reset = Math.floor(Date.now() / 1000) + 3600;
 
           return {
@@ -326,7 +335,7 @@ describe("Rate Limiting Integration Tests", () => {
         expect(response.status).toBe(401);
       }
 
-      // 101st attempt should be rate limited (201st and 202nd calls exceed limit of 200)
+      // 101st attempt should be rate limited (usage already at 100)
       const response = await makeRequest(app, "GET", "/v1/test", {
         headers: {
           Authorization: "Bearer sbf_invalid_token_12345678901234567890123456789012",
@@ -430,6 +439,12 @@ describe("Rate Limiting Integration Tests", () => {
 
       // Mock rate limiter to track per-IP counts
       const ipCounts = new Map<string, number>();
+      mockGetUsage.mockImplementation(async (key: string) => {
+        if (key.startsWith("failed-auth:")) {
+          return ipCounts.get(key) ?? 0;
+        }
+        return 0;
+      });
       mockCheckLimit.mockImplementation(async (key: string) => {
         if (key.startsWith("failed-auth:")) {
           const count = (ipCounts.get(key) || 0) + 1;
@@ -491,11 +506,9 @@ describe("Rate Limiting Integration Tests", () => {
       expect(response1.status).toBe(401); // Still failing auth, but not rate limited
       expect(response2.status).toBe(401); // Still failing auth, but not rate limited
 
-      // Verify counts are tracked separately
-      // Each failed request makes 2 calls: checkFailedAuthRateLimit + trackFailedAuth
-      // So 49 + 1 = 50 requests = 100 calls
-      expect(ipCounts.get("failed-auth:192.168.1.1")).toBe(100);
-      expect(ipCounts.get("failed-auth:192.168.1.2")).toBe(100);
+      // Verify counts are tracked separately (one track call per failed request)
+      expect(ipCounts.get("failed-auth:192.168.1.1")).toBe(50);
+      expect(ipCounts.get("failed-auth:192.168.1.2")).toBe(50);
     });
 
     it("should track different failure reasons", async () => {

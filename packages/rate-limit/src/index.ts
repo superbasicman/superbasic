@@ -106,6 +106,24 @@ export function createRateLimiter(redis: Redis) {
   }
 
   /**
+   * Retrieve the current number of requests within the configured window.
+   *
+   * @param key - Unique identifier for the rate limit (e.g., 'ip:127.0.0.1')
+   * @param config - Rate limit configuration
+   * @returns Number of requests in the active window
+   */
+  async function getUsage(key: string, config: RateLimitConfig): Promise<number> {
+    const rateLimitKey = `ratelimit:${key}`;
+    const now = Date.now();
+    const windowStart = now - config.window * 1000;
+
+    // Remove expired entries to keep the window accurate
+    await redis.zremrangebyscore(rateLimitKey, 0, windowStart);
+
+    return redis.zcard(rateLimitKey);
+  }
+
+  /**
    * Reset rate limit for a specific key
    *
    * @param key - Unique identifier for the rate limit
@@ -118,6 +136,7 @@ export function createRateLimiter(redis: Redis) {
 
   return {
     checkLimit,
+    getUsage,
     resetLimit,
   };
 }
