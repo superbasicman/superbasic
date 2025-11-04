@@ -1,6 +1,6 @@
 # Security Hardening Tasks
 
-1. [ ] **HIGH** Enforce non-empty, high-entropy `AUTH_SECRET` at startup and rotate existing session tokens once fixed.  
+1. [x] **HIGH** Enforce non-empty, high-entropy `AUTH_SECRET` at startup and rotate existing session tokens once fixed.  
    _Refs:_ packages/auth/src/config.ts, apps/api/src/middleware/auth.ts
 
 2. [ ] **HIGH** Fix the failed-auth rate limiter so successful PAT requests do not increment the failure counter (currently every request consumes quota and triggers 429s).  

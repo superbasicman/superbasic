@@ -14,6 +14,47 @@ import { sendMagicLinkEmail } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
 
+const MIN_AUTH_SECRET_LENGTH = 32;
+const LOW_ENTROPY_THRESHOLD = 16;
+const DISALLOWED_SECRETS = new Set([
+  "",
+  "changeme",
+  "default",
+  "your-super-secret-auth-key-min-32-chars-change-in-production",
+]);
+
+function ensureAuthSecret(rawSecret: string | undefined): string {
+  if (!rawSecret) {
+    throw new Error(
+      "AUTH_SECRET is required and must be set to a secure random value (32+ characters)."
+    );
+  }
+
+  const secret = rawSecret.trim();
+
+  if (secret.length < MIN_AUTH_SECRET_LENGTH) {
+    throw new Error(
+      `AUTH_SECRET must be at least ${MIN_AUTH_SECRET_LENGTH} characters; received ${secret.length}.`
+    );
+  }
+
+  if (DISALLOWED_SECRETS.has(secret.toLowerCase())) {
+    throw new Error("AUTH_SECRET cannot use the documented placeholder value.");
+  }
+
+  const uniqueChars = new Set(secret.split(""));
+
+  if (uniqueChars.size < LOW_ENTROPY_THRESHOLD) {
+    throw new Error(
+      "AUTH_SECRET appears low-entropy; generate a random value (e.g., `openssl rand -base64 32`)."
+    );
+  }
+
+  return secret;
+}
+
+const AUTH_SECRET = ensureAuthSecret(process.env.AUTH_SECRET);
+
 export const authConfig: AuthConfig = {
   basePath: "/v1/auth",
   trustHost: true, // Trust the host from AUTH_URL or request headers
@@ -119,7 +160,7 @@ export const authConfig: AuthConfig = {
     strategy: "jwt", // Stateless sessions; no database session rows created
     maxAge: SESSION_MAX_AGE_SECONDS,
   },
-  secret: process.env.AUTH_SECRET || "",
+  secret: AUTH_SECRET,
   callbacks: {
     async signIn({ user, account, profile: oauthProfile }) {
       // For OAuth and magic link providers, ensure user and profile exist
