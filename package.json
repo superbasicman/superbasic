@@ -24,6 +24,8 @@
     "typecheck": "turbo run typecheck",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "setup:env": "tsx tooling/scripts/setup-env.ts",
+    "setup:plaid": "tsx tooling/scripts/setup-plaid.ts",
     "deploy-check": "tsx tooling/scripts/deploy-check.ts",
     "db:generate": "turbo run generate --filter=@repo/database",
     "db:migrate": "turbo run migrate --filter=@repo/database",

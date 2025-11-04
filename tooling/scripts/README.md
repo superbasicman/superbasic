@@ -6,14 +6,33 @@ Utility scripts for development, testing, and operations.
 
 ### Authentication & Environment
 
-**`setup-env.ts`** ⭐ **NEW**
+**`setup-env.ts`**
 - Interactive wizard for complete environment setup
 - Configures database, auth, Redis, OAuth, and email
 - Perfect for first-time setup or cloning the starter template
 
 ```bash
+pnpm setup:env
+# OR
 pnpm tsx tooling/scripts/setup-env.ts
 ```
+
+**`setup-plaid.ts`** ⭐ **NEW**
+- Interactive wizard for Plaid integration setup (Phase 4)
+- Walks through Plaid account registration and API credentials
+- Generates encryption key for access token storage
+- Configures products, country codes, redirect URI, and webhooks
+- Updates apps/api/.env.local with Plaid configuration
+
+```bash
+pnpm setup:plaid
+# OR
+pnpm tsx tooling/scripts/setup-plaid.ts
+```
+
+**Prerequisites for Plaid setup:**
+- Run `pnpm setup:env` first to create base .env files
+- Have a Plaid developer account (script guides you through signup)
 
 **`check-auth-env.ts`**
 - Validates Auth.js environment variables
