@@ -82,3 +82,15 @@
 - Template:
   1. [ ] Task name – quick description.
 - Sannity Checks: Quick description
+
+
+### Running tests with agents
+
+When running tests from within an agent (or any non-interactive environment), **always run Vitest with the `--run` flag** so it doesn’t start in watch/interactive mode and hang the agent.
+
+Use:
+
+```bash
+npm test -- --run
+# or
+pnpm test -- --run

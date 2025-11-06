@@ -10,39 +10,16 @@ Guidelines to keep work focused, production-ready, and simple while we reshape t
 
 ## Code Organization
 
-### Current State vs Target State
-
-**Current Implementation (Phase 1-3):**
-
-- Route handlers in `apps/api/src/routes/v1/` contain inline business logic and Prisma calls
-- `packages/core` exports only billing/ledger placeholders
-
-**Target State (Phase 4+):**
-
-- Domain logic moves to `packages/core` as services and repositories
-- Route handlers become thin controllers
-- Apply this pattern to new features only
-
 ### Organization Principles
 
-- Keep domain logic in `packages/core` and surface it via pure functions; apps consume only those APIs. _(Target state for new features)_
-- Restrict `apps/web` to SDK/API calls—lint or CI should fail on direct DB imports. _(Already enforced)_
-- Favor composable Hono middlewares for CORS, rate limits, and auth; avoid bespoke wrappers unless necessary. _(Already implemented)_
-- Centralize secret parsing in server-only modules (`apps/api`, `packages/auth`, etc.); never surface secrets in `apps/web` or anything shipped to the browser. _(Already enforced)_
-
-## Separation of Concerns & Clean Architecture
-
-> **⚠️ ASPIRATIONAL GUIDANCE**: The layered architecture described below is the target state for new features and major refactors. The current codebase (Phase 3 and earlier) implements business logic directly in route handlers with inline Prisma calls. This is acceptable for existing code. Apply this pattern only to:
->
-> - **New features** (Phase 4+)
-> - **Major refactors** where you're already touching significant code
-> - **Greenfield work** where starting clean makes sense
->
-> **Do NOT attempt to refactor existing working code** (tokens, auth, etc.) to match this pattern unless explicitly requested.
+- Keep domain logic in `packages/core` and surface it via pure functions; apps consume only those APIs.
+- Restrict `apps/web` to SDK/API calls—lint or CI should fail on direct DB imports.
+- Favor composable Hono middlewares for CORS, rate limits, and auth; avoid bespoke wrappers unless necessary.
+- Centralize secret parsing in server-only modules (`apps/api`, `packages/auth`, etc.); never surface secrets in `apps/web` or anything shipped to the browser.
 
 ### Layered Architecture Pattern (Target State)
 
-Follow a strict three-layer architecture for new API features:
+Follow a strict three-layer architecture for API features:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -458,9 +435,6 @@ createConnectionRoute.post("/", async (c) => {
 });
 ```
 
-**Current State (Phase 3 and earlier):**
-Existing routes (tokens, auth, etc.) implement logic inline with direct Prisma calls. This is acceptable and does not need refactoring unless you're making major changes to those areas.
-
 ### Testing Strategy by Layer
 
 **Unit Tests (packages/core):**
@@ -483,49 +457,12 @@ Existing routes (tokens, auth, etc.) implement logic inline with direct Prisma c
 - Test against running API
 - Test OAuth/auth flows
 
-### Migration Strategy for Existing Code
-
-**Don't refactor everything at once. Use this approach:**
-
-1. **New features** (Phase 4+): Implement with proper layering from day one
-2. **Bug fixes**: Keep changes minimal - do NOT refactor while fixing bugs
-3. **Major changes**: Only refactor if you're already rewriting significant portions
-4. **Technical debt**: Requires explicit user request - never refactor proactively
-
-**Current State:**
-
-- Phase 1-3 code (auth, tokens, profiles) uses inline Prisma calls in route handlers
-- This is working, tested, and production-ready
-- Leave it alone unless explicitly asked to refactor
-
-**Example migration path (only if requested):**
-
-1. Create `packages/core/src/tokens/` structure
-2. Extract repository methods from route handlers
-3. Extract service methods that use repositories
-4. Update route handlers to use services
-5. Add unit tests for services
-6. Verify integration tests still pass
-
-**When implementing Phase 4+ features:**
-Start with the layered pattern from the beginning rather than refactoring later.
-
 ### When to Deviate from This Pattern
 
-**It's okay to skip layers for:**
-
-- Simple CRUD with no business logic (health checks, basic lookups)
-- Utility endpoints (CSRF token, session check)
-- Webhook handlers that just enqueue jobs
-- **All existing Phase 1-3 code** (already implemented with inline logic)
-
-**For new features (Phase 4+), ask: "Will this need business logic later?"**
+**For new features ask: "Will this need business logic later?"**
 
 - If yes, use the full pattern from the start
 - If no, keep it simple but document the decision
-
-**Current Reality Check:**
-If you find yourself wanting to refactor existing working code to match this pattern, STOP and ask the user first. The pattern is for new work, not retrofitting.
 
 ## Database Reference Patterns
 
