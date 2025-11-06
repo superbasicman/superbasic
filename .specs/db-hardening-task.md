@@ -201,3 +201,90 @@
     - Captured currency enforcement triggers, scoped refresh jobs, index requirements, and tests verifying rollup_mode, currency filters, and RLS coverage.
 97. [x] Add schema drift guardrails. Validity Score: 80%
     - CI now diffs `pg_dump --schema-only` against a canonical snapshot and reiterates that the schema is the source of truth for this document.
+
+98. [x] Lock Auth.js table specs (UUID PK + TIMESTAMPTZ timestamps). Validity Score: 90%
+    - Added explicit created_at/updated_at requirements plus UUID PK coverage for accounts, sessions, and verification_tokens so adapter migrations stay deterministic.
+
+99. [x] Document ledger sign convention for `amount_cents`. Validity Score: 85%
+    - Stated positive=credit/inflow and negative=debit/outflow at the schema top so ingestion, overlays, and reporting all share the same assumption.
+
+100. [x] Define `posted_at` → `budget_actuals.period` conversion. Validity Score: 80%
+     - Recorded the exact timezone fallback order and expression (`(posted_at AT TIME ZONE workspace_tz)::date`) budgets must use so refresh jobs and reports never disagree on bucket boundaries.
+
+101. [x] Reaffirm monetary column pairing. Validity Score: 75%
+     - Added guidance that every money value ships as `(amount_cents BIGINT, currency VARCHAR(3))` and that migrations introducing new monetary data must add both columns together.
+
+102. [x] Codify soft-delete visibility rules. Validity Score: 85%
+     - Declared that archived rows (deleted_at/revoked_at) stay invisible to normal app queries unless an admin/reporting flow opts in via a dedicated role or flag.
+
+103. [x] Patch RLS policies to enforce soft-delete semantics. Validity Score: 90%
+     - Updated workspaces, budget_plans/budget_versions/budget_envelopes/budget_actuals, and categories policies to gate on deleted_at (plus budget_envelopes.deleted_at) so members can’t see archived records by default.
+
+104. [x] Align partial UNIQUE indexes with soft-delete filters. Validity Score: 80%
+     - Added documentation forbidding active-row unique constraints without the matching `WHERE deleted_at IS NULL` / `revoked_at IS NULL` predicate to prevent conflicts from archived data.
+
+105. [x] Canonicalize category override precedence. Validity Score: 85%
+     - Locked the exact resolver order (`transaction_overlays` → `view_category_overrides` → `workspace_category_overrides` → `profile_category_overrides` → `transactions.system_category_id`) and stated all downstream consumers must follow it.
+
+106. [x] Require `system_category_id` on new transactions. Validity Score: 80%
+     - Documented ingestion requirements (default to `uncategorized`, reject NULL writes) and noted the temporary legacy debt allowance until cleanup completes.
+
+107. [x] Ban extra category trees. Validity Score: 70%
+     - Clarified that only `categories` and `workspace_categories` provide canonical taxonomies; new features must build on these instead of inventing a third tree.
+
+108. [x] Canonicalize the workspace/connection/account access graph. Validity Score: 85%
+     - Documented that visibility requires workspace membership plus either `workspace_connection_links` JSON scopes or their projection in `workspace_allowed_accounts`, with `connections.owner_profile_id` anchoring ownership.
+
+109. [x] State that connection owners always retain full visibility. Validity Score: 80%
+     - Added guidance that revoking workspace access never hides data from the owning profile and that RLS policies are written with this guarantee.
+
+110. [x] Treat `workspace_allowed_accounts` as a projection only. Validity Score: 75%
+     - Clarified that the table is a denormalized mirror of `workspace_connection_links.account_scope_json` maintained by jobs, not an independent source of truth.
+
+111. [x] Reaffirm single-currency budget plans (FX is future work). Validity Score: 85%
+     - Documented that v1 budgets must match `workspace.default_currency`, reject mixed-currency inputs, and defer FX support to a later phase.
+
+112. [x] Lock `budget_actuals` as a materialized table refreshed by jobs. Validity Score: 80%
+     - Clarified that RLS lives on the table, refreshers run nightly + on writes, and any `budget_actuals_mv` view is just a passthrough alias.
+
+113. [x] Decide partitioning stance for `budget_actuals`. Validity Score: 70%
+     - Recorded that v1 ships without partitions (indexes only) while keeping the schema partition-friendly for future workspace/period partitioning work.
+
+114. [x] Lock the Prisma + GUC transaction wrapper as the only user-traffic entrypoint. Validity Score: 90%
+      - Declared that every request must run inside the shared `withAppContext` `prisma.$transaction` wrapper that SET LOCALs the context GUCs before issuing queries.
+
+115. [x] Ban direct `prisma.<model>` usage outside the helper. Validity Score: 85%
+      - Added guidance plus lint enforcement requirements so raw Prisma client calls cannot bypass the SET LOCAL contract.
+
+116. [x] Define background-job GUC semantics. Validity Score: 80%
+      - Documented that jobs either clear all GUCs and run as system flows or deliberately set them when impersonating a profile/workspace (with auditing).
+
+117. [x] Flag heavy ops/tests as Phase 2+ hardening. Validity Score: 75%
+       - Annotated the testing/ops checklist (pgTAP RLS matrix, plan validation, TTL/cron jobs, GDPR tooling, deferrable checks) as Phase 2 items so the doc preserves the roadmap without blocking initial delivery.
+
+118. [x] Fix budget_envelopes soft-delete + money contract. Validity Score: 85%
+       - Added `deleted_at` to the table spec and documented the `limit_cents` pairing with `budget_plans.currency` so RLS/policies reference existing columns and reviewers know why the currency field is implicit.
+
+119. [x] Enforce revoked/expired filters in workspace access RLS. Validity Score: 90%
+      - Updated workspace_connection_links/workspace_allowed_accounts policies (and table prose) to require `revoked_at IS NULL` plus `expires_at > now()` for links, keeping the soft-delete promise intact.
+
+120. [x] Hide soft-deleted saved views + workspace categories in RLS. Validity Score: 85%
+       - Added `deleted_at IS NULL` guards to saved_views, workspace_categories, and all view-derived policies (view_filters, view_sorts, etc.) so the documented “soft deletes are invisible” rule matches the SQL.
+
+121. [x] Document soft-delete impact on bank accounts and transactions. Validity Score: 70%
+       - Clarified that once connections/bank_accounts are archived, their transactions/overlays disappear from user-facing queries (data persists only for maintenance roles), aligning prose with the current RLS behavior.
+
+122. [x] Denormalize workspace_id into budget_actuals. Validity Score: 80%
+        - Added workspace_id to the table schema plus supporting indexes/notes so future partitioning/RLS stay simple without extra joins back to budget_plans.
+
+123. [x] Standardize ZERO_UUID usage. Validity Score: 70%
+         - Defined ZERO_UUID once (as `'00000000-0000-0000-0000-000000000000'::uuid`) and updated constraint prose to use the literal so there’s no ambiguity between shorthand and SQL.
+
+124. [x] Clarify zero-amount transaction handling. Validity Score: 65%
+          - Noted that provider-supplied zero-cent holds/voids are normalized away (or represented via overlays) so the append-only ledger never stores 0 amounts.
+
+125. [x] Document public view-link access role. Validity Score: 70%
+          - Added a note that token-based view consumption runs under a constrained service role outside `app_user`, while management APIs keep relying on profile-scoped RLS.
+
+126. [x] Fix duplicate section numbering. Validity Score: 60%
+          - Renumbered the closing “Ready-for-Prod Checklist” section to 14 so the doc stays sequential.

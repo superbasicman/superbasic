@@ -11,10 +11,16 @@ ORM: Prisma 6 (strict)
 IDs: UUID v4 for all PKs (unify Auth.js adapter to UUID)
 Timestamps: TIMESTAMPTZ with created_at DEFAULT now(); updated_at is managed by application layer/Prisma `@updatedAt` (no database DEFAULT)
 Money: BIGINT amount_cents, currency VARCHAR(3) CHECK (char_length(currency) = 3)
+- Sign convention: inflows/credits (deposits, refunds, income) store as positive `amount_cents`; outflows/debits (purchases, payments, fees) store as negative `amount_cents`. Zero is reserved for adjustments we explicitly track via overlays; ingestion must normalize provider payloads before persistence so downstream reporting and budgeting stay consistent.
+- Provider-supplied zero-amount holds/voids are normalized away (or logged purely as overlays) so base transactions never store 0-cent rows and the reporting math stays deterministic.
+- Every monetary column appears as the `(amount_cents BIGINT, currency VARCHAR(3))` pair documented here (e.g., `transactions`, `budget_actuals.posted_amount_cents`, `budget_actuals.authorized_amount_cents`). Introducing a new money field without this pair is disallowed; migrations must add both columns together and wire them into the schema guide before review.
+- The lone exception is `budget_envelopes.limit_cents`, whose currency always equals `budget_plans.currency` (enforced via `budget_plans_enforce_currency`). Treat `(limit_cents, budget_plans.currency)` as that table’s logical money pair; do not introduce additional standalone amount columns elsewhere.
 JSON: JSONB with GIN indexes for scope/config/filter fields
 Auth: Auth.js Prisma adapter (users, accounts, sessions, verification_tokens) with token hashes
 RLS: current_setting('app.user_id'/'app.profile_id'/'app.workspace_id') set per request
 Not-null discipline: all foreign keys (`*_id`), key/hash/status columns, and timestamps (created_at/updated_at) are declared NOT NULL with sensible defaults where applicable
+Soft deletes: rows with `deleted_at`/`revoked_at` are treated as archived and stay invisible to standard app queries and RLS policies; only explicitly documented admin/reporting flows may opt in to archived data via dedicated roles or feature flags.
+ZERO_UUID shorthand: any time we say “ZERO_UUID” we mean the literal `'00000000-0000-0000-0000-000000000000'::uuid`, used when coalescing nullable keys (e.g., system categories).
 Emails are stored and compared case-insensitively via lowercase canonical columns (e.g., users.email_lower)
 
 ---
@@ -98,17 +104,18 @@ users
 * Optional non-unique index on email supports lookups by original casing without enforcing uniqueness twice; no extra UNIQUE index needed because `email_lower` already has one
 
 accounts
-* id UUID PK, user_id FK users(id), provider TEXT, provider_account_id TEXT, refresh_token encrypted, access_token encrypted, expires_at TIMESTAMPTZ
+* id UUID PK, user_id FK users(id), provider TEXT, provider_account_id TEXT, refresh_token encrypted, access_token encrypted, expires_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL
 * UNIQUE(provider, provider_account_id)
 
 sessions (optional if using DB sessions)
-* id UUID PK, user_id FK users(id), session_token_hash JSONB UNIQUE, expires TIMESTAMPTZ
+* id UUID PK, user_id FK users(id), session_token_hash JSONB NOT NULL UNIQUE, expires TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL
 * index on (expires)
 * TTL job purges expired rows to prevent unbounded growth
 
 verification_tokens
-* identifier TEXT, token_hash JSONB UNIQUE, expires TIMESTAMPTZ
+* id UUID PK, identifier TEXT NOT NULL, token_hash JSONB NOT NULL UNIQUE, expires TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL
 * index on (expires)
+* Auth.js tables (users, accounts, sessions, verification_tokens) all expose this timestamp contract so Prisma’s `@updatedAt` fields stay deterministic across adapters.
 
 Auth.js adapter access
 * Auth.js flows run before a user/profile context exists. Keep these tables (users, accounts, sessions, verification_tokens) behind a dedicated database role (`auth_service`) with `BYPASSRLS`.
@@ -159,6 +166,7 @@ categories
 * indexes on (parent_id)
 * profile_id IS NULL rows represent system defaults shared across workspaces; non-null profile_id rows remain private to their owners
 * Seed data must include a canonical `uncategorized` system category; ingestion maps missing provider data to this slug instead of leaving transactions.system_category_id NULL.
+* Soft-deleted rows (deleted_at NOT NULL) are suppressed by RLS and default queries; historical/admin exports that need archived categories must opt in explicitly as described in the RLS section.
 * Shared category trees live in workspace_categories (see Workspaces)
 * Constraint trigger enforces parent.child profile consistency (system roots can only parent other system nodes)
 
@@ -172,6 +180,7 @@ Workspaces and Collaboration
 workspaces
 * id UUID PK, owner_profile_id FK profiles(id), name TEXT, settings JSONB, created_at, updated_at, deleted_at
 * settings.default_currency defines the workspace base currency; v1 workflows expect budgets to use this currency
+* RLS hides rows with deleted_at IS NOT NULL so archived workspaces never surface in regular queries; admin exports must run under dedicated roles to include them.
 
 workspace_members
 * id UUID PK, workspace_id FK, member_profile_id FK, role TEXT CHECK (role IN ('owner','admin','editor','viewer')), scope_json JSONB, created_at, updated_at
@@ -186,6 +195,7 @@ workspace_members
 
 saved_views
 * id UUID PK, workspace_id FK, name TEXT, is_default BOOL, created_at, updated_at, deleted_at
+* Soft-deleted views disappear from normal queries; RLS policies include `deleted_at IS NULL` guards so archived views only surface in admin exports.
 
 view_filters, view_sorts, view_group_by, view_rule_overrides, view_category_groups
 * id UUID PK, view_id FK, payload JSONB, created_at, updated_at
@@ -198,6 +208,7 @@ view_shares
 * indexes on (view_id), (expires_at)
 * Links are anonymous, read-only entry points; requests execute under a constrained workspace context with audit logging of link usage
 * TTL job revokes and purges expired links regularly
+* Public link consumption bypasses `app_user` entirely—requests use a scoped service role that verifies the hashed token and applies bespoke RLS that only exposes the linked view, while management APIs continue to rely on the per-profile policies below.
 
 view_category_overrides
 * id UUID PK, view_id FK saved_views(id), source_category_id FK workspace_categories(id) NULL, target_category_id FK workspace_categories(id) NULL, system_source_category_id FK categories(id) NULL, system_target_category_id FK categories(id) NULL, created_at, updated_at, deleted_at
@@ -219,10 +230,14 @@ workspace_connection_links
 * deterministic helper function unwraps via jsonb_array_elements_text
 * expires_at NULL means “until revoked”; when set, link becomes inactive once expires_at <= now() even if revoked_at is still NULL
 * Constraint trigger validates JSON shape and that every account belongs to the referenced connection/workspace
+* Access graph canonical model: connections are owned by `connections.owner_profile_id`. A workspace only sees data if (a) the viewing profile is a member via `workspace_members`, and (b) the workspace has been granted scope through either this JSON link or its normalized projection in `workspace_allowed_accounts`. All policy examples assume this flow—treat it as the single source of truth for workspace visibility.
+* Soft-delete alignment: RLS predicates include `revoked_at IS NULL` and `expires_at > now()` checks so archived/expired links stay invisible to normal queries.
 
   workspace_allowed_accounts (optional normalization)
 * id UUID PK, workspace_id FK, bank_account_id FK bank_accounts(id), granted_by_profile_id FK, created_at, revoked_at
 * UNIQUE(workspace_id, bank_account_id) WHERE revoked_at IS NULL
+* Pure projection of `workspace_connection_links.account_scope_json`. Background jobs (and migrations) regenerate this table from the JSON scopes; do not mutate it independently or attempt to treat it as an alternate source of truth.
+* RLS filters include `revoked_at IS NULL` to match the soft-delete contract and ensure inactive projections never leak into consumers.
 
 workspace_categories
 * id UUID PK, workspace_id FK, parent_id UUID NULL REFERENCES workspace_categories(id) DEFERRABLE INITIALLY DEFERRED, slug TEXT, name TEXT, sort INT, created_at, updated_at, deleted_at, color TEXT NULL
@@ -235,34 +250,38 @@ workspace_category_overrides
 * UNIQUE(workspace_id, COALESCE(source_category_id, system_source_category_id)) WHERE deleted_at IS NULL
 * CHECK constraint enforces that exactly one of (source_category_id, system_source_category_id) is non-null, and exactly one of (target_category_id, system_target_category_id) is non-null
 
-Overlay precedence (canonical across UI + reports): transaction overlays → view overrides → workspace overrides → profile overrides → base system mapping.
+Overlay precedence (canonical across UI + reports): `transaction_overlays.category_id` → `view_category_overrides` → `workspace_category_overrides` → `profile_category_overrides` → `transactions.system_category_id`. Every resolver (SQL helper, SDK, analytics export) must honor this exact order so downstream tooling matches what the UI shows.
+Category trees are limited to exactly two sources: the system/profile tree in `categories` and the collaborative tree in `workspace_categories`. Building a third tree elsewhere is forbidden; derived views must reference one of these canonical tables.
 
 Budgets (Plans, Versions, Envelopes)
 
 budget_plans
 * id UUID PK, workspace_id FK, owner_profile_id FK, name TEXT, currency VARCHAR(3) CHECK (char_length(currency) = 3), rollup_mode TEXT CHECK (rollup_mode IN ('posted','authorized','both')), view_id FK saved_views(id) NULL, view_filter_snapshot JSONB, view_filter_hash TEXT, is_template BOOL DEFAULT false, created_at, updated_at, deleted_at
 * Constraint trigger (`budget_plans_enforce_currency`, BEFORE INSERT/UPDATE) ensures currency matches workspace.settings->>'default_currency'; mixed-currency plans are not supported yet
+* FX support is explicitly future work; v1 budgets reject any attempt to mix currencies or override `workspace.default_currency` so every amount can be compared without conversion logic.
 
 budget_versions
 * id UUID PK, plan_id FK, version_no INT, effective_from DATE, effective_to DATE NULL, period TEXT CHECK (period IN ('monthly','weekly','custom')), carryover_mode TEXT CHECK (carryover_mode IN ('none','envelope','surplus_only','deficit_only')), notes TEXT, created_at, updated_at
 * UNIQUE(plan_id, version_no)
 
 budget_envelopes
-* id UUID PK, version_id FK, category_id FK categories(id) NULL, label TEXT, limit_cents BIGINT NOT NULL, warn_at_pct INT DEFAULT 80, group_label TEXT NULL, metadata JSONB, created_at, updated_at
+* id UUID PK, version_id FK, category_id FK categories(id) NULL, label TEXT, limit_cents BIGINT NOT NULL, warn_at_pct INT DEFAULT 80, group_label TEXT NULL, metadata JSONB, created_at, updated_at, deleted_at TIMESTAMPTZ NULL
 * indexes on (version_id), (category_id)
 
 budget_actuals (materialized table refreshed via job)
 * precomputed actuals per (plan_id, version_id, envelope_id, period) applying snapshot or view filters and workspace scope
 * Maintained by a refresh job that truncates/reinserts; exposed to the app either directly or via a thin view `budget_actuals_mv` that simply `SELECT * FROM budget_actuals`
-* Schema includes plan_id, version_id, envelope_id, period (DATE), currency (VARCHAR(3)), rollup_mode (TEXT), posted_amount_cents, authorized_amount_cents, workspace_category_id (UUID NULL), updated_at TIMESTAMPTZ
+* Schema includes plan_id, version_id, envelope_id, workspace_id (UUID NOT NULL, denormalized from budget_plans.workspace_id), period (DATE), currency (VARCHAR(3)), rollup_mode (TEXT), posted_amount_cents, authorized_amount_cents, workspace_category_id (UUID NULL), updated_at TIMESTAMPTZ
 * Constraint trigger `budget_plans_enforce_currency` keeps plan currencies aligned with `workspaces.settings->>'default_currency'`; mismatches raise immediately
 * Refresh pipeline (`tooling/scripts/refresh-budget-actuals.ts`) runs nightly and after envelope/transaction writes; it honours version.rollup_mode and skips non-matching currencies until FX support exists
 * Aggregation respects account scoping via the same helpers as transaction RLS (`workspace_connection_links.account_scope_json`, membership checks) so unauthorized accounts never contribute
-* Indexes required: `CREATE INDEX budget_actuals_version_period_idx ON budget_actuals(version_id, period);` and `CREATE INDEX budget_actuals_plan_version_period_idx ON budget_actuals(plan_id, version_id, period);`
+* Indexes required: `CREATE INDEX budget_actuals_version_period_idx ON budget_actuals(version_id, period);`, `CREATE INDEX budget_actuals_plan_version_period_idx ON budget_actuals(plan_id, version_id, period);`, and `CREATE INDEX budget_actuals_workspace_period_idx ON budget_actuals(workspace_id, period);`
+* Period derivation: `period := (posted_at AT TIME ZONE workspace_tz)::date`, where `workspace_tz = COALESCE(workspaces.settings->>'timezone', owner_profile.timezone, 'UTC')`. Budget refreshers and ad-hoc reports must reuse this exact expression so a transaction appears in the same DATE bucket everywhere.
 * CROSS JOIN LATERAL effective_workspace_category(transaction_id, workspace_id, view_id) to fold in system + workspace/view overrides while staying profile-agnostic
 * Profile overlays and overrides are resolved at query time via effective_transaction_category(...) when presenting personalized views
-* Denormalize plan_id so RLS checks avoid extra joins and stay aligned with workspace membership
+* Denormalize plan_id and workspace_id so RLS checks avoid extra joins and stay aligned with workspace membership while keeping the table partition-ready
 * Postgres cannot enforce RLS on materialized views; keep policies on this table and treat any view as a passthrough alias
+* Partitioning: v1 shipping target uses a single table with the indexes noted above; the denormalized workspace_id lets us introduce `(workspace_id, period)` partitions later without reshaping the data, but no partitioning is required today.
 
 Connections, Bank Accounts, Transactions
 
@@ -271,6 +290,7 @@ connections
 * UNIQUE(provider, provider_item_id)
 * provider_item_id = Plaid item_id when provider = 'plaid'; tx_cursor stores provider sync cursor
 * config holds non-secret provider metadata only; encrypted Plaid access tokens and other secrets live in encrypted columns or a connection_secrets table
+* Ownership rule: the `owner_profile_id` always retains read/write authority over all accounts and transactions under the connection—even if every workspace link is revoked. RLS policies are written under that assumption, so do not attempt to hide owner data via workspace-scoped revocations.
 
 connection_sponsor_history
 * id UUID PK, connection_id FK, from_profile_id FK, to_profile_id FK, changed_at TIMESTAMPTZ DEFAULT now()
@@ -283,13 +303,15 @@ bank_accounts
 * UNIQUE(id, connection_id) to back composite FK usage
 
 transactions (append-only)
-* id UUID PK, account_id FK bank_accounts(id), connection_id FK, provider_tx_id TEXT NOT NULL, posted_at TIMESTAMPTZ, authorized_at TIMESTAMPTZ NULL, amount_cents BIGINT NOT NULL, currency VARCHAR(3) CHECK (char_length(currency) = 3), system_category_id UUID NULL REFERENCES categories(id), merchant_raw TEXT, raw_payload JSONB, created_at
+* id UUID PK, account_id FK bank_accounts(id), connection_id FK, provider_tx_id TEXT NOT NULL, posted_at TIMESTAMPTZ, authorized_at TIMESTAMPTZ NULL, amount_cents BIGINT NOT NULL, currency VARCHAR(3) CHECK (char_length(currency) = 3), system_category_id UUID REFERENCES categories(id), merchant_raw TEXT, raw_payload JSONB, created_at
 * FK (account_id, connection_id) REFERENCES bank_accounts(id, connection_id)
 * UNIQUE(connection_id, provider_tx_id)
-* system_category_id defaults to the seeded system `uncategorized` category; a NULL value signals ingestion debt and the resolver will surface `category_id = NULL` unless an overlay exists.
+* system_category_id defaults to the seeded system `uncategorized` category; ingestion **must** populate this column on every new row, treating NULL only as historical data debt that backfills will clean up. Runtime writes that attempt to persist NULL are rejected before they reach the database.
+* The column remains nullable in the schema solely to accommodate legacy rows until cleanup finishes; once debt reaches zero we will migrate it to `NOT NULL`.
 * fallback: when providers omit IDs, derive provider_tx_id via sha256(connection_id || posted_at || amount_cents || merchant_raw)
 * indexes: (account_id, posted_at DESC), (posted_at DESC), GIN on raw_payload
 * append-only: guarded by triggers preventing UPDATE/DELETE; app role lacks UPDATE/DELETE privileges on this table
+* When a connection or bank account is soft-deleted, RLS hides its transactions from user traffic. Rows remain stored for maintenance/audit tooling under dedicated roles but no longer surface in regular queries.
 
 transaction_overlays
 * id UUID PK, transaction_id FK, profile_id FK, category_id FK categories(id) NULL, notes TEXT, tags TEXT[] DEFAULT '{}', splits JSONB DEFAULT '[]', merchant_correction TEXT NULL, exclude BOOL DEFAULT false, created_at, updated_at, deleted_at
@@ -580,7 +602,7 @@ UNIQUE bank_accounts(id, connection_id)
 UNIQUE transactions(connection_id, provider_tx_id)
 UNIQUE transaction_overlays(profile_id, transaction_id)
 UNIQUE workspace_members(workspace_id, member_profile_id)
-UNIQUE categories(COALESCE(profile_id, ZERO_UUID), slug) WHERE deleted_at IS NULL
+UNIQUE categories(COALESCE(profile_id, '00000000-0000-0000-0000-000000000000'::uuid), slug) WHERE deleted_at IS NULL
 UNIQUE profile_category_overrides(profile_id, source_category_id) WHERE deleted_at IS NULL
 UNIQUE budget_versions(plan_id, version_no)
 UNIQUE view_links.token_hash
@@ -591,6 +613,7 @@ UNIQUE workspace_category_overrides(workspace_id, COALESCE(source_category_id, s
 UNIQUE view_category_overrides(view_id, COALESCE(source_category_id, system_source_category_id)) WHERE deleted_at IS NULL
 CHECK api_keys enforce profile ownership (profile_id IS NOT NULL; workspace membership validated via trigger)
 Constraint triggers on api_keys enforce cross-column alignment (profile_id ↔ profiles.user_id, workspace membership for workspace_id)
+All partial UNIQUE indexes representing “active” rows use the same predicate as their RLS filters (`WHERE deleted_at IS NULL` or `WHERE revoked_at IS NULL`). Adding a new uniqueness constraint without mirroring the soft-delete condition is forbidden because it would leak archived rows back into conflict checks.
 
 Not-null guarantees and soft-delete hygiene
 - Every foreign key (`*_id`), hash/status column, and timestamp adheres to `NOT NULL` — append-only tables (e.g., `transactions`, `transaction_audit_log`) omit `updated_at` but retain `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`.
@@ -702,6 +725,11 @@ SET LOCAL app.user_id = '<users.id>';
 SET LOCAL app.profile_id = '<profiles.id>';
 SET LOCAL app.workspace_id = '<workspaces.id or NULL>';
 
+Application contract for user traffic:
+- All requests hit Postgres exclusively through the shared context helper (`withAppContext`) which wraps `prisma.$transaction`. The helper SET LOCALs the three GUCs before executing any queries and exposes only the transactional `tx` handle downstream.
+- Direct `prisma.<model>` calls (or raw client access) outside that helper are considered violations; lint rules plus static analysis in `packages/eslint-config` flag them, and code review must reject bypasses.
+- Background jobs default to clearing all three GUCs (set to NULL) and running as maintenance/system flows. Only when a job intentionally impersonates a profile/workspace should it set the GUCs, and those paths must be rare and auditable.
+
 Policies must always gate soft-deleted data (deleted_at IS NULL) and fall back safely when session settings are absent.
 Enable and FORCE RLS on all user-facing tables:
 - profiles, workspace_members, workspaces
@@ -726,10 +754,10 @@ Database Roles
 For the full list of canonical `CREATE POLICY` statements, see §13 (RLS policy definitions); treat that section as the single source of truth and mirror any narrative examples back to it.
 
 Prisma runtime contract for RLS:
-* Every request runs inside `prisma.$transaction(async (tx) => { ... })` (interactive transactions disabled).
+* Every request runs inside `prisma.$transaction(async (tx) => { ... })` (interactive transactions disabled); this helper is the only exported way to talk to the database for user traffic.
 * The first call inside the transaction executes `await tx.$executeRawUnsafe('SET LOCAL app.user_id = $1, app.profile_id = $2, app.workspace_id = $3', userId, profileId, workspaceId);` (workspaceId may be NULL for profile-only flows).
-* All subsequent queries for that request must use the transactional `tx` handle; direct `prisma.table` calls outside the wrapper are forbidden because they lack the SET LOCAL context.
-* Background jobs that do not act on behalf of a user should SET LOCAL GUCs to NULL explicitly to avoid inheriting stale values.
+* All subsequent queries for that request must use the transactional `tx` handle; direct `prisma.table` calls outside the wrapper are forbidden and enforced via ESLint rules plus codemods.
+* Background jobs that do not act on behalf of a user SET LOCAL GUCs to NULL explicitly before running. When a job must impersonate a profile/workspace (e.g., replaying events), it sets the GUCs intentionally and logs the impersonation metadata.
 * Provide a `clear_app_context()` SQL helper (`SET LOCAL app.user_id = NULL; SET LOCAL app.profile_id = NULL; SET LOCAL app.workspace_id = NULL;`) and call it when booting worker processes or when a transaction finishes without needing caller context.
 * Wrap the Prisma client in an application helper:
   ```ts
@@ -759,7 +787,7 @@ TTL sweeps for session_page_payloads.expires_at (30–90 days)
 Scheduled housekeeping jobs remove expired sessions, verification tokens, and view links, and clean up large payload blobs
 GDPR deletion via scripts traversing user and profile graphs
 Revoked Plaid items / deleted connections: set connections.status to 'deleted' (or 'error'), stamp connections.deleted_at, revoke workspace_connection_links, and mark workspace_allowed_accounts.revoked_at for impacted accounts
-Soft-deleting connections or bank_accounts hides them from direct list views but keeps historical transactions and overlays visible to authorized profiles/workspaces (RLS continues to grant access).
+Soft-deleting connections or bank_accounts hides them—and their associated transactions/overlays—from normal app queries. The rows remain in the database for audit/forensic access via the maintenance role, but user-facing traffic never sees archived financial data once an account/connection is retired.
 
 ---
 
@@ -917,9 +945,9 @@ CHECK (
 
 ---
 
-13. Testing and Operational Hardening
+13. Testing and Operational Hardening (Phase 2+ checklists stay documented even if initial launch ships without them)
 
-RLS verification:
+RLS verification (Phase 2 hardening):
 - pgTAP: `tooling/tests/pgtap/rls_contract.sql` spins up fixtures for owners, admins, editors, viewers, unaffiliated profiles, and anonymous callers; each suite asserts allowed SELECT/INSERT/UPDATE/DELETE paths succeed and denied paths raise `ERROR: new row violates row-level security policy`.
 - Application E2E (Playwright) runs the main flows (dashboard, overlays, budgets, sharing) under each role plus link-based access to ensure the SDK honors denied responses gracefully.
 - Smoke test CLI (`tooling/scripts/rls-smoke.ts`): connects as `app_user` with no `SET LOCAL`, iterates every RLS-enabled table, executes `SELECT 1 FROM <table> LIMIT 1`, and asserts zero rows. Wire into CI (`pnpm db:rls-smoke`) so regressions fail fast.
@@ -929,18 +957,18 @@ RLS verification:
 - CI job (`pnpm db:schema-drift`) captures `pg_dump --schema-only` from the Neon preview branch and diffs against `tooling/schema-snapshots/canonical.sql`; unexpected changes fail the build.
 - Treat this document as consumers’ guide; the checked-in schema is the source of truth. Every migration must update both the schema and this doc (or regenerate relevant sections) to keep them aligned.
 
-Deferrable constraints + trigger validation:
+Deferrable constraints + trigger validation (Phase 2):
 - Catalog all `DEFERRABLE INITIALLY DEFERRED` constraints/triggers (`categories_parent_scope_ck`, `workspace_categories_parent_scope_ck`, `api_keys_validate_profile_link`, `api_keys_validate_workspace_link`, `workspace_connection_links_scope_ck`, `transaction_overlays_splits_validate`) in `tooling/scripts/check-deferrables.ts` and fail CI if new ones are added without tests.
 - Add bulk transaction tests (pgTAP or Prisma integration) that insert/update conflicting rows within a single transaction to ensure deferrable checks fire at COMMIT and do not deadlock.
 - Include stress tests that run parallel transactions touching the same parents to confirm constraint timing does not surface serialization anomalies.
 - Verify Prisma migrations preserve `DEFERRABLE INITIALLY DEFERRED` clauses: keep these constraints defined in SQL migrations, and add a regression test (`pnpm db:check-deferrables`) that introspects `pg_constraint` / `pg_trigger` to ensure `condeferrable = true` and `condeferred = true`.
 
-Append-only enforcement:
+Append-only enforcement (Phase 2):
 - pgTAP/Prisma tests attempt `UPDATE`/`DELETE` on `transactions` as `app_user` and assert the trigger raises `ERROR: transactions are append-only` from `prevent_transaction_mutation()`.
 - Contract tests covering category/description/split edits verify they operate through overlays or new append entries; query logging must show no direct `UPDATE transactions`.
 - E2E flows ensure the API surfaces a structured 409 error with a user-friendly message when append-only violations occur instead of returning a generic 500.
 
-Neon index + plan validation:
+Neon index + plan validation (Phase 2):
 * Seed realistic data (`tooling/scripts/seed-demo.ts --rows 500k`) into a fresh Neon branch before plan capture.
 * Capture `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for the four critical workloads and persist outputs under `tooling/plans/<query>.json`:
   - Transaction feeds filtered by workspace/profile/date (`transactions` joined to `bank_accounts`, `workspace_allowed_accounts`).
@@ -955,7 +983,7 @@ Neon index + plan validation:
 - Category resolver parity: `tooling/tests/pgtap/effective_category.sql` generates randomized combinations of system/workspace/profile/view overrides and overlays, compares `effective_transaction_category` / `effective_workspace_category` outputs against equivalent JOIN logic, and runs via `pnpm db:test -- --run`; wired into CI to prevent precedence regressions.
 - Budget budget_actuals invariants: tests cover `budget_plans_enforce_currency`, refresh jobs (nightly + write-triggered) respecting rollup_mode, currency filters, and account scope RLS; include query plan assertions ensuring required indexes (`version_id, period` and `plan_id, version_id, period`) are used.
 
-Lifecycle jobs:
+Lifecycle jobs (Phase 2 for automation; manual ops acceptable during initial rollout):
 - Nightly jobs purge expired rows from `sessions`, `verification_tokens`, `view_links`, `workspace_connection_links` (revoked or expired), and `session_page_payloads`; large sync payload blobs share the same sweep.
 - QStash/Vercel cron tasks update `workspace_connection_links` -> `workspace_allowed_accounts` denormalisations and refresh `budget_actuals` (and the optional `budget_actuals_mv` view).
 - TTL sweeps run under a dedicated `maintenance_user` role with `SET LOCAL app.profile_id = NULL` / `app.workspace_id = NULL` to avoid inheriting stale context; ensure the role has DELETE privileges on the targets and bypasses RLS only where documented.
@@ -1054,6 +1082,8 @@ USING (
   current_setting('app.profile_id', true) IS NOT NULL
   AND current_setting('app.workspace_id', true) IS NOT NULL
   AND workspace_id = current_setting('app.workspace_id', true)::uuid
+  AND revoked_at IS NULL
+  AND (expires_at IS NULL OR expires_at > now())
   AND EXISTS (
     SELECT 1
     FROM workspace_members wm
@@ -1065,6 +1095,8 @@ WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
   AND current_setting('app.workspace_id', true) IS NOT NULL
   AND workspace_id = current_setting('app.workspace_id', true)::uuid
+  AND revoked_at IS NULL
+  AND (expires_at IS NULL OR expires_at > now())
   AND EXISTS (
     SELECT 1
     FROM workspace_members wm_admin
@@ -1081,6 +1113,7 @@ USING (
   current_setting('app.profile_id', true) IS NOT NULL
   AND current_setting('app.workspace_id', true) IS NOT NULL
   AND workspace_id = current_setting('app.workspace_id', true)::uuid
+  AND revoked_at IS NULL
   AND EXISTS (
     SELECT 1
     FROM workspace_members wm
@@ -1092,6 +1125,7 @@ WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
   AND current_setting('app.workspace_id', true) IS NOT NULL
   AND workspace_id = current_setting('app.workspace_id', true)::uuid
+  AND revoked_at IS NULL
   AND EXISTS (
     SELECT 1
     FROM workspace_members wm_admin
@@ -1376,10 +1410,12 @@ USING (
         AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
     )
   )
+  AND workspaces.deleted_at IS NULL
 )
 WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
   AND owner_profile_id = current_setting('app.profile_id', true)::uuid
+  AND workspaces.deleted_at IS NULL
 );
 
 CREATE POLICY categories_profile_scope
@@ -1390,9 +1426,11 @@ USING (
     profile_id IS NULL
     OR profile_id = current_setting('app.profile_id', true)::uuid
   )
+  AND deleted_at IS NULL
 )
 WITH CHECK (
   profile_id = current_setting('app.profile_id', true)::uuid
+  AND deleted_at IS NULL
 );
 
 CREATE POLICY profile_category_overrides_self
@@ -1411,6 +1449,7 @@ USING (
   current_setting('app.profile_id', true) IS NOT NULL
   AND current_setting('app.workspace_id', true) IS NOT NULL
   AND workspace_id = current_setting('app.workspace_id', true)::uuid
+  AND deleted_at IS NULL
   AND EXISTS (
     SELECT 1
     FROM workspace_members wm
@@ -1422,6 +1461,7 @@ WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
   AND current_setting('app.workspace_id', true) IS NOT NULL
   AND workspace_id = current_setting('app.workspace_id', true)::uuid
+  AND deleted_at IS NULL
   AND EXISTS (
     SELECT 1
     FROM workspace_members wm_admin
@@ -1461,21 +1501,25 @@ CREATE POLICY view_category_overrides_membership
 ON view_category_overrides
 USING (
   current_setting('app.profile_id', true) IS NOT NULL
+  AND view_category_overrides.deleted_at IS NULL
   AND EXISTS (
     SELECT 1
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_category_overrides.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
 WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
+  AND view_category_overrides.deleted_at IS NULL
   AND EXISTS (
     SELECT 1
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_category_overrides.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1491,6 +1535,7 @@ USING (
     WHERE wm.workspace_id = saved_views.workspace_id
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
+  AND saved_views.deleted_at IS NULL
 )
 WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
@@ -1501,6 +1546,7 @@ WITH CHECK (
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
+  AND saved_views.deleted_at IS NULL
 );
 
 CREATE POLICY view_filters_membership
@@ -1512,6 +1558,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_filters.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1522,6 +1569,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_filters.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1536,6 +1584,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_sorts.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1546,6 +1595,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_sorts.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1560,6 +1610,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_group_by.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1570,6 +1621,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_group_by.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1584,6 +1636,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_rule_overrides.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1594,6 +1647,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_rule_overrides.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1608,6 +1662,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_category_groups.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1618,6 +1673,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_category_groups.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1632,6 +1688,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_shares.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1642,6 +1699,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_shares.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin', 'editor')
   )
@@ -1656,6 +1714,7 @@ USING (
     FROM saved_views sv
     JOIN workspace_members wm ON wm.workspace_id = sv.workspace_id
     WHERE sv.id = view_links.view_id
+      AND sv.deleted_at IS NULL
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
 )
@@ -1666,6 +1725,7 @@ WITH CHECK (
     FROM saved_views sv
     JOIN workspace_members wm_admin ON wm_admin.workspace_id = sv.workspace_id
     WHERE sv.id = view_links.view_id
+      AND sv.deleted_at IS NULL
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner', 'admin')
   )
@@ -2029,6 +2089,7 @@ USING (
     WHERE wm.workspace_id = budget_plans.workspace_id
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
   )
+  AND budget_plans.deleted_at IS NULL
 )
 WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
@@ -2039,6 +2100,7 @@ WITH CHECK (
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner','admin')
   )
+  AND budget_plans.deleted_at IS NULL
 );
 
 CREATE POLICY budget_versions_membership
@@ -2051,6 +2113,7 @@ USING (
     JOIN workspace_members wm ON wm.workspace_id = bp.workspace_id
     WHERE bp.id = budget_versions.plan_id
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
+      AND bp.deleted_at IS NULL
   )
 )
 WITH CHECK (
@@ -2062,6 +2125,7 @@ WITH CHECK (
     WHERE bp.id = budget_versions.plan_id
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner','admin')
+      AND bp.deleted_at IS NULL
   )
 );
 
@@ -2076,7 +2140,9 @@ USING (
     JOIN workspace_members wm ON wm.workspace_id = bp.workspace_id
     WHERE bv.id = budget_envelopes.version_id
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
+      AND bp.deleted_at IS NULL
   )
+  AND budget_envelopes.deleted_at IS NULL
 )
 WITH CHECK (
   current_setting('app.profile_id', true) IS NOT NULL
@@ -2088,7 +2154,9 @@ WITH CHECK (
     WHERE bv.id = budget_envelopes.version_id
       AND wm_admin.member_profile_id = current_setting('app.profile_id', true)::uuid
       AND wm_admin.role IN ('owner','admin')
+      AND bp.deleted_at IS NULL
   )
+  AND budget_envelopes.deleted_at IS NULL
 );
 
 CREATE POLICY budget_actuals_membership
@@ -2101,6 +2169,7 @@ USING (
     JOIN workspace_members wm ON wm.workspace_id = bp.workspace_id
     WHERE bp.id = budget_actuals.plan_id
       AND wm.member_profile_id = current_setting('app.profile_id', true)::uuid
+      AND bp.deleted_at IS NULL
   )
 );
 
@@ -2353,7 +2422,7 @@ EXECUTE FUNCTION validate_transaction_overlay_splits();
 
 ---
 
-13. Ready-for-Prod Checklist
+14. Ready-for-Prod Checklist
 
 UUIDs everywhere and FK types consistent
 All unique constraints implemented as above
