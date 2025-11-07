@@ -278,7 +278,19 @@
         - Added workspace_id to the table schema plus supporting indexes/notes so future partitioning/RLS stay simple without extra joins back to budget_plans.
 
 123. [x] Standardize ZERO_UUID usage. Validity Score: 70%
-         - Defined ZERO_UUID once (as `'00000000-0000-0000-0000-000000000000'::uuid`) and updated constraint prose to use the literal so there’s no ambiguity between shorthand and SQL.
+        - Defined ZERO_UUID once (as `'00000000-0000-0000-0000-000000000000'::uuid`) and updated constraint prose to use the literal so there’s no ambiguity between shorthand and SQL.
+
+124. [x] Clarify zero-amount transaction handling. Validity Score: 65%
+         - Documented that provider-issued 0-cent holds/voids are normalized away (or represented via overlays) so the append-only ledger never stores zero-amount rows.
+
+125. [x] Document public view-link service role. Validity Score: 70%
+         - Added a note explaining that public link consumption runs under a constrained service role (token-verified) rather than the standard `app_user` RLS context.
+
+126. [x] Fix duplicate section numbering. Validity Score: 60%
+         - Renumbered the “Ready-for-Prod Checklist” section to 14 to keep the document ordered.
+
+127. [x] Clarify budgets-to-categories relationship. Validity Score: 65%
+         - Added a paragraph summarizing how budgets anchor to categories, how override precedence feeds `budget_actuals.workspace_category_id`, and why workspace categories remain the canonical display layer.
 
 124. [x] Clarify zero-amount transaction handling. Validity Score: 65%
           - Noted that provider-supplied zero-cent holds/voids are normalized away (or represented via overlays) so the append-only ledger never stores 0 amounts.

@@ -255,6 +255,8 @@ Category trees are limited to exactly two sources: the system/profile tree in `c
 
 Budgets (Plans, Versions, Envelopes)
 
+Budgets anchor to category metadata: plan/envelope definitions reference `categories.id` (profile/system) for ownership, while the runtime actuals pipeline resolves every transaction through the canonical precedence chain (transaction overlays → view overrides → workspace overrides → profile overrides → system category) and persists the resulting `workspace_category_id` inside `budget_actuals`. That means authoring uses the shared category trees, but what end users see always reflects the effective workspace category after overrides have been applied.
+
 budget_plans
 * id UUID PK, workspace_id FK, owner_profile_id FK, name TEXT, currency VARCHAR(3) CHECK (char_length(currency) = 3), rollup_mode TEXT CHECK (rollup_mode IN ('posted','authorized','both')), view_id FK saved_views(id) NULL, view_filter_snapshot JSONB, view_filter_hash TEXT, is_template BOOL DEFAULT false, created_at, updated_at, deleted_at
 * Constraint trigger (`budget_plans_enforce_currency`, BEFORE INSERT/UPDATE) ensures currency matches workspace.settings->>'default_currency'; mixed-currency plans are not supported yet
@@ -2435,7 +2437,7 @@ E2E tests for connection sharing, view links, overlays, and budget actuals
 
 ---
 
-14. Neon Ops Notes
+15. Neon Ops Notes
 
 - Batch chatty writes (sessions, sync logs) via buffered inserts or COPY to avoid WAL pressure on shared storage
 - Archive bulky raw_payload blobs (sync pages) to colder storage or partitioned tables when not needed for hot queries

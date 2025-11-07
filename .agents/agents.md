@@ -11,7 +11,7 @@ SuperBasic Finance is an API-first personal finance platform built in a monorepo
 - **Thin client**: React SPA talks only to the public API via a generated SDK; no direct DB access or secrets in `apps/web`.
 - **Portable**: Pure client-side SPA architecture that can be wrapped with Capacitor for mobile deployment when needed.
 - **Extensible**: Workspace-aware multi-tenancy, saved views, budgets, exports, and fine-grained API scopes for both UI and API keys.
-- **Operationally simple**: Vercel deploys, serverless-friendly jobs (QStash workers + Vercel Cron), and reproducible migrations.
+- **Operationally simple**: Vercel deploys, serverless-friendly jobs (QStash workers), and reproducible migrations.
 
 ## Mission Snapshot
 
@@ -71,7 +71,7 @@ SuperBasic Finance is an API-first personal finance platform built in a monorepo
 
 ## Architecture Guardrails
 
-- Layered pattern for new features (Phase 4+): thin HTTP controllers → services → repositories; existing Phase ≤3 code can stay put unless refactoring explicitly.
+- Layered pattern: thin HTTP controllers → services → repositories;
 - Route handlers parse/validate, call services, translate domain errors to HTTP responses; they never touch Prisma directly.
 - Services enforce business rules (uniqueness, scope validation, expiration windows) and emit domain events; repositories stay CRUD-only.
 - Keep functions focused (<50 lines, ideally 20–30); prefer early returns and descriptive helpers.
@@ -83,29 +83,22 @@ SuperBasic Finance is an API-first personal finance platform built in a monorepo
 
 - Postgres on Neon; Prisma 6 strict mode, UUID v4 primary keys, `TIMESTAMPTZ` timestamps, amounts stored as `BIGINT` cents.
 - Append-only ledger: base `transactions` never mutate; overlays/audit tables capture adjustments.
-- Auth: Auth.js adapter tables (`users`, `accounts`, `sessions`, `verification_tokens`) with hashed identifiers; business logic keys off `profiles.id`.
+- Auth: Auth.js adapter tables (`users`, `accounts`, `sessions`, `verification_tokens`) with hashed tokens/digests; business logic keys off `profiles.id`.
 - Multi-tenancy anchored on `workspaces`, `workspace_members`, `workspace_connection_links` with JSONB scopes and RLS hooks (`app.user_id`, etc.).
 - Key domains:
   - **Access**: `api_keys` (hashed tokens + scopes), Stripe subscriptions tied to profiles.
   - **Collaboration**: saved views + share/link tables, account groups with memberships.
   - **Budgeting**: plans → versions → envelopes, with materialized actuals.
-  - **Data sync**: `connections`, `accounts`, immutable `transactions`, overlay/audit tables, `sync_sessions` with payload/idempotency tables.
+  - **Data sync**: `connections`, `bank_accounts`, immutable `transactions`, overlay/audit tables, `sync_sessions` with payload/idempotency tables.
 - Hash secrets (tokens, passcodes), rely on partial indexes for active records, prefer TEXT enums guarded by CHECK constraints.
 
 ## Delivery Hygiene
 
 - Centralize docs under `docs/` (architecture, guides, api, operations, archived); link new material from `README.md`.
 - Temporary scripts live in `scripts/temp/` during work, then get deleted or promoted into `tooling/scripts/` with docs.
-- Task wrap-up checklist: clean temp scripts, update docs, remove debug artifacts, verify tests, refresh `.kiro/steering/current-phase.md` + `docs/project_plan.md`.
+- Task wrap-up checklist: clean temp scripts, update docs, remove debug artifacts, verify tests, refresh `.scope/current-phase.md` + `.scope/project_plan.md`.
 - Phase completion adds a dedicated `docs/phase-N-readme.md` with sanity checks, deliverables, metrics, lessons, and next-step prep.
 - Sanity checks use executable commands (curl/pnpm) with expected outputs and failure cases covering auth, throttling, and main flows.
-
-## References
-
-- Specs: `.kiro/specs/` (see architecture refactor folder for current phase).
-- Steering archive: `.kiro/steering/` (source material for this guide).
-- Plaid setup: `docs/plaid-setup.md` and tooling script `tooling/scripts/setup-plaid.ts`.
-- Project overview: `README.md`, `QUICKSTART.md`, plus package-level READMEs where present.
 
 ## Task Tracking Cheat Sheet
 
