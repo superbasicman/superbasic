@@ -1,4 +1,4 @@
-# Code Organization & Architecture
+# Architecture Overview & Code Organization
 
 ## Organization Principles
 
@@ -11,15 +11,15 @@
 
 Follow a strict three-layer architecture for API features:
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │ apps/api/src/routes/v1/                                 │
 │ HTTP LAYER (Controllers)                                │
 │ - Parse/validate HTTP requests                          │
 │ - Call service layer methods                            │
 │ - Format HTTP responses                                 │
-│ - Handle HTTP-specific errors (4xx, 5xx)               │
-│ - Apply middleware (auth, rate limits, validation)     │
+│ - Handle HTTP-specific errors (4xx, 5xx)                │
+│ - Apply middleware (auth, rate limits, validation)      │
 └─────────────────────────────────────────────────────────┘
                         ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -46,9 +46,9 @@ Follow a strict three-layer architecture for API features:
 
 **Each function should have ONE clear responsibility:**
 
-- **Route handlers**: Parse request → Call service → Format response
-- **Services**: Implement ONE business operation (e.g. `createToken`, `syncTransactions`, `calculateBudget`)
-- **Repositories**: Perform ONE database operation (`findById`, `create`, `update`, `delete`)
+- **Route handlers**: Parse request → Call service → Format response  
+- **Services**: Implement ONE business operation (e.g. `createToken`, `syncTransactions`, `calculateBudget`)  
+- **Repositories**: Perform ONE database operation (`findById`, `create`, `update`, `delete`)  
 - **Utilities**: Perform ONE pure function (`hashToken`, `formatCurrency`, `validateEmail`)
 
 **Keep functions focused and short:**
