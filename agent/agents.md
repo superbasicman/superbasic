@@ -120,7 +120,8 @@ Use this as a routing table for deeper context. Open only the docs relevant to t
 ### 2.6 Database schema & RLS
 
 - **If you are changing schema, queries, or RLS**, refer to:
-  - `agent/steering/database-structure-*.md` and `agent/steering/database-structure-reference.md` — canonical schema, relationships, and RLS rules.
+  - `agent/steering/database/database-structure-reference.md` — start here to find the precise `database-structure-*.md` slice you need.
+  - The specific files under `agent/steering/database/` (for example `database-structure-connections-and-ledger.md`, `database-structure-rls-and-access-control.md`, etc.) — canonical schema slices, constraint details, RLS rules, and SQL helpers.
 - Always ensure changes respect:
   - Append-only `transactions`.
   - RLS policies keyed off `app.user_id`, `app.profile_id`, `app.workspace_id`.
