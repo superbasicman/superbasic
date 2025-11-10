@@ -86,7 +86,7 @@ Treat this section as the per-chat system prompt for any work in this repo.
 
 Use this as a routing table for deeper context. Open only the docs relevant to the task at hand.
 
-> Paths are indicative; adjust to your actual repo layout (for example, under `docs/best-practices/`).
+> Paths are indicative; adjust to your actual repo layout (for example, under `agent/steering/`).
 
 ### 2.1 Planning, phases & coordination
 
@@ -142,5 +142,10 @@ Use this as a routing table for deeper context. Open only the docs relevant to t
 - **If you are wrapping up a change, documenting, or need common commands**, refer to:
   - `agent/steering/delivery-hygiene-and-task-tracking.md` — docs locations, task wrap-up checklists, and how to track tasks.
   - `agent/steering/tech-stack-and-commands.md` — quick reference for backend/frontend stack and standard `pnpm` commands.
+
+### 2.10 Code quality & implementation guardrails
+
+- **If you need general coding standards, readability guidelines, or reminders on layering discipline**, refer to:
+  - `agent/steering/code-quality.md` — code style expectations, error-handling rules, and testing hygiene.
 
 When in doubt, start from the smallest relevant doc in this map instead of reading everything. If specs and reality diverge, update the spec as part of the change and call that out in your notes.

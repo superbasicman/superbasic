@@ -341,7 +341,7 @@ After 1 week of successful Auth.js operation:
 
 **Status**: IN PROGRESS (core layers complete, route refactors ongoing)
 
-**Rationale**: Phase 1-3 implemented business logic directly in route handlers (fat controllers). Before adding Phase 4 complexity (Plaid integration), we're refactoring existing code to follow the layered architecture pattern defined in `best-practices.md`. This creates a consistent foundation and prevents mixing patterns.
+**Rationale**: Phase 1-3 implemented business logic directly in route handlers (fat controllers). Before adding Phase 4 complexity (Plaid integration), we're refactoring existing code to follow the layered architecture pattern defined in agent/. This creates a consistent foundation and prevents mixing patterns.
 
 ### Deliverables
 
