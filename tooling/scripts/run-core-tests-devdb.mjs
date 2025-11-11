@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { spawn } from "node:child_process";
 import dotenv from "dotenv";
 
+const isProd = process.argv.includes("--prod");
+const envFile = isProd ? "packages/database/.env.prod" : "packages/database/.env.local";
+
 function loadEnv(relativePath, override = false) {
   const filePath = resolve(process.cwd(), relativePath);
   if (existsSync(filePath)) {
@@ -10,12 +13,19 @@ function loadEnv(relativePath, override = false) {
   }
 }
 
-loadEnv("packages/database/.env.local", true);
+if (!existsSync(resolve(process.cwd(), envFile))) {
+  console.error(`Env file "${envFile}" not found. Create it with the ${isProd ? "production" : "dev"} DATABASE_URL.`);
+  process.exit(1);
+}
+
+loadEnv(envFile, true);
 loadEnv("packages/database/.env.test");
 
 if (!process.env.DATABASE_URL) {
   console.error(
-    "DATABASE_URL is not set. Update packages/database/.env.local before running test:core:devdb."
+    `DATABASE_URL is not set. Update ${envFile} before running ${
+      isProd ? "test:core:prod" : "test:core:devdb"
+    }.`
   );
   process.exit(1);
 }

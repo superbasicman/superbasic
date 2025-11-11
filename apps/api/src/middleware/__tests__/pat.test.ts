@@ -19,7 +19,7 @@ type PatContext = {
   Variables: {
     userId: string;
     userEmail: string;
-    profileId: string | null;
+    profileId: string;
     authType: "pat";
     tokenId: string;
     tokenScopes: string[];
@@ -415,11 +415,15 @@ describe("PAT Authentication Middleware", () => {
       expect(data.tokenScopes).toEqual(["read:transactions", "write:budgets"]);
     });
 
-    it("should handle token without profile (workspaceId only)", async () => {
+    it("should handle workspace-scoped tokens", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
 
-      // Create token with workspaceId instead of profileId
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      // Create token with workspaceId scope
       const token = generateToken();
       const keyHash = hashToken(token);
       const last4 = token.slice(-4);
@@ -427,7 +431,7 @@ describe("PAT Authentication Middleware", () => {
       const apiKey = await prisma.apiKey.create({
         data: {
           userId: user.id,
-          profileId: null,
+          profileId: profile!.id,
           workspaceId: "workspace_123",
           name: "Workspace Token",
           keyHash,
@@ -446,7 +450,7 @@ describe("PAT Authentication Middleware", () => {
 
       const data = await response.json();
       expect(data.userId).toBe(user.id);
-      expect(data.profileId).toBeNull();
+      expect(data.profileId).toBe(profile!.id);
       expect(data.tokenId).toBe(apiKey.id);
     });
   });

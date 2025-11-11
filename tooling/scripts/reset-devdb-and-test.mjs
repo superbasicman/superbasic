@@ -6,6 +6,8 @@ import { stdin as input, stdout as output } from "node:process";
 import dotenv from "dotenv";
 
 const repoRoot = process.cwd();
+const isProd = process.argv.includes("--prod");
+const envFile = isProd ? "packages/database/.env.prod" : "packages/database/.env.local";
 
 function loadEnv(relativePath, override = false) {
   const filePath = resolve(repoRoot, relativePath);
@@ -14,7 +16,12 @@ function loadEnv(relativePath, override = false) {
   }
 }
 
-loadEnv("packages/database/.env.local", true);
+if (!existsSync(resolve(repoRoot, envFile))) {
+  console.error(`Env file "${envFile}" not found. Create it with the production DATABASE_URL.`);
+  process.exit(1);
+}
+
+loadEnv(envFile, true);
 loadEnv("packages/database/.env.test");
 
 const databaseUrl = process.env.DATABASE_URL;

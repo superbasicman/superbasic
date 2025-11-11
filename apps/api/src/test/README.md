@@ -66,6 +66,14 @@ If you need to drop the branch and reapply migrations before testing, run the he
 pnpm run db:reset-and-test
 ```
 
+Need to do the same against production? Create `packages/database/.env.prod` with the prod URL and pass `--prod`:
+
+```bash
+pnpm run db:reset-and-test --prod
+```
+
+Likewise, the core test helper can be pointed at prod with `pnpm run test:core:devdb --prod` (use sparingly).
+
 ### 4. Run Tests
 
 ```bash

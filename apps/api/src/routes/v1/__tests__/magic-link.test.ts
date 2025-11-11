@@ -22,6 +22,22 @@ import {
   postAuthJsForm,
 } from '../../../test/helpers.js';
 
+type TokenHashEnvelope = {
+  hash: string;
+  algo?: string;
+  issuedAt?: string;
+  [key: string]: unknown;
+};
+
+function assertTokenHashEnvelope(value: unknown): asserts value is TokenHashEnvelope {
+  expect(value).toBeTruthy();
+  expect(typeof value).toBe('object');
+  expect(Array.isArray(value)).toBe(false);
+
+  const envelope = value as Record<string, unknown>;
+  expect(typeof envelope.hash).toBe('string');
+}
+
 // Mock Resend to avoid hitting API rate limits in tests
 vi.mock('resend', () => {
   return {
@@ -117,7 +133,10 @@ describe('Magic Link Flows', () => {
       const token = tokens[0];
       expect(token).toBeDefined();
       expect(token!.identifier).toBe(email);
-      expect(token!.token).toBeTruthy();
+      expect(token!.tokenId).toBeTruthy();
+      const tokenHash = token!.tokenHash;
+      assertTokenHashEnvelope(tokenHash);
+      expect(tokenHash.hash).toBeTruthy();
       expect(token!.expires).toBeInstanceOf(Date);
       
       // Token should expire in the future (check it's at least 1 hour from now)
@@ -197,7 +216,8 @@ describe('Magic Link Flows', () => {
       
       const columns = (tableInfo as any[]).map((col) => col.column_name);
       expect(columns).toContain('identifier');
-      expect(columns).toContain('token');
+      expect(columns).toContain('token_id');
+      expect(columns).toContain('token_hash');
       expect(columns).toContain('expires');
     });
   });
@@ -221,7 +241,11 @@ describe('Magic Link Flows', () => {
       
       // Verify tokens are different
       if (tokens.length >= 2) {
-        expect(tokens[0]!.token).not.toBe(tokens[1]!.token);
+        const firstHash = tokens[0]!.tokenHash;
+        const secondHash = tokens[1]!.tokenHash;
+        assertTokenHashEnvelope(firstHash);
+        assertTokenHashEnvelope(secondHash);
+        expect(firstHash.hash).not.toBe(secondHash.hash);
       }
     });
 
@@ -256,11 +280,13 @@ describe('Magic Link Flows', () => {
       });
 
       expect(token).toBeTruthy();
-      expect(token!.token).toBeTruthy();
+      const tokenHash = token!.tokenHash;
+      assertTokenHashEnvelope(tokenHash);
+      expect(tokenHash.hash).toBeTruthy();
       
       // Token should be a hash (not plaintext email link)
       // Auth.js stores hashed tokens for security
-      expect(token!.token.length).toBeGreaterThan(20);
+      expect(tokenHash.hash.length).toBeGreaterThan(20);
     });
   });
 

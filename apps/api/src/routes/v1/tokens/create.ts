@@ -37,11 +37,20 @@ createTokenRoute.post(
     const requestId = c.get("requestId") || "unknown";
     const { name, scopes, expiresInDays } = c.req.valid("json");
 
+    if (!profileId) {
+      return c.json(
+        {
+          error: "Profile context is required to create tokens",
+        },
+        403
+      );
+    }
+
     try {
       // Call service layer - business logic lives there
       const result = await tokenService.createToken({
         userId,
-        ...(profileId ? { profileId } : {}),
+        profileId,
         name,
         scopes,
         expiresInDays,

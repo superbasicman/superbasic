@@ -11,7 +11,18 @@ import {
   authEvents,
 } from "@repo/auth";
 import { prisma } from "@repo/database";
+import type { ApiKey } from "@repo/database";
 import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit/index.js";
+
+type ApiKeyWithRelations = ApiKey & {
+  user: {
+    id: string;
+    email: string | null;
+  };
+  profile: {
+    id: string;
+  } | null;
+};
 
 /**
  * PAT authentication middleware that validates Bearer tokens
@@ -83,8 +94,12 @@ export async function patMiddleware(c: Context, next: Next) {
     // Hash token and lookup in database
     const keyHash = hashToken(token);
 
-    const apiKey = await prisma.apiKey.findUnique({
-      where: { keyHash },
+    const apiKey = (await prisma.apiKey.findFirst({
+      where: {
+        keyHash: {
+          equals: keyHash,
+        },
+      },
       include: {
         user: {
           select: {
@@ -98,7 +113,7 @@ export async function patMiddleware(c: Context, next: Next) {
           },
         },
       },
-    });
+    })) as ApiKeyWithRelations | null;
 
     if (!apiKey) {
       // Track failed auth attempt
