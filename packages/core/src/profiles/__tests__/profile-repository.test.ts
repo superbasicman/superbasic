@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/database";
 import { ProfileRepository } from "../profile-repository.js";
 import type { User, Profile } from "@repo/database";
@@ -18,9 +19,11 @@ describe("ProfileRepository", () => {
     profileRepo = new ProfileRepository(prisma);
 
     // Create test user without profile initially
+    const email = `test-${Date.now()}@example.com`;
     testUser = await prisma.user.create({
       data: {
-        email: `test-${Date.now()}@example.com`,
+        email,
+        emailLower: email.toLowerCase(),
         password: "hashed_password",
       },
     });
@@ -69,7 +72,7 @@ describe("ProfileRepository", () => {
     });
 
     it("should return null for non-existent user", async () => {
-      const profile = await profileRepo.findByUserId("nonexistent-user-id");
+      const profile = await profileRepo.findByUserId(randomUUID());
       expect(profile).toBeNull();
     });
   });

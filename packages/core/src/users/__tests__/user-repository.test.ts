@@ -55,7 +55,7 @@ describe("UserRepository", () => {
       expect(found?.name).toBe("Test User");
     });
 
-    it("should be case-sensitive for email lookup", async () => {
+    it("should be case-insensitive for email lookup", async () => {
       // Create user with lowercase email
       const email = uniqueEmail();
       const created = await userRepo.create({
@@ -65,9 +65,10 @@ describe("UserRepository", () => {
       });
       testUsers.push(created);
 
-      // Try to find with uppercase (should not find)
+      // Try to find with uppercase (should still find)
       const found = await userRepo.findByEmail(email.toUpperCase());
-      expect(found).toBeNull();
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(created.id);
     });
   });
 
@@ -215,10 +216,11 @@ describe("UserRepository", () => {
       ).rejects.toThrow();
 
       // Verify no orphaned profile was created
+      const normalizedEmail = email.toLowerCase();
       const profiles = await prisma.profile.findMany({
         where: {
           user: {
-            email,
+            emailLower: normalizedEmail,
           },
         },
       });
@@ -231,10 +233,13 @@ describe("UserRepository", () => {
       const email = uniqueEmail();
 
       // Ensure no existing records for this email
-      const existingUser = await prisma.user.findUnique({ where: { email } });
+      const normalizedEmail = email.toLowerCase();
+      const existingUser = await prisma.user.findUnique({
+        where: { emailLower: normalizedEmail },
+      });
       expect(existingUser).toBeNull();
       const existingProfileCount = await prisma.profile.count({
-        where: { user: { email } },
+        where: { user: { emailLower: normalizedEmail } },
       });
       expect(existingProfileCount).toBe(0);
 
@@ -255,7 +260,7 @@ describe("UserRepository", () => {
 
       // Verify user exists and has profile
       const createdUser = await prisma.user.findUnique({
-        where: { email },
+        where: { emailLower: email.toLowerCase() },
         include: { profile: true },
       });
       expect(createdUser).not.toBeNull();

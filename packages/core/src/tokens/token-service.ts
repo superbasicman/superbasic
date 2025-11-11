@@ -80,7 +80,7 @@ export class TokenService {
     // Create token record via repository
     const apiKey = await this.tokenRepo.create({
       userId: params.userId,
-      profileId: params.profileId || null,
+      profileId: params.profileId,
       name: params.name,
       keyHash,
       last4,
@@ -94,7 +94,7 @@ export class TokenService {
       userId: params.userId,
       metadata: {
         tokenId: apiKey.id,
-        profileId: params.profileId || null,
+        profileId: params.profileId,
         tokenName: params.name,
         scopes: params.scopes,
         expiresAt: expiresAt.toISOString(),

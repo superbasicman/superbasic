@@ -30,6 +30,7 @@ describe('Test Infrastructure', () => {
       await prisma.user.create({
         data: {
           email: 'test@example.com',
+          emailLower: 'test@example.com',
           password: 'hashed',
         },
       });

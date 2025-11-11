@@ -1,7 +1,7 @@
 1. [x] Capture target v1 schema scope for this reset (tables, key invariants, and referenced steering docs) — AC: short checklist in the task file citing the docs and enumerating every table we plan to implement right now.
 2. [x] Replace the current Prisma schema with the v1 tables (UUID PKs, `email_lower`, hashed token columns, profile/workspace scaffolding) — AC: `packages/database/schema.prisma` matches the documented columns/types/naming and passes `pnpm prisma validate`.
 3. [x] Regenerate baseline SQL migrations that align with the new schema (including constraints, indexes, and helper functions/RLS stubs called out in the docs) — AC: `packages/database/migrations` contains the fresh sequence and `pnpm prisma migrate deploy --schema packages/database/schema.prisma` succeeds against pg-mem.
-4. [ ] Update supporting code/tests (Prisma client bootstrap, auth/package tests, and any docs referencing the old schema) to reflect the reset — AC: vitest suites under `packages/auth` pass locally with the new database package and docs mention the updated baseline.
+4. [x] Update supporting code/tests (Prisma client bootstrap, auth/package tests, and any docs referencing the old schema) to reflect the reset — AC: vitest suites under `packages/auth` pass locally with the new database package and docs mention the updated baseline.
 
 ## Task 1 scope snapshot
 
@@ -85,3 +85,11 @@ Helper SQL (functions, triggers, policies) required in migrations:
 ### Task 3 notes
 - Wiped the previous ad-hoc migrations, generated `20251106120000_initial_baseline/migration.sql` via `pnpm prisma migrate diff --from-empty --to-schema-datamodel schema.prisma --script`, and restored `migration_lock.toml` with `provider = "postgresql"`.
 - Confirmed the SQL applies cleanly by replaying it through pg-mem (`node` script requiring `packages/database/node_modules/pg-mem`), which surfaces the same behavior our Prisma client uses in tests. A real `pnpm prisma migrate deploy` run can be issued once a Postgres URL is available.
+
+### Task 4 notes
+- Updated `@repo/auth` credential flows + repositories to honor `email_lower` (lowercase lookups + inserts) and exposed the new schema via regenerated Prisma client (`pnpm prisma generate`). Added matching changes to test helpers to seed `emailLower`.
+- Removed pg-mem entirely; tests now run against the Neon dev branch using `pnpm run test:core:devdb` or `pnpm run db:reset-and-test`, both documented in `apps/api/src/test/README.md`.
+- Added Prisma adapter overrides for verification tokens (UUID `token_id` + hashed `token_hash`) so Auth.js magic links work with the new schema.
+- Test status:
+  - `pnpm test --filter auth -- --run` ✅
+  - `pnpm run test:core:devdb` ✅ (once pointed at an accessible Neon branch)

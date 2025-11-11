@@ -171,10 +171,11 @@ describe("TokenService", () => {
       );
     });
 
-    it("should handle missing profileId", async () => {
+    it("should require profileId", async () => {
       // Arrange
       const params = {
         userId: "user-123",
+        profileId: "profile-123",
         name: "My Token",
         scopes: ["read:transactions"],
         expiresInDays: 30,
@@ -184,7 +185,7 @@ describe("TokenService", () => {
       mockTokenRepo.create = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: null,
+        profileId: "profile-123",
         name: "My Token",
         keyHash: "hash123",
         last4: "abcd",
@@ -202,7 +203,7 @@ describe("TokenService", () => {
       expect(result.apiKey.name).toBe("My Token");
       expect(mockTokenRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          profileId: null,
+          profileId: "profile-123",
         })
       );
     });

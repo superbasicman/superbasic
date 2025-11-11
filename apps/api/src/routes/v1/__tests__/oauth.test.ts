@@ -183,7 +183,7 @@ describe('OAuth Flows', () => {
 
       // Verify no user exists with this email
       const userBefore = await prisma.user.findUnique({
-        where: { email: 'newuser@example.com' },
+        where: { emailLower: 'newuser@example.com' },
       });
 
       expect(userBefore).toBeNull();

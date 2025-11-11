@@ -7,7 +7,7 @@
 
 export interface CreateTokenParams {
   userId: string;
-  profileId?: string;
+  profileId: string;
   name: string;
   scopes: string[];
   expiresInDays: number;
@@ -20,7 +20,7 @@ export interface CreateTokenParams {
 
 export interface CreateTokenData {
   userId: string;
-  profileId: string | null;
+  profileId: string;
   name: string;
   keyHash: string;
   last4: string;

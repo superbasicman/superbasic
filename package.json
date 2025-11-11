@@ -29,7 +29,9 @@
     "deploy-check": "tsx tooling/scripts/deploy-check.ts",
     "db:generate": "turbo run generate --filter=@repo/database",
     "db:migrate": "turbo run migrate --filter=@repo/database",
-    "db:studio": "turbo run studio --filter=@repo/database"
+    "db:studio": "turbo run studio --filter=@repo/database",
+    "test:core:devdb": "node tooling/scripts/run-core-tests-devdb.mjs",
+    "db:reset-and-test": "node tooling/scripts/reset-devdb-and-test.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",

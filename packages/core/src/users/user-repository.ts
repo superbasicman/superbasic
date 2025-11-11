@@ -26,8 +26,9 @@ export class UserRepository {
    * Find user by email
    */
   async findByEmail(email: string): Promise<User | null> {
+    const normalizedEmail = email.trim().toLowerCase();
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { emailLower: normalizedEmail },
     });
   }
 
@@ -35,21 +36,13 @@ export class UserRepository {
    * Create a new user
    */
   async create(data: CreateUserData): Promise<User> {
+    const normalizedEmail = data.email.trim().toLowerCase();
     return this.prisma.user.create({
       data: {
         email: data.email,
+        emailLower: normalizedEmail,
         password: data.password,
         name: data.name,
-      },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-        emailVerified: true,
-        image: true,
-        password: true,
       },
     });
   }
@@ -62,23 +55,15 @@ export class UserRepository {
     userData: CreateUserData,
     profileData: CreateUserProfileData
   ): Promise<User> {
+    const normalizedEmail = userData.email.trim().toLowerCase();
     return this.prisma.$transaction(async (tx) => {
       // Create user
       const user = await tx.user.create({
         data: {
           email: userData.email,
+          emailLower: normalizedEmail,
           password: userData.password,
           name: userData.name,
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          createdAt: true,
-          updatedAt: true,
-          emailVerified: true,
-          image: true,
-          password: true,
         },
       });
 

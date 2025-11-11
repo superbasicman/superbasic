@@ -21,9 +21,7 @@
     "build": "pnpm run generate && tsup --config tsup.config.ts"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^6.18.0",
-    "@prisma/client": "^6.0.0",
-    "pg-mem": "^3.0.5"
+    "@prisma/client": "^6.0.0"
   },
   "devDependencies": {
     "dotenv-cli": "^10.0.0",

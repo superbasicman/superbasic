@@ -9,12 +9,12 @@ import type { PrismaClient, ApiKey } from "@repo/database";
 
 export interface CreateTokenData {
   userId: string;
-  profileId: string | null;
+  profileId: string;
   name: string;
   keyHash: string;
   last4: string;
   scopes: string[];
-  expiresAt: Date;
+  expiresAt?: Date | null;
 }
 
 export interface UpdateTokenData {
@@ -51,7 +51,7 @@ export class TokenRepository {
         keyHash: data.keyHash,
         last4: data.last4,
         scopes: data.scopes,
-        expiresAt: data.expiresAt,
+        expiresAt: data.expiresAt ?? null,
       },
     });
   }

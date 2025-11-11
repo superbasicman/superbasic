@@ -148,7 +148,7 @@ export const RateLimitPresets = {
   /**
    * Strict limit for authentication endpoints (5 requests per minute)
    */
-  AUTH: { limit: 5, window: 60 },
+  AUTH: { limit: 10, window: 60 },
   /**
    * Standard API limit (100 requests per minute)
    */

@@ -16,7 +16,7 @@ model User {
   emailVerified DateTime? @map("email_verified")
   name          String?
   image         String?
-  passwordHash  String?   @map("password_hash")
+  password      String?   @map("password_hash")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 

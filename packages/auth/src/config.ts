@@ -13,6 +13,8 @@ import { verifyPassword } from "./password.js";
 import { sendMagicLinkEmail, getRecipientLogId } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
+import { hashToken } from "./pat.js";
+import { randomUUID } from "node:crypto";
 
 const MIN_AUTH_SECRET_LENGTH = 32;
 const LOW_ENTROPY_THRESHOLD = 16;
@@ -55,10 +57,86 @@ function ensureAuthSecret(rawSecret: string | undefined): string {
 
 const AUTH_SECRET = ensureAuthSecret(process.env.AUTH_SECRET);
 
+function createPrismaAdapterWithLowercaseEmail() {
+  const adapter = PrismaAdapter(prisma);
+
+  adapter.getUserByEmail = async (email) => {
+    if (!email) return null;
+    const normalized = email.trim().toLowerCase();
+    return prisma.user.findUnique({
+      where: { emailLower: normalized },
+    });
+  };
+
+  adapter.createUser = async (data) => {
+    const normalized = data.email?.trim().toLowerCase();
+    return prisma.user.create({
+      data: {
+        ...data,
+        emailLower: normalized ?? data.email ?? "",
+      },
+    });
+  };
+
+  adapter.createVerificationToken = async (data) => {
+    const tokenId = randomUUID();
+    const tokenHash = {
+      algo: "sha256",
+      hash: hashToken(data.token),
+      issuedAt: new Date().toISOString(),
+    };
+
+    const record = await prisma.verificationToken.create({
+      data: {
+        identifier: data.identifier,
+        tokenId,
+        tokenHash,
+        expires: data.expires,
+      },
+    });
+
+    return {
+      identifier: record.identifier,
+      token: data.token,
+      expires: record.expires,
+    };
+  };
+
+  adapter.useVerificationToken = async (params) => {
+    const hashed = hashToken(params.token);
+
+    const record = await prisma.verificationToken.findFirst({
+      where: {
+        identifier: params.identifier,
+        tokenHash: {
+          path: ["hash"],
+          equals: hashed,
+        },
+      },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    await prisma.verificationToken.delete({
+      where: { id: record.id },
+    });
+
+    return {
+      identifier: record.identifier,
+      token: params.token,
+      expires: record.expires,
+    };
+  };
+
+  return adapter;
+}
+
 export const authConfig: AuthConfig = {
   basePath: "/v1/auth",
   trustHost: true, // Trust the host from AUTH_URL or request headers
-  adapter: PrismaAdapter(prisma), // For future OAuth; unused with JWT strategy
+  adapter: createPrismaAdapterWithLowercaseEmail(), // For OAuth & magic link flows
   cookies: {
     sessionToken: {
       name: "authjs.session-token",
@@ -94,7 +172,7 @@ export const authConfig: AuthConfig = {
         const email = String(credentials.email).trim().toLowerCase();
 
         const user = await prisma.user.findUnique({
-          where: { email },
+          where: { emailLower: email },
         });
 
         if (!user || !user.password) {
@@ -172,77 +250,61 @@ export const authConfig: AuthConfig = {
   secret: AUTH_SECRET,
   callbacks: {
     async signIn({ user, account, profile: oauthProfile }) {
-      // For OAuth and magic link providers, ensure user and profile exist
-      if (account?.provider && account.provider !== 'credentials') {
-        // Check if user exists
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email! },
+      if (!account || account.provider === "credentials") {
+        return true;
+      }
+
+      const normalizedEmail = user.email?.trim().toLowerCase();
+      if (!normalizedEmail) {
+        return false;
+      }
+
+      const existingUser = await prisma.user.findUnique({
+        where: { emailLower: normalizedEmail },
+      });
+
+      let userId: string;
+
+      if (!existingUser) {
+        const newUser = await prisma.user.create({
+          data: {
+            email: user.email!,
+            emailLower: normalizedEmail,
+            name: user.name || oauthProfile?.name || null,
+            image: user.image || oauthProfile?.picture || null,
+            emailVerified: account.provider === "email" ? null : new Date(),
+          },
+        });
+        userId = newUser.id;
+      } else {
+        userId = existingUser.id;
+      }
+
+      await ensureProfileExists(userId);
+
+      if (account.provider !== "email") {
+        const existingAccount = await prisma.account.findUnique({
+          where: {
+            provider_providerAccountId: {
+              provider: account.provider,
+              providerAccountId: account.providerAccountId,
+            },
+          },
         });
 
-        let userId: string;
-
-        if (!existingUser) {
-          // Create user for OAuth/magic link
-          const newUser = await prisma.user.create({
-            data: {
-              email: user.email!,
-              name: user.name || oauthProfile?.name || null,
-              image: user.image || oauthProfile?.picture || null,
-              emailVerified: new Date(), // OAuth users are email-verified
-            },
-          });
-          userId = newUser.id;
-          
-          // Create account link
+        if (!existingAccount) {
           await prisma.account.create({
             data: {
-              userId: newUser.id,
+              userId,
               type: account.type,
               provider: account.provider,
               providerAccountId: account.providerAccountId,
-              access_token: account.access_token ?? null,
-              expires_at: account.expires_at ?? null,
-              token_type: account.token_type ?? null,
-              scope: account.scope ?? null,
-              id_token: account.id_token ?? null,
             },
           });
-        } else {
-          userId = existingUser.id;
-          
-          // Check if account link exists
-          const existingAccount = await prisma.account.findUnique({
-            where: {
-              provider_providerAccountId: {
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-              },
-            },
-          });
-
-          if (!existingAccount) {
-            // Link new OAuth account to existing user
-            await prisma.account.create({
-              data: {
-                userId: existingUser.id,
-                type: account.type,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-                access_token: account.access_token ?? null,
-                expires_at: account.expires_at ?? null,
-                token_type: account.token_type ?? null,
-                scope: account.scope ?? null,
-                id_token: account.id_token ?? null,
-              },
-            });
-          }
         }
-
-        // Ensure profile exists
-        await ensureProfileExists(userId);
       }
 
-      return true; // Allow sign-in
+      return true;
     },
     async jwt({ token, user }) {
       if (user) {

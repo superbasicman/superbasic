@@ -50,6 +50,22 @@ Or use the database package:
 pnpm --filter=@repo/database migrate
 ```
 
+### Using the shared Neon dev branch
+
+If you are working on the dev branch of the monorepo, the canonical connection string already lives in `packages/database/.env.local`. You can export it before running tests so every package (including `@repo/core`) talks to the same Neon branch:
+
+```bash
+set -a && source packages/database/.env.local && pnpm test --filter core -- --run
+```
+
+This is the recommended workflow now that pg-mem has been removed—tests use a real Postgres database, so make sure the referenced branch is disposable and resettable before running destructive suites.
+
+If you need to drop the branch and reapply migrations before testing, run the helper script (it will prompt for confirmation, wipe `public`, deploy the baseline migration, then run the core suite):
+
+```bash
+pnpm run db:reset-and-test
+```
+
 ### 4. Run Tests
 
 ```bash

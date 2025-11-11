@@ -20,9 +20,11 @@ describe("TokenRepository", () => {
 
     // Create test user with profile
     try {
+      const email = `test-${randomUUID()}@example.com`;
       const created = await prisma.user.create({
         data: {
-          email: `test-${randomUUID()}@example.com`,
+          email,
+          emailLower: email.toLowerCase(),
           password: "hashed_password",
           profile: {
             create: {
@@ -165,7 +167,7 @@ describe("TokenRepository", () => {
 
   describe("findById", () => {
     it("should return null if token not found", async () => {
-      const token = await tokenRepo.findById("nonexistent-id");
+      const token = await tokenRepo.findById(randomUUID());
       expect(token).toBeNull();
     });
 
