@@ -133,9 +133,11 @@ describe("POST /v1/tokens - Token Creation", () => {
       });
 
       expect(storedToken).toBeTruthy();
-      expect(storedToken!.keyHash).not.toBe(plaintextToken);
-      expect(storedToken!.keyHash).toBe(hashToken(plaintextToken));
-      expect(storedToken!.keyHash).toHaveLength(64); // SHA-256 hex = 64 chars
+      const storedEnvelope = storedToken!.keyHash as { hash: string; keyId: string };
+      const expectedEnvelope = hashToken(plaintextToken);
+      expect(storedEnvelope.hash).not.toBe(plaintextToken);
+      expect(storedEnvelope.hash).toBe(expectedEnvelope.hash);
+      expect(storedEnvelope.keyId).toBe(expectedEnvelope.keyId);
     });
 
     it("should store last 4 characters for display", async () => {

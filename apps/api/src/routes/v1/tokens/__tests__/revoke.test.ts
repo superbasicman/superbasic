@@ -193,7 +193,9 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(revokedToken).toBeTruthy();
       expect(revokedToken!.id).toBe(apiKey.id);
       expect(revokedToken!.name).toBe(apiKey.name);
-      expect(revokedToken!.keyHash).toBe(apiKey.keyHash);
+      expect((revokedToken!.keyHash as { hash: string }).hash).toBe(
+        (apiKey.keyHash as { hash: string }).hash
+      );
     });
   });
 

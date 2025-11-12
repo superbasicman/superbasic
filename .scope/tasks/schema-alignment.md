@@ -1,10 +1,10 @@
 ## Align DB schema & secret handling with steering docs
 
-1. [ ] Canonical token envelopes in code  
+1. [x] Canonical token envelopes in code  
    Implement helpers that produce the documented JSONB envelope (`algo`, `key_id`, `hash`, `issued_at`, optional `salt`) and update token/session workflows (`@repo/auth`, `@repo/core`, PAT middleware/tests, view links) so we store/compare envelopes instead of raw SHA-256 strings.  
    _AC: API + core tests assert on envelope structure, and no code writes bare hex hashes._
 
-2. [ ] Schema constraints & view link columns  
+2. [x] Schema constraints & view link columns  
    Add the missing `UNIQUE` indexes for every `*_hash` column, add `token_id` to `view_links`, enforce uniqueness on both token/passcode hashes, and introduce the required `CHECK (char_length(currency)=3)` constraints across money tables. Regenerate the baseline migration to capture the changes.  
    _AC: `pnpm prisma validate` passes, migration diff shows the new columns + constraints, and Prisma client exposes them._
 

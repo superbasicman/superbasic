@@ -149,7 +149,9 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
         where: { id: apiKey.id },
       });
 
-      expect(updatedToken!.keyHash).toBe(apiKey.keyHash);
+      const updatedHash = updatedToken!.keyHash as { hash: string };
+      const originalHash = apiKey.keyHash as { hash: string };
+      expect(updatedHash.hash).toBe(originalHash.hash);
       expect(updatedToken!.last4).toBe(apiKey.last4);
       expect(updatedToken!.userId).toBe(apiKey.userId);
       expect(updatedToken!.profileId).toBe(apiKey.profileId);
@@ -425,12 +427,14 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
         where: { id: apiKey.id },
       });
 
-      expect(updatedToken!.keyHash).toBe(apiKey.keyHash);
+      expect((updatedToken!.keyHash as { hash: string }).hash).toBe(
+        (apiKey.keyHash as { hash: string }).hash
+      );
       expect(updatedToken!.name).toBe("Updated Name");
 
       // Verify the plaintext token still hashes to the same value
       const tokenHash = hashToken(token);
-      expect(tokenHash).toBe(updatedToken!.keyHash);
+      expect((updatedToken!.keyHash as { hash: string }).hash).toBe(tokenHash.hash);
     });
 
     it("should preserve token scopes after name change", async () => {

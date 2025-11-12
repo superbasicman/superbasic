@@ -119,6 +119,12 @@ async function main() {
   config.AUTH_SECRET = authSecret;
   success('Auth secret generated!');
 
+  info('Generating token hashing key material...');
+  const tokenHashKey = generateSecret();
+  config.TOKEN_HASH_KEYS = JSON.stringify({ v1: tokenHashKey });
+  config.TOKEN_HASH_ACTIVE_KEY_ID = 'v1';
+  success('Token hashing keys configured!');
+
   // ============================================================
   // STEP 3: Server Configuration
   // ============================================================
@@ -262,6 +268,8 @@ AUTH_SECRET=${config.AUTH_SECRET}
 AUTH_URL=${config.AUTH_URL}
 AUTH_TRUST_HOST=${config.AUTH_TRUST_HOST}
 WEB_APP_URL=${config.WEB_APP_URL}
+TOKEN_HASH_KEYS='${config.TOKEN_HASH_KEYS}'
+TOKEN_HASH_ACTIVE_KEY_ID=${config.TOKEN_HASH_ACTIVE_KEY_ID}
 
 # Rate Limiting - Upstash Redis
 UPSTASH_REDIS_REST_URL=${config.UPSTASH_REDIS_REST_URL}

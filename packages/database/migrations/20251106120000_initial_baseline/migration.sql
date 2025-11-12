@@ -230,6 +230,7 @@ CREATE TABLE "view_shares" (
 CREATE TABLE "view_links" (
     "id" UUID NOT NULL,
     "view_id" UUID NOT NULL,
+    "token_id" UUID NOT NULL,
     "token_hash" JSONB NOT NULL,
     "passcode_hash" JSONB,
     "expires_at" TIMESTAMP(3) NOT NULL,
@@ -637,7 +638,13 @@ CREATE UNIQUE INDEX "accounts_provider_provider_account_id_key" ON "accounts"("p
 CREATE INDEX "sessions_token_id_idx" ON "sessions"("token_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "sessions_session_token_hash_hash_key" ON "sessions"((session_token_hash ->> 'hash'));
+
+-- CreateIndex
 CREATE INDEX "verification_tokens_identifier_idx" ON "verification_tokens"("identifier");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "verification_tokens_token_hash_hash_key" ON "verification_tokens"((token_hash ->> 'hash'));
 
 -- CreateIndex
 CREATE UNIQUE INDEX "profiles_user_id_key" ON "profiles"("user_id");
@@ -658,6 +665,9 @@ CREATE INDEX "api_keys_workspace_id_idx" ON "api_keys"("workspace_id");
 CREATE INDEX "api_keys_revoked_at_idx" ON "api_keys"("revoked_at");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "api_keys_key_hash_hash_key" ON "api_keys"((key_hash ->> 'hash'));
+
+-- CreateIndex
 CREATE INDEX "workspace_members_workspace_id_idx" ON "workspace_members"("workspace_id");
 
 -- CreateIndex
@@ -674,6 +684,15 @@ CREATE INDEX "view_links_view_id_idx" ON "view_links"("view_id");
 
 -- CreateIndex
 CREATE INDEX "view_links_expires_at_idx" ON "view_links"("expires_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "view_links_token_id_key" ON "view_links"("token_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "view_links_token_hash_hash_key" ON "view_links"((token_hash ->> 'hash'));
+
+-- CreateIndex
+CREATE UNIQUE INDEX "view_links_passcode_hash_hash_key" ON "view_links"((passcode_hash ->> 'hash')) WHERE passcode_hash IS NOT NULL;
 
 -- CreateIndex
 CREATE INDEX "account_group_memberships_group_id_idx" ON "account_group_memberships"("group_id");
@@ -776,6 +795,21 @@ CREATE INDEX "profile_transaction_access_cache_transaction_id_idx" ON "profile_t
 
 -- CreateIndex
 CREATE INDEX "profile_transaction_access_cache_profile_id_idx" ON "profile_transaction_access_cache"("profile_id");
+
+-- AddConstraints
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_currency_ck" CHECK (char_length(currency) = 3);
+
+-- AddConstraints
+ALTER TABLE "bank_accounts" ADD CONSTRAINT "bank_accounts_currency_ck" CHECK (char_length(currency) = 3);
+
+-- AddConstraints
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_currency_ck" CHECK (char_length(currency) = 3);
+
+-- AddConstraints
+ALTER TABLE "budget_plans" ADD CONSTRAINT "budget_plans_currency_ck" CHECK (char_length(currency) = 3);
+
+-- AddConstraints
+ALTER TABLE "budget_actuals" ADD CONSTRAINT "budget_actuals_currency_ck" CHECK (char_length(currency) = 3);
 
 -- AddForeignKey
 ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1037,4 +1071,3 @@ ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transacti
 
 -- AddForeignKey
 ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transaction_access_cache_bank_account_id_fkey" FOREIGN KEY ("bank_account_id") REFERENCES "bank_accounts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-

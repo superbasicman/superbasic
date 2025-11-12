@@ -6,12 +6,13 @@
  */
 
 import type { PrismaClient, ApiKey } from "@repo/database";
+import type { TokenHashEnvelope } from "@repo/auth";
 
 export interface CreateTokenData {
   userId: string;
   profileId: string;
   name: string;
-  keyHash: string;
+  keyHash: TokenHashEnvelope;
   last4: string;
   scopes: string[];
   expiresAt?: Date | null;

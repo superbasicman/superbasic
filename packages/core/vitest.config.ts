@@ -32,6 +32,8 @@ loadEnvFile('../database/.env.local');
 
 // Provide a deterministic, high-entropy secret for tests when none set
 process.env.AUTH_SECRET ??= 'test_auth_secret_for_vitest_1234567890';
+process.env.TOKEN_HASH_KEYS ??= '{"v1":"test_token_hash_secret_for_vitest"}';
+process.env.TOKEN_HASH_ACTIVE_KEY_ID ??= 'v1';
 
 export default defineConfig({
   test: {

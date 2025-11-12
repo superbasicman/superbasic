@@ -5,7 +5,12 @@
  * PATs are hashed using SHA-256 before storage; plaintext is shown only once on creation.
  */
 
-import crypto from 'node:crypto';
+import crypto from "node:crypto";
+import {
+  createTokenHashEnvelope,
+  verifyTokenSecret,
+  type TokenHashEnvelope,
+} from "./token-hash.js";
 
 /**
  * PAT prefix for easy identification and secret scanning
@@ -46,8 +51,8 @@ export function generateToken(): string {
  * @param token - The plaintext token
  * @returns SHA-256 hash as hex string
  */
-export function hashToken(token: string): string {
-  return crypto.createHash('sha256').update(token).digest('hex');
+export function hashToken(token: string): TokenHashEnvelope {
+  return createTokenHashEnvelope(token);
 }
 
 /**
@@ -58,14 +63,8 @@ export function hashToken(token: string): string {
  * @param hash - The stored SHA-256 hash from the database
  * @returns True if the token matches the hash
  */
-export function verifyToken(token: string, hash: string): boolean {
-  const tokenHash = hashToken(token);
-  try {
-    return crypto.timingSafeEqual(Buffer.from(tokenHash), Buffer.from(hash));
-  } catch (error) {
-    // timingSafeEqual throws if buffers have different lengths
-    return false;
-  }
+export function verifyToken(token: string, hash: TokenHashEnvelope): boolean {
+  return verifyTokenSecret(token, hash);
 }
 
 /**

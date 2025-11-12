@@ -80,11 +80,7 @@ function createPrismaAdapterWithLowercaseEmail() {
 
   adapter.createVerificationToken = async (data) => {
     const tokenId = randomUUID();
-    const tokenHash = {
-      algo: "sha256",
-      hash: hashToken(data.token),
-      issuedAt: new Date().toISOString(),
-    };
+    const tokenHash = hashToken(data.token);
 
     const record = await prisma.verificationToken.create({
       data: {
@@ -110,7 +106,7 @@ function createPrismaAdapterWithLowercaseEmail() {
         identifier: params.identifier,
         tokenHash: {
           path: ["hash"],
-          equals: hashed,
+          equals: hashed.hash,
         },
       },
     });

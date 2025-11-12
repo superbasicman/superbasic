@@ -289,6 +289,8 @@ AUTH_SECRET=your-super-secret-auth-key-min-32-chars-change-in-production
 AUTH_URL=https://your-api-domain.vercel.app
 AUTH_TRUST_HOST=true
 WEB_APP_URL=https://your-web-domain.vercel.app
+TOKEN_HASH_KEYS='{"v1":"your-token-hmac-secret"}'
+TOKEN_HASH_ACTIVE_KEY_ID=v1
 
 # Required - Server
 NODE_ENV=production
@@ -312,6 +314,7 @@ GOOGLE_CLIENT_SECRET=your_google_client_secret
 - `AUTH_URL` should be your API domain (e.g., `https://api-yourapp.vercel.app`)
 - `WEB_APP_URL` should be your web app domain (you'll get this after deploying the web app)
 - Generate `AUTH_SECRET` with: `openssl rand -base64 32`
+- Generate each entry in `TOKEN_HASH_KEYS` with: `openssl rand -base64 32` and update `TOKEN_HASH_ACTIVE_KEY_ID` when rotating keys
 - For `DATABASE_URL`, add it **twice** - once for Production, once for Preview
 
 ### Step 4: Deploy API
@@ -660,6 +663,8 @@ Must match your production API domain exactly.
 **Shared Variables** (add once, check both Production and Preview):
 
 - [ ] `AUTH_SECRET` - Random 32+ character string
+- [ ] `TOKEN_HASH_KEYS` - JSON string mapping key IDs to HMAC secrets (e.g., `{"v1":"..."}`
+- [ ] `TOKEN_HASH_ACTIVE_KEY_ID` - Current key ID (e.g., `v1`)
 - [ ] `AUTH_URL` - Your API domain (https://...)
 - [ ] `AUTH_TRUST_HOST` - Set to `true`
 - [ ] `WEB_APP_URL` - Your web app domain (https://...)
@@ -683,9 +688,10 @@ Must match your production API domain exactly.
 ### Security
 
 1. **Rotate AUTH_SECRET** - Use a cryptographically secure random string
-2. **Enable HTTPS only** - Vercel does this by default
-3. **Review CORS settings** - Ensure only your web app can access API
-4. **Monitor rate limits** - Check Upstash Redis usage
+2. **Rotate TOKEN_HASH_KEYS** - Generate a new HMAC secret, add it to `TOKEN_HASH_KEYS`, update `TOKEN_HASH_ACTIVE_KEY_ID`, redeploy, then remove retired keys after clients switch
+3. **Enable HTTPS only** - Vercel does this by default
+4. **Review CORS settings** - Ensure only your web app can access API
+5. **Monitor rate limits** - Check Upstash Redis usage
 
 ### Monitoring
 

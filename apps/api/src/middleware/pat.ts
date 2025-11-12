@@ -8,7 +8,9 @@ import {
   extractTokenFromHeader,
   isValidTokenFormat,
   hashToken,
+  verifyToken,
   authEvents,
+  type TokenHashEnvelope,
 } from "@repo/auth";
 import { prisma } from "@repo/database";
 import type { ApiKey } from "@repo/database";
@@ -92,12 +94,13 @@ export async function patMiddleware(c: Context, next: Next) {
     }
 
     // Hash token and lookup in database
-    const keyHash = hashToken(token);
+    const hashedToken = hashToken(token);
 
     const apiKey = (await prisma.apiKey.findFirst({
       where: {
         keyHash: {
-          equals: keyHash,
+          path: ["hash"],
+          equals: hashedToken.hash,
         },
       },
       include: {
@@ -115,7 +118,7 @@ export async function patMiddleware(c: Context, next: Next) {
       },
     })) as ApiKeyWithRelations | null;
 
-    if (!apiKey) {
+    if (!apiKey || !verifyToken(token, apiKey.keyHash as TokenHashEnvelope)) {
       // Track failed auth attempt
       await trackFailedAuth(ip);
 

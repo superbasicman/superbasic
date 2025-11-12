@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@repo/database";
 import { TokenRepository } from "../token-repository.js";
 import type { User, Profile } from "@repo/database";
+import { hashToken } from "@repo/auth";
 
 describe("TokenRepository", () => {
   let tokenRepo: TokenRepository;
@@ -88,7 +89,7 @@ describe("TokenRepository", () => {
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Existing Token",
-        keyHash: "hash123",
+        keyHash: hashToken("existing-token"),
         last4: "abcd",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
@@ -103,11 +104,12 @@ describe("TokenRepository", () => {
 
     it("should return false if token is revoked", async () => {
       // Create and revoke token
+      const revokedKey = hashToken("revoked-token");
       const token = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Revoked Token",
-        keyHash: "hash456",
+        keyHash: revokedKey,
         last4: "xyz",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -126,11 +128,12 @@ describe("TokenRepository", () => {
   describe("create", () => {
     it("should create token successfully", async () => {
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      const tokenHash = hashToken("create-token");
       const token = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Test Token",
-        keyHash: "hash789",
+        keyHash: tokenHash,
         last4: "test",
         scopes: ["read:profile", "write:profile"],
         expiresAt,
@@ -140,7 +143,7 @@ describe("TokenRepository", () => {
       expect(token.userId).toBe(testUser.id);
       expect(token.profileId).toBe(testProfile.id);
       expect(token.name).toBe("Test Token");
-      expect(token.keyHash).toBe("hash789");
+      expect((token.keyHash as any).hash).toBe(tokenHash.hash);
       expect(token.last4).toBe("test");
       expect(token.scopes).toEqual(["read:profile", "write:profile"]);
       expect(token.expiresAt?.getTime()).toBe(expiresAt.getTime());
@@ -151,11 +154,12 @@ describe("TokenRepository", () => {
     });
 
     it("should create token with profileId", async () => {
+      const hash = hashToken("profile-token");
       const token = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Profile Token",
-        keyHash: "hash_profile",
+        keyHash: hash,
         last4: "prof",
         scopes: ["read:transactions"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -172,11 +176,12 @@ describe("TokenRepository", () => {
     });
 
     it("should return token if found", async () => {
+      const findHash = hashToken("hash_find");
       const created = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Find Me",
-        keyHash: "hash_find",
+        keyHash: findHash,
         last4: "find",
         scopes: ["read:budgets"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -189,11 +194,12 @@ describe("TokenRepository", () => {
     });
 
     it("should return revoked token", async () => {
+      const revokedFindHash = hashToken("hash_revoked_find");
       const created = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Revoked Find",
-        keyHash: "hash_revoked_find",
+        keyHash: revokedFindHash,
         last4: "revf",
         scopes: ["read:accounts"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -219,7 +225,7 @@ describe("TokenRepository", () => {
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Token 1",
-        keyHash: "hash1",
+        keyHash: hashToken("hash1"),
         last4: "tok1",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -229,7 +235,7 @@ describe("TokenRepository", () => {
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Token 2",
-        keyHash: "hash2",
+        keyHash: hashToken("hash2"),
         last4: "tok2",
         scopes: ["write:budgets"],
         expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
@@ -243,11 +249,12 @@ describe("TokenRepository", () => {
 
     it("should exclude revoked tokens", async () => {
       // Create active token
+      const activeHash = hashToken("hash_active");
       await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Active Token",
-        keyHash: "hash_active",
+        keyHash: activeHash,
         last4: "actv",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -258,7 +265,7 @@ describe("TokenRepository", () => {
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Revoked Token",
-        keyHash: "hash_revoked",
+        keyHash: hashToken("hash_revoked"),
         last4: "revk",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -276,7 +283,7 @@ describe("TokenRepository", () => {
         userId: testUser.id,
         profileId: testProfile.id,
         name: "First Token",
-        keyHash: "hash_first",
+        keyHash: hashToken("hash_first"),
         last4: "fst",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -289,7 +296,7 @@ describe("TokenRepository", () => {
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Second Token",
-        keyHash: "hash_second",
+        keyHash: hashToken("hash_second"),
         last4: "snd",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -304,11 +311,12 @@ describe("TokenRepository", () => {
 
   describe("update", () => {
     it("should update token name", async () => {
+      const updateHash = hashToken("hash_update");
       const token = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Old Name",
-        keyHash: "hash_update",
+        keyHash: updateHash,
         last4: "updt",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -317,18 +325,19 @@ describe("TokenRepository", () => {
       const updated = await tokenRepo.update(token.id, { name: "New Name" });
       expect(updated.name).toBe("New Name");
       expect(updated.id).toBe(token.id);
-      expect(updated.keyHash).toBe("hash_update"); // Unchanged
+      expect((updated.keyHash as any).hash).toBe(updateHash.hash); // Unchanged
       expect(updated.scopes).toEqual(["read:profile"]); // Unchanged
     });
   });
 
   describe("revoke", () => {
     it("should set revokedAt timestamp", async () => {
+      const revokeHash = hashToken("hash_to_revoke");
       const token = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "To Revoke",
-        keyHash: "hash_to_revoke",
+        keyHash: revokeHash,
         last4: "trvk",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -346,11 +355,12 @@ describe("TokenRepository", () => {
     });
 
     it("should be idempotent (can revoke already revoked token)", async () => {
+      const doubleRevokeHash = hashToken("hash_double_revoke");
       const token = await tokenRepo.create({
         userId: testUser.id,
         profileId: testProfile.id,
         name: "Double Revoke",
-        keyHash: "hash_double_revoke",
+        keyHash: doubleRevokeHash,
         last4: "drvk",
         scopes: ["read:profile"],
         expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

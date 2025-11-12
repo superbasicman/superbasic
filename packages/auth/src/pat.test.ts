@@ -53,13 +53,16 @@ describe('generateToken', () => {
 });
 
 describe('hashToken', () => {
-  it('should produce a SHA-256 hash', () => {
+  it('should produce a token hash envelope with metadata', () => {
     const token = 'sbf_test123456789012345678901234567890123';
     const hash = hashToken(token);
-    
-    // SHA-256 produces 64 hex characters
-    expect(hash).toHaveLength(64);
-    expect(hash).toMatch(/^[0-9a-f]+$/);
+
+    expect(hash).toMatchObject({
+      algo: 'hmac-sha256',
+      keyId: expect.any(String),
+      hash: expect.any(String),
+      issuedAt: expect.any(String),
+    });
   });
 
   it('should produce consistent hashes for the same input', () => {
@@ -67,7 +70,7 @@ describe('hashToken', () => {
     const hash1 = hashToken(token);
     const hash2 = hashToken(token);
     
-    expect(hash1).toBe(hash2);
+    expect(hash1.hash).toBe(hash2.hash);
   });
 
   it('should produce different hashes for different inputs', () => {
@@ -76,7 +79,7 @@ describe('hashToken', () => {
     const hash1 = hashToken(token1);
     const hash2 = hashToken(token2);
     
-    expect(hash1).not.toBe(hash2);
+    expect(hash1.hash).not.toBe(hash2.hash);
   });
 
   it('should be deterministic', () => {
@@ -85,7 +88,9 @@ describe('hashToken', () => {
     
     // Hash the same token multiple times
     for (let i = 0; i < 10; i++) {
-      expect(hashToken(token)).toBe(expectedHash);
+      const nextHash = hashToken(token);
+      expect(nextHash.hash).toBe(expectedHash.hash);
+      expect(nextHash.keyId).toBe(expectedHash.keyId);
     }
   });
 });
@@ -108,7 +113,7 @@ describe('verifyToken', () => {
 
   it('should reject a token with wrong hash', () => {
     const token = generateToken();
-    const wrongHash = 'a'.repeat(64);
+    const wrongHash = { ...hashToken(token), hash: 'invalid' };
     
     expect(verifyToken(token, wrongHash)).toBe(false);
   });
@@ -124,7 +129,7 @@ describe('verifyToken', () => {
 
   it('should handle invalid hash format gracefully', () => {
     const token = generateToken();
-    const invalidHash = 'not-a-valid-hash';
+    const invalidHash = { algo: 'hmac-sha256', keyId: 'v1', hash: 'invalid', issuedAt: new Date().toISOString() } as any;
     
     expect(verifyToken(token, invalidHash)).toBe(false);
   });
@@ -132,7 +137,7 @@ describe('verifyToken', () => {
   it('should handle empty hash gracefully', () => {
     const token = generateToken();
     
-    expect(verifyToken(token, '')).toBe(false);
+    expect(verifyToken(token, undefined as any)).toBe(false);
   });
 });
 

@@ -320,6 +320,7 @@ model ViewShare {
 model ViewLink {
   id        String   @id @default(uuid()) @db.Uuid
   viewId    String   @map("view_id") @db.Uuid
+  tokenId   String   @map("token_id") @db.Uuid
   tokenHash Json     @map("token_hash")
   passcodeHash Json? @map("passcode_hash")
   expiresAt DateTime @map("expires_at")
@@ -333,6 +334,7 @@ model ViewLink {
   @@map("view_links")
   @@index([viewId])
   @@index([expiresAt])
+  @@unique([tokenId])
 }
 
 model AccountGroup {

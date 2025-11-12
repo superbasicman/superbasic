@@ -43,6 +43,7 @@ export {
   isValidTokenFormat,
   extractTokenFromHeader,
 } from "./pat.js";
+export type { TokenHashEnvelope } from "./token-hash.js";
 
 // RBAC and scope utilities
 export {
