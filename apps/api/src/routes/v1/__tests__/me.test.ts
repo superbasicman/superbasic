@@ -11,15 +11,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.unmock('@repo/database');
 
 import app from '../../../app.js';
-import { resetDatabase } from '../../../test/setup.js';
+import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import {
   makeRequest,
   createTestUser,
   extractCookie,
   signInWithCredentials,
+  createSessionToken,
 } from '../../../test/helpers.js';
-import { SESSION_MAX_AGE_SECONDS, JWT_SALT, authConfig } from '@repo/auth';
-import { encode } from '@auth/core/jwt';
 
 // Auth.js uses this cookie name
 const COOKIE_NAME = 'authjs.session-token';
@@ -181,21 +180,9 @@ describe('GET /v1/me', () => {
 
     it('should return 401 for expired session cookie', async () => {
       const { user } = await createTestUser();
-      const { CLOCK_SKEW_TOLERANCE_SECONDS } = await import('@repo/auth');
 
-      // Create a token with maxAge of -1 second (already expired)
-      // Then wait to ensure it's beyond clock skew tolerance
-      const expiredToken = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: 'sbfin',
-          aud: 'sbfin:web',
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: -CLOCK_SKEW_TOLERANCE_SECONDS - 3600, // Expired beyond tolerance
+      const expiredToken = await createSessionToken(user.id, user.email, {
+        expiresInSeconds: -3600,
       });
 
       const response = await makeRequest(app, 'GET', '/v1/me', {
@@ -211,26 +198,15 @@ describe('GET /v1/me', () => {
       expect(data.error).toBe('Unauthorized');
     });
 
-    it('should return 401 for token with invalid signature', async () => {
+    it('should return 401 for tampered session tokens', async () => {
       const { user } = await createTestUser();
 
-      // Create token with wrong secret
-      const tokenWithWrongSecret = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: 'sbfin',
-          aud: 'sbfin:web',
-        },
-        secret: 'wrong-secret-key',
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+      const validToken = await createSessionToken(user.id, user.email);
+      const tampered = `${validToken}tampered`;
 
       const response = await makeRequest(app, 'GET', '/v1/me', {
         cookies: {
-          [COOKIE_NAME]: tokenWithWrongSecret,
+          [COOKIE_NAME]: tampered,
         },
       });
 
@@ -240,22 +216,10 @@ describe('GET /v1/me', () => {
       expect(data).toHaveProperty('error');
     });
 
-    it('should return 401 for token with missing user ID', async () => {
-      // Create token without user ID
-      const tokenWithoutId = await encode({
-        token: {
-          email: 'test@example.com',
-          iss: 'sbfin',
-          aud: 'sbfin:web',
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
-
+    it('should return 401 for malformed session tokens', async () => {
       const response = await makeRequest(app, 'GET', '/v1/me', {
         cookies: {
-          [COOKIE_NAME]: tokenWithoutId,
+          [COOKIE_NAME]: 'invalid-token-value',
         },
       });
 
@@ -265,21 +229,12 @@ describe('GET /v1/me', () => {
       expect(data).toHaveProperty('error');
     });
 
-    it('should return 404 when user in token does not exist in database', async () => {
-      // Create token for non-existent user with valid UUID format
-      const nonExistentUserId = '00000000-0000-0000-0000-000000000000';
-      const token = await encode({
-        token: {
-          sub: nonExistentUserId,
-          id: nonExistentUserId,
-          email: 'nonexistent@example.com',
-          iss: 'sbfin',
-          aud: 'sbfin:web',
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+    it('should return 404 when profile for authenticated user is missing', async () => {
+      const { user } = await createTestUser();
+      const token = await createSessionToken(user.id, user.email);
+      const prisma = getTestPrisma();
+
+      await prisma.profile.deleteMany({ where: { userId: user.id } });
 
       const response = await makeRequest(app, 'GET', '/v1/me', {
         cookies: {
@@ -291,7 +246,6 @@ describe('GET /v1/me', () => {
 
       const data = await response.json();
       expect(data).toHaveProperty('error');
-      expect(data.error).toContain('Profile not found for user:');
     });
   });
 

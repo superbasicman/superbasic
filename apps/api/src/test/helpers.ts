@@ -4,7 +4,12 @@
  */
 
 import type { Hono } from 'hono';
-import { hashPassword } from '@repo/auth';
+import {
+  hashPassword,
+  createTokenHashEnvelope,
+  createOpaqueToken,
+  SESSION_MAX_AGE_SECONDS,
+} from '@repo/auth';
 import { getTestPrisma } from './setup.js';
 
 /**
@@ -279,4 +284,34 @@ export async function createTestUser(
     user: { ...result.user, profile: result.profile },
     credentials, // Return plaintext password for testing login
   };
+}
+
+/**
+ * Create a persisted Auth.js session token for the given user.
+ *
+ * @param userId - ID of the user who owns the session
+ * @param _email - Unused (kept for backward compatibility with existing helpers)
+ * @param options - Optional overrides for expiration
+ * @returns Session token string to be used as cookie value
+ */
+export async function createSessionToken(
+  userId: string,
+  _email?: string,
+  options: { expiresInSeconds?: number } = {}
+) {
+  const prisma = getTestPrisma();
+  const opaqueToken = createOpaqueToken();
+  const expiresInSeconds = options.expiresInSeconds ?? SESSION_MAX_AGE_SECONDS;
+  const expires = new Date(Date.now() + expiresInSeconds * 1000);
+
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenId: opaqueToken.tokenId,
+      sessionTokenHash: createTokenHashEnvelope(opaqueToken.tokenSecret),
+      expires,
+    },
+  });
+
+  return opaqueToken.value;
 }

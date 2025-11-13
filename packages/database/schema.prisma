@@ -1,72 +1,69 @@
-// SuperBasic Finance — Prisma Schema aligned with agent/steering database specs
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
   id            String    @id @default(uuid()) @db.Uuid
   email         String
-  emailLower    String    @map("email_lower") @unique
+  emailLower    String    @unique @map("email_lower")
   emailVerified DateTime? @map("email_verified")
   name          String?
   image         String?
   password      String?   @map("password_hash")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  profile       Profile?
   accounts      Account[]
-  sessions      Session[]
   apiKeys       ApiKey[]
+  profile       Profile?
+  sessions      Session[]
 
-  @@map("users")
   @@index([email])
+  @@map("users")
 }
 
 model Account {
-  id                String   @id @default(uuid()) @db.Uuid
-  userId            String   @map("user_id") @db.Uuid
-  provider          String
-  providerAccountId String   @map("provider_account_id")
-  type              String
-  refreshTokenCiphertext String? @map("refresh_token_ciphertext")
-  accessTokenCiphertext  String? @map("access_token_ciphertext")
-  expiresAt         DateTime? @map("expires_at")
-  tokenType         String?  @map("token_type")
-  scope             String?
-  idTokenCiphertext String?  @map("id_token_ciphertext")
-  sessionState      String?  @map("session_state")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  id                     String    @id @default(uuid()) @db.Uuid
+  userId                 String    @map("user_id") @db.Uuid
+  provider               String
+  providerAccountId      String    @map("provider_account_id")
+  type                   String
+  refreshTokenCiphertext String?   @map("refresh_token_ciphertext")
+  accessTokenCiphertext  String?   @map("access_token_ciphertext")
+  expiresAt              DateTime? @map("expires_at")
+  tokenType              String?   @map("token_type")
+  scope                  String?
+  idTokenCiphertext      String?   @map("id_token_ciphertext")
+  sessionState           String?   @map("session_state")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("accounts")
   @@unique([provider, providerAccountId])
   @@index([userId])
+  @@map("accounts")
 }
 
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model Session {
-  id              String   @id @default(uuid()) @db.Uuid
-  userId          String   @map("user_id") @db.Uuid
-  tokenId         String   @map("token_id") @db.Uuid
-  sessionTokenHash Json    @map("session_token_hash")
-  expires         DateTime
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  tokenId          String   @unique @map("token_id") @db.Uuid
+  sessionTokenHash Json     @map("session_token_hash")
+  expires          DateTime
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
   @@index([tokenId])
+  @@map("sessions")
 }
 
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model VerificationToken {
   id         String   @id @default(uuid()) @db.Uuid
   identifier String
@@ -76,783 +73,743 @@ model VerificationToken {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  @@map("verification_tokens")
   @@index([identifier])
+  @@map("verification_tokens")
 }
 
 model Profile {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @unique @map("user_id") @db.Uuid
-  timezone  String   @default("UTC")
-  currency  String   @default("USD") @db.VarChar(3)
-  settings  Json?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  subscriptions   Subscription[]
-  apiKeys         ApiKey[]
-  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
-  ownedBudgetPlans BudgetPlan[]
-  connections     Connection[]
-  sponsorHistoryFrom ConnectionSponsorHistory[] @relation("ConnectionSponsorFrom")
-  sponsorHistoryTo   ConnectionSponsorHistory[] @relation("ConnectionSponsorTo")
-  workspaceMemberships WorkspaceMember[]
-  categories      Category[]
-  profileCategoryOverrides ProfileCategoryOverride[]
-  transactionsOverlays TransactionOverlay[]
-  workspaceConnectionLinks WorkspaceConnectionLink[] @relation("WorkspaceConnectionGrantor")
-  workspaceAllowedAccounts WorkspaceAllowedAccount[]
-  syncSessions SyncSession[] @relation("SyncInitiator")
-  syncAuditLogs SyncAuditLog[] @relation("SyncAuditInitiator")
-  viewShares  ViewShare[]
-  viewLinks   ViewLink[]     @relation("ViewLinkCreator")
-  connectionAccessCacheEntries UserConnectionAccessCache[]
+  id                            String                          @id @default(uuid()) @db.Uuid
+  userId                        String                          @unique @map("user_id") @db.Uuid
+  timezone                      String                          @default("UTC")
+  currency                      String                          @default("USD") @db.VarChar(3)
+  settings                      Json?
+  createdAt                     DateTime                        @default(now()) @map("created_at")
+  updatedAt                     DateTime                        @updatedAt @map("updated_at")
+  apiKeys                       ApiKey[]
+  ownedBudgetPlans              BudgetPlan[]
+  categories                    Category[]
+  sponsorHistoryFrom            ConnectionSponsorHistory[]      @relation("ConnectionSponsorFrom")
+  sponsorHistoryTo              ConnectionSponsorHistory[]      @relation("ConnectionSponsorTo")
+  connections                   Connection[]
+  profileCategoryOverrides      ProfileCategoryOverride[]
   transactionAccessCacheEntries ProfileTransactionAccessCache[]
+  user                          User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptions                 Subscription[]
+  syncAuditLogs                 SyncAuditLog[]                  @relation("SyncAuditInitiator")
+  syncSessions                  SyncSession[]                   @relation("SyncInitiator")
+  transactionsOverlays          TransactionOverlay[]
+  connectionAccessCacheEntries  UserConnectionAccessCache[]
+  viewLinks                     ViewLink[]                      @relation("ViewLinkCreator")
+  viewShares                    ViewShare[]
+  workspaceAllowedAccounts      WorkspaceAllowedAccount[]
+  workspaceConnectionLinks      WorkspaceConnectionLink[]       @relation("WorkspaceConnectionGrantor")
+  workspaceMemberships          WorkspaceMember[]
+  ownedWorkspaces               Workspace[]                     @relation("WorkspaceOwner")
 
   @@map("profiles")
 }
 
 model Subscription {
-  id                 String   @id @default(uuid()) @db.Uuid
-  profileId          String   @map("profile_id") @db.Uuid
-  stripeCustomerId   String?  @map("stripe_customer_id")
-  stripeSubscriptionId String? @map("stripe_subscription_id")
-  slotLimit          Int?     @map("slot_limit")
-  status             String
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                   String   @id @default(uuid()) @db.Uuid
+  profileId            String   @map("profile_id") @db.Uuid
+  stripeCustomerId     String?  @map("stripe_customer_id")
+  stripeSubscriptionId String?  @map("stripe_subscription_id")
+  slotLimit            Int?     @map("slot_limit")
+  status               String
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  profile              Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
-  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@map("subscriptions")
   @@index([profileId])
+  @@map("subscriptions")
 }
 
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model ApiKey {
-  id          String   @id @default(uuid()) @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
-  profileId   String   @map("profile_id") @db.Uuid
-  workspaceId String?  @map("workspace_id") @db.Uuid
+  id          String     @id @default(uuid()) @db.Uuid
+  userId      String     @map("user_id") @db.Uuid
+  profileId   String     @map("profile_id") @db.Uuid
+  workspaceId String?    @map("workspace_id") @db.Uuid
   name        String
-  keyHash     Json     @map("key_hash")
-  last4       String   @map("last4")
-  scopes      Json     @default("[]")
-  lastUsedAt  DateTime? @map("last_used_at")
-  expiresAt   DateTime? @map("expires_at")
-  revokedAt   DateTime? @map("revoked_at")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  keyHash     Json       @map("key_hash")
+  last4       String     @map("last4")
+  scopes      Json       @default("[]")
+  lastUsedAt  DateTime?  @map("last_used_at")
+  expiresAt   DateTime?  @map("expires_at")
+  revokedAt   DateTime?  @map("revoked_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  profile     Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
 
-  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  profile  Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  workspace Workspace? @relation(fields: [workspaceId], references: [id])
-
-  @@map("api_keys")
   @@index([userId])
   @@index([profileId])
   @@index([workspaceId])
   @@index([revokedAt])
+  @@map("api_keys")
 }
 
 model Workspace {
-  id               String   @id @default(uuid()) @db.Uuid
-  ownerProfileId   String   @map("owner_profile_id") @db.Uuid
-  name             String?
-  settings         Json?
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-  deletedAt        DateTime? @map("deleted_at")
-
-  owner Profile @relation("WorkspaceOwner", fields: [ownerProfileId], references: [id])
-  members WorkspaceMember[]
-  savedViews SavedView[]
-  accountGroups AccountGroup[]
-  workspaceConnectionLinks WorkspaceConnectionLink[]
-  workspaceAllowedAccounts WorkspaceAllowedAccount[]
-  workspaceCategories WorkspaceCategory[]
-  workspaceCategoryOverrides WorkspaceCategoryOverride[]
-  budgetPlans BudgetPlan[]
-  budgetActuals BudgetActual[]
-  workspaceApiKeys ApiKey[]
-  connectionAccessCacheEntries UserConnectionAccessCache[]
+  id                                   String                          @id @default(uuid()) @db.Uuid
+  ownerProfileId                       String                          @map("owner_profile_id") @db.Uuid
+  name                                 String?
+  settings                             Json?
+  createdAt                            DateTime                        @default(now()) @map("created_at")
+  updatedAt                            DateTime                        @updatedAt @map("updated_at")
+  deletedAt                            DateTime?                       @map("deleted_at")
+  accountGroups                        AccountGroup[]
+  workspaceApiKeys                     ApiKey[]
+  budgetActuals                        BudgetActual[]
+  budgetPlans                          BudgetPlan[]
   profileTransactionAccessCacheEntries ProfileTransactionAccessCache[]
+  savedViews                           SavedView[]
+  connectionAccessCacheEntries         UserConnectionAccessCache[]
+  workspaceAllowedAccounts             WorkspaceAllowedAccount[]
+  workspaceCategories                  WorkspaceCategory[]
+  workspaceCategoryOverrides           WorkspaceCategoryOverride[]
+  workspaceConnectionLinks             WorkspaceConnectionLink[]
+  members                              WorkspaceMember[]
+  owner                                Profile                         @relation("WorkspaceOwner", fields: [ownerProfileId], references: [id])
 
   @@map("workspaces")
 }
 
 model WorkspaceMember {
-  id               String   @id @default(uuid()) @db.Uuid
-  workspaceId      String   @map("workspace_id") @db.Uuid
-  memberProfileId  String   @map("member_profile_id") @db.Uuid
-  role             String
-  scopeJson        Json?    @map("scope_json")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id              String    @id @default(uuid()) @db.Uuid
+  workspaceId     String    @map("workspace_id") @db.Uuid
+  memberProfileId String    @map("member_profile_id") @db.Uuid
+  role            String
+  scopeJson       Json?     @map("scope_json")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  profile         Profile   @relation(fields: [memberProfileId], references: [id], onDelete: Cascade)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  profile   Profile   @relation(fields: [memberProfileId], references: [id], onDelete: Cascade)
-
-  @@map("workspace_members")
   @@index([workspaceId])
   @@index([memberProfileId])
+  @@map("workspace_members")
 }
 
 model SavedView {
-  id          String   @id @default(uuid()) @db.Uuid
-  workspaceId String   @map("workspace_id") @db.Uuid
-  name        String?
-  isDefault   Boolean  @default(false) @map("is_default")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  filters   ViewFilter[]
-  sorts     ViewSort[]
-  groupBy   ViewGroupBy[]
-  ruleOverrides ViewRuleOverride[]
-  categoryGroups ViewCategoryGroup[]
+  id                String                 @id @default(uuid()) @db.Uuid
+  workspaceId       String                 @map("workspace_id") @db.Uuid
+  name              String?
+  isDefault         Boolean                @default(false) @map("is_default")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+  deletedAt         DateTime?              @map("deleted_at")
+  budgetPlans       BudgetPlan[]
+  workspace         Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  categoryGroups    ViewCategoryGroup[]
   categoryOverrides ViewCategoryOverride[]
-  shares ViewShare[]
-  links  ViewLink[]
-  budgetPlans BudgetPlan[]
+  filters           ViewFilter[]
+  groupBy           ViewGroupBy[]
+  links             ViewLink[]
+  ruleOverrides     ViewRuleOverride[]
+  shares            ViewShare[]
+  sorts             ViewSort[]
 
   @@map("saved_views")
 }
 
 model ViewFilter {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  viewId    String    @map("view_id") @db.Uuid
   payload   Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  view SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  view      SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
   @@map("view_filters")
 }
 
 model ViewSort {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  viewId    String    @map("view_id") @db.Uuid
   payload   Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  view SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  view      SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
   @@map("view_sorts")
 }
 
 model ViewGroupBy {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  viewId    String    @map("view_id") @db.Uuid
   payload   Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  view SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  view      SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
   @@map("view_group_by")
 }
 
 model ViewRuleOverride {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  viewId    String    @map("view_id") @db.Uuid
   payload   Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  view SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  view      SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
   @@map("view_rule_overrides")
 }
 
 model ViewCategoryGroup {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
+  id        String    @id @default(uuid()) @db.Uuid
+  viewId    String    @map("view_id") @db.Uuid
   payload   Json
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  view SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  view      SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
   @@map("view_category_groups")
 }
 
 model ViewCategoryOverride {
-  id                   String   @id @default(uuid()) @db.Uuid
-  viewId               String   @map("view_id") @db.Uuid
-  sourceCategoryId     String?  @map("source_category_id") @db.Uuid
-  targetCategoryId     String?  @map("target_category_id") @db.Uuid
-  workspaceSourceCategoryId String? @map("workspace_source_category_id") @db.Uuid
-  workspaceTargetCategoryId String? @map("workspace_target_category_id") @db.Uuid
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
-  deletedAt            DateTime? @map("deleted_at")
-
-  view SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
-  sourceCategory Category? @relation("ViewOverrideSourceCategory", fields: [sourceCategoryId], references: [id])
-  targetCategory Category? @relation("ViewOverrideTargetCategory", fields: [targetCategoryId], references: [id])
-  workspaceSourceCategory WorkspaceCategory? @relation("ViewOverrideWorkspaceSource", fields: [workspaceSourceCategoryId], references: [id])
-  workspaceTargetCategory WorkspaceCategory? @relation("ViewOverrideWorkspaceTarget", fields: [workspaceTargetCategoryId], references: [id])
+  id                        String             @id @default(uuid()) @db.Uuid
+  viewId                    String             @map("view_id") @db.Uuid
+  sourceCategoryId          String?            @map("source_category_id") @db.Uuid
+  targetCategoryId          String?            @map("target_category_id") @db.Uuid
+  workspaceSourceCategoryId String?            @map("workspace_source_category_id") @db.Uuid
+  workspaceTargetCategoryId String?            @map("workspace_target_category_id") @db.Uuid
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  updatedAt                 DateTime           @updatedAt @map("updated_at")
+  deletedAt                 DateTime?          @map("deleted_at")
+  sourceCategory            Category?          @relation("ViewOverrideSourceCategory", fields: [sourceCategoryId], references: [id])
+  targetCategory            Category?          @relation("ViewOverrideTargetCategory", fields: [targetCategoryId], references: [id])
+  view                      SavedView          @relation(fields: [viewId], references: [id], onDelete: Cascade)
+  workspaceSourceCategory   WorkspaceCategory? @relation("ViewOverrideWorkspaceSource", fields: [workspaceSourceCategoryId], references: [id])
+  workspaceTargetCategory   WorkspaceCategory? @relation("ViewOverrideWorkspaceTarget", fields: [workspaceTargetCategoryId], references: [id])
 
   @@map("view_category_overrides")
 }
 
 model ViewShare {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
-  profileId String   @map("profile_id") @db.Uuid
-  canEdit   Boolean  @map("can_edit")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String    @id @default(uuid()) @db.Uuid
+  viewId    String    @map("view_id") @db.Uuid
+  profileId String    @map("profile_id") @db.Uuid
+  canEdit   Boolean   @map("can_edit")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  profile   Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  view      SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
-  view    SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
-  profile Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
-
-  @@map("view_shares")
   @@index([viewId])
   @@index([profileId])
+  @@map("view_shares")
 }
 
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model ViewLink {
-  id        String   @id @default(uuid()) @db.Uuid
-  viewId    String   @map("view_id") @db.Uuid
-  tokenId   String   @map("token_id") @db.Uuid
-  tokenHash Json     @map("token_hash")
-  passcodeHash Json? @map("passcode_hash")
-  expiresAt DateTime @map("expires_at")
-  createdByProfileId String @map("created_by_profile_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                 String    @id @default(uuid()) @db.Uuid
+  viewId             String    @map("view_id") @db.Uuid
+  tokenId            String    @unique @map("token_id") @db.Uuid
+  tokenHash          Json      @map("token_hash")
+  passcodeHash       Json?     @map("passcode_hash")
+  expiresAt          DateTime  @map("expires_at")
+  createdByProfileId String    @map("created_by_profile_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  creator            Profile   @relation("ViewLinkCreator", fields: [createdByProfileId], references: [id], onDelete: Cascade)
+  view               SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
 
-  view    SavedView @relation(fields: [viewId], references: [id], onDelete: Cascade)
-  creator Profile   @relation("ViewLinkCreator", fields: [createdByProfileId], references: [id], onDelete: Cascade)
-
-  @@map("view_links")
   @@index([viewId])
   @@index([expiresAt])
-  @@unique([tokenId])
+  @@map("view_links")
 }
 
 model AccountGroup {
-  id          String   @id @default(uuid()) @db.Uuid
-  workspaceId String   @map("workspace_id") @db.Uuid
+  id          String                   @id @default(uuid()) @db.Uuid
+  workspaceId String                   @map("workspace_id") @db.Uuid
   name        String?
   color       String?
   sort        Int?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                 @default(now()) @map("created_at")
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+  deletedAt   DateTime?                @map("deleted_at")
   memberships AccountGroupMembership[]
+  workspace   Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("account_groups")
 }
 
 model AccountGroupMembership {
-  id        String   @id @default(uuid()) @db.Uuid
-  groupId   String   @map("group_id") @db.Uuid
-  accountId String   @map("account_id") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id        String       @id @default(uuid()) @db.Uuid
+  groupId   String       @map("group_id") @db.Uuid
+  accountId String       @map("account_id") @db.Uuid
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+  account   BankAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  group     AccountGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  group   AccountGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  account BankAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
-
-  @@map("account_group_memberships")
   @@index([groupId])
   @@index([accountId])
+  @@map("account_group_memberships")
 }
 
 model WorkspaceConnectionLink {
-  id               String   @id @default(uuid()) @db.Uuid
-  workspaceId      String   @map("workspace_id") @db.Uuid
-  connectionId     String   @map("connection_id") @db.Uuid
-  grantedByProfileId String @map("granted_by_profile_id") @db.Uuid
-  accountScopeJson Json?    @map("account_scope_json")
-  expiresAt        DateTime? @map("expires_at")
-  revokedAt        DateTime? @map("revoked_at")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                 String     @id @default(uuid()) @db.Uuid
+  workspaceId        String     @map("workspace_id") @db.Uuid
+  connectionId       String     @map("connection_id") @db.Uuid
+  grantedByProfileId String     @map("granted_by_profile_id") @db.Uuid
+  accountScopeJson   Json?      @map("account_scope_json")
+  expiresAt          DateTime?  @map("expires_at")
+  revokedAt          DateTime?  @map("revoked_at")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+  connection         Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  grantedBy          Profile    @relation("WorkspaceConnectionGrantor", fields: [grantedByProfileId], references: [id], onDelete: Cascade)
+  workspace          Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  grantedBy Profile @relation("WorkspaceConnectionGrantor", fields: [grantedByProfileId], references: [id], onDelete: Cascade)
-
-  @@map("workspace_connection_links")
   @@index([workspaceId])
   @@index([connectionId])
+  @@map("workspace_connection_links")
 }
 
 model WorkspaceAllowedAccount {
-  id               String   @id @default(uuid()) @db.Uuid
-  workspaceId      String   @map("workspace_id") @db.Uuid
-  bankAccountId    String   @map("bank_account_id") @db.Uuid
-  grantedByProfileId String @map("granted_by_profile_id") @db.Uuid
-  revokedAt        DateTime? @map("revoked_at")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                 String      @id @default(uuid()) @db.Uuid
+  workspaceId        String      @map("workspace_id") @db.Uuid
+  bankAccountId      String      @map("bank_account_id") @db.Uuid
+  grantedByProfileId String      @map("granted_by_profile_id") @db.Uuid
+  revokedAt          DateTime?   @map("revoked_at")
+  createdAt          DateTime    @default(now()) @map("created_at")
+  bankAccount        BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  grantedBy          Profile     @relation(fields: [grantedByProfileId], references: [id])
+  workspace          Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
-  grantedBy   Profile @relation(fields: [grantedByProfileId], references: [id])
-
-  @@map("workspace_allowed_accounts")
   @@index([workspaceId])
   @@index([bankAccountId])
+  @@map("workspace_allowed_accounts")
 }
 
 model Category {
-  id        String   @id @default(uuid()) @db.Uuid
-  profileId String?  @map("profile_id") @db.Uuid
-  parentId  String?  @map("parent_id") @db.Uuid
-  slug      String
-  name      String
-  sort      Int?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deletedAt DateTime? @map("deleted_at")
-
-  profile Profile? @relation(fields: [profileId], references: [id])
-  parent  Category? @relation("CategoryParent", fields: [parentId], references: [id])
-  children Category[] @relation("CategoryParent")
-  transactionOverlays TransactionOverlay[]
-  transactions Transaction[] @relation("TransactionSystemCategory")
-  profileOverridesSource ProfileCategoryOverride[] @relation("ProfileOverrideSource")
-  profileOverridesTarget ProfileCategoryOverride[] @relation("ProfileOverrideTarget")
+  id                             String                      @id @default(uuid()) @db.Uuid
+  profileId                      String?                     @map("profile_id") @db.Uuid
+  parentId                       String?                     @map("parent_id") @db.Uuid
+  slug                           String
+  name                           String
+  sort                           Int?
+  createdAt                      DateTime                    @default(now()) @map("created_at")
+  updatedAt                      DateTime                    @updatedAt @map("updated_at")
+  deletedAt                      DateTime?                   @map("deleted_at")
+  budgetEnvelopes                BudgetEnvelope[]
+  parent                         Category?                   @relation("CategoryParent", fields: [parentId], references: [id])
+  children                       Category[]                  @relation("CategoryParent")
+  profile                        Profile?                    @relation(fields: [profileId], references: [id])
+  profileOverridesSource         ProfileCategoryOverride[]   @relation("ProfileOverrideSource")
+  profileOverridesTarget         ProfileCategoryOverride[]   @relation("ProfileOverrideTarget")
+  transactionOverlays            TransactionOverlay[]
+  transactions                   Transaction[]               @relation("TransactionSystemCategory")
+  viewOverridesSource            ViewCategoryOverride[]      @relation("ViewOverrideSourceCategory")
+  viewOverridesTarget            ViewCategoryOverride[]      @relation("ViewOverrideTargetCategory")
   workspaceOverridesSystemSource WorkspaceCategoryOverride[] @relation("WorkspaceOverrideSystemSource")
   workspaceOverridesSystemTarget WorkspaceCategoryOverride[] @relation("WorkspaceOverrideSystemTarget")
-  budgetEnvelopes BudgetEnvelope[]
-  viewOverridesSource ViewCategoryOverride[] @relation("ViewOverrideSourceCategory")
-  viewOverridesTarget ViewCategoryOverride[] @relation("ViewOverrideTargetCategory")
 
-  @@map("categories")
   @@index([profileId])
+  @@map("categories")
 }
 
 model ProfileCategoryOverride {
-  id               String   @id @default(uuid()) @db.Uuid
-  profileId        String   @map("profile_id") @db.Uuid
-  sourceCategoryId String   @map("source_category_id") @db.Uuid
-  targetCategoryId String?  @map("target_category_id") @db.Uuid
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id               String    @id @default(uuid()) @db.Uuid
+  profileId        String    @map("profile_id") @db.Uuid
+  sourceCategoryId String    @map("source_category_id") @db.Uuid
+  targetCategoryId String?   @map("target_category_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
+  profile          Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  source           Category  @relation("ProfileOverrideSource", fields: [sourceCategoryId], references: [id], onDelete: Cascade)
+  target           Category? @relation("ProfileOverrideTarget", fields: [targetCategoryId], references: [id])
 
-  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  source  Category @relation("ProfileOverrideSource", fields: [sourceCategoryId], references: [id], onDelete: Cascade)
-  target  Category? @relation("ProfileOverrideTarget", fields: [targetCategoryId], references: [id])
-
-  @@map("profile_category_overrides")
   @@index([profileId])
+  @@map("profile_category_overrides")
 }
 
 model WorkspaceCategory {
-  id           String   @id @default(uuid()) @db.Uuid
-  workspaceId  String   @map("workspace_id") @db.Uuid
-  parentId     String?  @map("parent_id") @db.Uuid
-  slug         String
-  name         String
-  sort         Int?
-  color        String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  deletedAt    DateTime? @map("deleted_at")
+  id                  String                      @id @default(uuid()) @db.Uuid
+  workspaceId         String                      @map("workspace_id") @db.Uuid
+  parentId            String?                     @map("parent_id") @db.Uuid
+  slug                String
+  name                String
+  sort                Int?
+  color               String?
+  createdAt           DateTime                    @default(now()) @map("created_at")
+  updatedAt           DateTime                    @updatedAt @map("updated_at")
+  deletedAt           DateTime?                   @map("deleted_at")
+  budgetActuals       BudgetActual[]
+  viewOverridesSource ViewCategoryOverride[]      @relation("ViewOverrideWorkspaceSource")
+  viewOverridesTarget ViewCategoryOverride[]      @relation("ViewOverrideWorkspaceTarget")
+  parent              WorkspaceCategory?          @relation("WorkspaceCategoryParent", fields: [parentId], references: [id])
+  children            WorkspaceCategory[]         @relation("WorkspaceCategoryParent")
+  workspace           Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  overridesSource     WorkspaceCategoryOverride[] @relation("WorkspaceOverrideSource")
+  overridesTarget     WorkspaceCategoryOverride[] @relation("WorkspaceOverrideTarget")
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  parent    WorkspaceCategory? @relation("WorkspaceCategoryParent", fields: [parentId], references: [id])
-  children  WorkspaceCategory[] @relation("WorkspaceCategoryParent")
-  overridesSource WorkspaceCategoryOverride[] @relation("WorkspaceOverrideSource")
-  overridesTarget WorkspaceCategoryOverride[] @relation("WorkspaceOverrideTarget")
-  budgetActuals   BudgetActual[]
-  viewOverridesSource ViewCategoryOverride[] @relation("ViewOverrideWorkspaceSource")
-  viewOverridesTarget ViewCategoryOverride[] @relation("ViewOverrideWorkspaceTarget")
-
-  @@map("workspace_categories")
   @@index([workspaceId])
+  @@map("workspace_categories")
 }
 
 model WorkspaceCategoryOverride {
-  id                      String   @id @default(uuid()) @db.Uuid
-  workspaceId             String   @map("workspace_id") @db.Uuid
-  sourceCategoryId        String?  @map("source_category_id") @db.Uuid
-  targetCategoryId        String?  @map("target_category_id") @db.Uuid
-  systemSourceCategoryId  String?  @map("system_source_category_id") @db.Uuid
-  systemTargetCategoryId  String?  @map("system_target_category_id") @db.Uuid
-  createdAt               DateTime @default(now()) @map("created_at")
-  updatedAt               DateTime @updatedAt @map("updated_at")
-  deletedAt               DateTime? @map("deleted_at")
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                      String             @id @default(uuid()) @db.Uuid
+  workspaceId             String             @map("workspace_id") @db.Uuid
+  sourceCategoryId        String?            @map("source_category_id") @db.Uuid
+  targetCategoryId        String?            @map("target_category_id") @db.Uuid
+  systemSourceCategoryId  String?            @map("system_source_category_id") @db.Uuid
+  systemTargetCategoryId  String?            @map("system_target_category_id") @db.Uuid
+  createdAt               DateTime           @default(now()) @map("created_at")
+  updatedAt               DateTime           @updatedAt @map("updated_at")
+  deletedAt               DateTime?          @map("deleted_at")
   sourceWorkspaceCategory WorkspaceCategory? @relation("WorkspaceOverrideSource", fields: [sourceCategoryId], references: [id])
+  systemSourceCategory    Category?          @relation("WorkspaceOverrideSystemSource", fields: [systemSourceCategoryId], references: [id])
+  systemTargetCategory    Category?          @relation("WorkspaceOverrideSystemTarget", fields: [systemTargetCategoryId], references: [id])
   targetWorkspaceCategory WorkspaceCategory? @relation("WorkspaceOverrideTarget", fields: [targetCategoryId], references: [id])
-  systemSourceCategory Category? @relation("WorkspaceOverrideSystemSource", fields: [systemSourceCategoryId], references: [id])
-  systemTargetCategory Category? @relation("WorkspaceOverrideSystemTarget", fields: [systemTargetCategoryId], references: [id])
+  workspace               Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  @@map("workspace_category_overrides")
   @@index([workspaceId])
+  @@map("workspace_category_overrides")
 }
 
 model Connection {
-  id              String   @id @default(uuid()) @db.Uuid
-  ownerProfileId  String   @map("owner_profile_id") @db.Uuid
-  provider        String
-  providerItemId  String   @map("provider_item_id")
-  status          String
-  txCursor        String?  @map("tx_cursor")
-  config          Json?
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-  deletedAt       DateTime? @map("deleted_at")
-
-  owner        Profile @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
-  accounts     BankAccount[]
-  workspaceLinks WorkspaceConnectionLink[]
-  sponsorHistory ConnectionSponsorHistory[]
-  transactions Transaction[]
-  syncSessions SyncSession[]
-  syncAuditLogs SyncAuditLog[]
-  secrets ConnectionSecret?
-  userConnectionAccessCacheEntries UserConnectionAccessCache[]
+  id                                   String                          @id @default(uuid()) @db.Uuid
+  ownerProfileId                       String                          @map("owner_profile_id") @db.Uuid
+  provider                             String
+  providerItemId                       String                          @map("provider_item_id")
+  status                               String
+  txCursor                             String?                         @map("tx_cursor")
+  config                               Json?
+  createdAt                            DateTime                        @default(now()) @map("created_at")
+  updatedAt                            DateTime                        @updatedAt @map("updated_at")
+  deletedAt                            DateTime?                       @map("deleted_at")
+  accounts                             BankAccount[]
+  secrets                              ConnectionSecret?
+  sponsorHistory                       ConnectionSponsorHistory[]
+  owner                                Profile                         @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
   profileTransactionAccessCacheEntries ProfileTransactionAccessCache[]
+  syncAuditLogs                        SyncAuditLog[]
+  syncSessions                         SyncSession[]
+  transactions                         Transaction[]
+  userConnectionAccessCacheEntries     UserConnectionAccessCache[]
+  workspaceLinks                       WorkspaceConnectionLink[]
 
-  @@map("connections")
   @@index([ownerProfileId])
   @@index([provider, providerItemId])
+  @@map("connections")
 }
 
 model ConnectionSponsorHistory {
-  id             String   @id @default(uuid()) @db.Uuid
-  connectionId   String   @map("connection_id") @db.Uuid
-  fromProfileId  String?  @map("from_profile_id") @db.Uuid
-  toProfileId    String   @map("to_profile_id") @db.Uuid
-  changedAt      DateTime @default(now()) @map("changed_at")
+  id            String     @id @default(uuid()) @db.Uuid
+  connectionId  String     @map("connection_id") @db.Uuid
+  fromProfileId String?    @map("from_profile_id") @db.Uuid
+  toProfileId   String     @map("to_profile_id") @db.Uuid
+  changedAt     DateTime   @default(now()) @map("changed_at")
+  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  fromProfile   Profile?   @relation("ConnectionSponsorFrom", fields: [fromProfileId], references: [id])
+  toProfile     Profile    @relation("ConnectionSponsorTo", fields: [toProfileId], references: [id], onDelete: Cascade)
 
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  fromProfile Profile?  @relation("ConnectionSponsorFrom", fields: [fromProfileId], references: [id])
-  toProfile   Profile   @relation("ConnectionSponsorTo", fields: [toProfileId], references: [id], onDelete: Cascade)
-
-  @@map("connection_sponsor_history")
   @@index([connectionId])
+  @@map("connection_sponsor_history")
 }
 
 model ConnectionSecret {
-  id              String   @id @default(uuid()) @db.Uuid
-  connectionId    String   @map("connection_id") @db.Uuid @unique
-  accessTokenCiphertext    String? @map("access_token_ciphertext")
-  processorTokenCiphertext String? @map("processor_token_ciphertext")
-  webhookSecretCiphertext  String? @map("webhook_secret_ciphertext")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  id                       String     @id @default(uuid()) @db.Uuid
+  connectionId             String     @unique @map("connection_id") @db.Uuid
+  accessTokenCiphertext    String?    @map("access_token_ciphertext")
+  processorTokenCiphertext String?    @map("processor_token_ciphertext")
+  webhookSecretCiphertext  String?    @map("webhook_secret_ciphertext")
+  createdAt                DateTime   @default(now()) @map("created_at")
+  updatedAt                DateTime   @updatedAt @map("updated_at")
+  connection               Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@map("connection_secrets")
 }
 
 model BankAccount {
-  id                 String   @id @default(uuid()) @db.Uuid
-  connectionId       String   @map("connection_id") @db.Uuid
-  externalAccountId  String   @map("external_account_id")
-  institution        String?
-  subtype            String?
-  mask               String?
-  name               String?
-  balanceCents       BigInt?  @map("balance_cents")
-  currency           String   @db.VarChar(3)
-  hidden             Boolean  @default(false)
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-  deletedAt          DateTime? @map("deleted_at")
-
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  workspaceAllowedAccounts WorkspaceAllowedAccount[]
-  accountGroupMemberships AccountGroupMembership[]
+  id                            String                          @id @default(uuid()) @db.Uuid
+  connectionId                  String                          @map("connection_id") @db.Uuid
+  externalAccountId             String                          @map("external_account_id")
+  institution                   String?
+  subtype                       String?
+  mask                          String?
+  name                          String?
+  balanceCents                  BigInt?                         @map("balance_cents")
+  currency                      String                          @db.VarChar(3)
+  hidden                        Boolean                         @default(false)
+  createdAt                     DateTime                        @default(now()) @map("created_at")
+  updatedAt                     DateTime                        @updatedAt @map("updated_at")
+  deletedAt                     DateTime?                       @map("deleted_at")
+  accountGroupMemberships       AccountGroupMembership[]
+  connection                    Connection                      @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   transactionAccessCacheEntries ProfileTransactionAccessCache[]
+  transactions                  Transaction[]
+  workspaceAllowedAccounts      WorkspaceAllowedAccount[]
 
-  @@map("bank_accounts")
   @@index([connectionId])
+  @@map("bank_accounts")
 }
 
 model Transaction {
-  id             String   @id @default(uuid()) @db.Uuid
-  accountId      String   @map("account_id") @db.Uuid
-  connectionId   String   @map("connection_id") @db.Uuid
-  providerTxId   String   @map("provider_tx_id")
-  postedAt       DateTime @map("posted_at")
-  authorizedAt   DateTime? @map("authorized_at")
-  amountCents    BigInt   @map("amount_cents")
-  currency       String   @db.VarChar(3)
-  systemCategoryId String? @map("system_category_id") @db.Uuid
-  merchantRaw    String?  @map("merchant_raw")
-  rawPayload     Json?    @map("raw_payload")
-  createdAt      DateTime @default(now()) @map("created_at")
-
-  account   BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  overlays  TransactionOverlay[]
-  auditLogs TransactionAuditLog[]
-  systemCategory Category? @relation("TransactionSystemCategory", fields: [systemCategoryId], references: [id])
+  id                                   String                          @id @default(uuid()) @db.Uuid
+  accountId                            String                          @map("account_id") @db.Uuid
+  connectionId                         String                          @map("connection_id") @db.Uuid
+  providerTxId                         String                          @map("provider_tx_id")
+  postedAt                             DateTime                        @map("posted_at")
+  authorizedAt                         DateTime?                       @map("authorized_at")
+  amountCents                          BigInt                          @map("amount_cents")
+  currency                             String                          @db.VarChar(3)
+  systemCategoryId                     String?                         @map("system_category_id") @db.Uuid
+  merchantRaw                          String?                         @map("merchant_raw")
+  rawPayload                           Json?                           @map("raw_payload")
+  createdAt                            DateTime                        @default(now()) @map("created_at")
   profileTransactionAccessCacheEntries ProfileTransactionAccessCache[]
+  auditLogs                            TransactionAuditLog[]
+  overlays                             TransactionOverlay[]
+  account                              BankAccount                     @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  connection                           Connection                      @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  systemCategory                       Category?                       @relation("TransactionSystemCategory", fields: [systemCategoryId], references: [id])
 
-  @@map("transactions")
   @@index([accountId])
   @@index([connectionId, providerTxId])
   @@index([postedAt])
+  @@map("transactions")
 }
 
 model TransactionOverlay {
-  id            String   @id @default(uuid()) @db.Uuid
-  transactionId String   @map("transaction_id") @db.Uuid
-  profileId     String   @map("profile_id") @db.Uuid
-  categoryId    String?  @map("category_id") @db.Uuid
-  notes         String?
-  tags          String[] @default([])
-  splits        Json     @default("[]")
-  merchantCorrection String? @map("merchant_correction")
-  exclude       Boolean  @default(false)
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-  deletedAt     DateTime? @map("deleted_at")
+  id                 String      @id @default(uuid()) @db.Uuid
+  transactionId      String      @map("transaction_id") @db.Uuid
+  profileId          String      @map("profile_id") @db.Uuid
+  categoryId         String?     @map("category_id") @db.Uuid
+  notes              String?
+  tags               String[]    @default([])
+  splits             Json        @default("[]")
+  merchantCorrection String?     @map("merchant_correction")
+  exclude            Boolean     @default(false)
+  createdAt          DateTime    @default(now()) @map("created_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
+  deletedAt          DateTime?   @map("deleted_at")
+  category           Category?   @relation(fields: [categoryId], references: [id])
+  profile            Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  transaction        Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  profile     Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  category    Category?   @relation(fields: [categoryId], references: [id])
-
-  @@map("transaction_overlays")
   @@index([profileId])
   @@index([transactionId])
+  @@map("transaction_overlays")
 }
 
 model TransactionAuditLog {
-  id             String   @id @default(uuid()) @db.Uuid
-  transactionId  String   @map("transaction_id") @db.Uuid
-  syncSessionId  String?  @map("sync_session_id") @db.Uuid
-  event          String
-  details        Json?
-  createdAt      DateTime @default(now()) @map("created_at")
+  id            String       @id @default(uuid()) @db.Uuid
+  transactionId String       @map("transaction_id") @db.Uuid
+  syncSessionId String?      @map("sync_session_id") @db.Uuid
+  event         String
+  details       Json?
+  createdAt     DateTime     @default(now()) @map("created_at")
+  syncSession   SyncSession? @relation(fields: [syncSessionId], references: [id])
+  transaction   Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  syncSession SyncSession? @relation(fields: [syncSessionId], references: [id])
-
-  @@map("transaction_audit_log")
   @@index([transactionId])
+  @@map("transaction_audit_log")
 }
 
 model BudgetPlan {
-  id             String   @id @default(uuid()) @db.Uuid
-  workspaceId    String   @map("workspace_id") @db.Uuid
-  ownerProfileId String   @map("owner_profile_id") @db.Uuid
-  name           String?
-  currency       String   @db.VarChar(3)
-  rollupMode     String   @map("rollup_mode")
-  viewId         String?  @map("view_id") @db.Uuid
-  viewFilterSnapshot Json? @map("view_filter_snapshot")
-  viewFilterHash String?  @map("view_filter_hash")
-  isTemplate     Boolean  @default(false) @map("is_template")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  deletedAt      DateTime? @map("deleted_at")
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  owner     Profile   @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
-  view      SavedView? @relation(fields: [viewId], references: [id])
-  versions  BudgetVersion[]
-  actuals   BudgetActual[]
+  id                 String          @id @default(uuid()) @db.Uuid
+  workspaceId        String          @map("workspace_id") @db.Uuid
+  ownerProfileId     String          @map("owner_profile_id") @db.Uuid
+  name               String?
+  currency           String          @db.VarChar(3)
+  rollupMode         String          @map("rollup_mode")
+  viewId             String?         @map("view_id") @db.Uuid
+  viewFilterSnapshot Json?           @map("view_filter_snapshot")
+  viewFilterHash     String?         @map("view_filter_hash")
+  isTemplate         Boolean         @default(false) @map("is_template")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  updatedAt          DateTime        @updatedAt @map("updated_at")
+  deletedAt          DateTime?       @map("deleted_at")
+  actuals            BudgetActual[]
+  owner              Profile         @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  view               SavedView?      @relation(fields: [viewId], references: [id])
+  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions           BudgetVersion[]
 
   @@map("budget_plans")
 }
 
 model BudgetVersion {
-  id           String   @id @default(uuid()) @db.Uuid
-  planId       String   @map("plan_id") @db.Uuid
-  versionNo    Int      @map("version_no")
-  effectiveFrom DateTime @map("effective_from")
-  effectiveTo  DateTime? @map("effective_to")
-  period       String
-  carryoverMode String   @map("carryover_mode")
-  notes        String?
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id            String           @id @default(uuid()) @db.Uuid
+  planId        String           @map("plan_id") @db.Uuid
+  versionNo     Int              @map("version_no")
+  effectiveFrom DateTime         @map("effective_from")
+  effectiveTo   DateTime?        @map("effective_to")
+  period        String
+  carryoverMode String           @map("carryover_mode")
+  notes         String?
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  actuals       BudgetActual[]
+  envelopes     BudgetEnvelope[]
+  plan          BudgetPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
 
-  plan      BudgetPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  envelopes BudgetEnvelope[]
-  actuals   BudgetActual[]
-
-  @@map("budget_versions")
   @@unique([planId, versionNo])
+  @@map("budget_versions")
 }
 
 model BudgetEnvelope {
-  id          String   @id @default(uuid()) @db.Uuid
-  versionId   String   @map("version_id") @db.Uuid
-  categoryId  String?  @map("category_id") @db.Uuid
-  label       String
-  limitCents  BigInt   @map("limit_cents")
-  warnAtPct   Int?     @map("warn_at_pct")
-  groupLabel  String?  @map("group_label")
-  metadata    Json?
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
-
-  version  BudgetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
-  category Category?     @relation(fields: [categoryId], references: [id])
-  actuals  BudgetActual[]
+  id         String         @id @default(uuid()) @db.Uuid
+  versionId  String         @map("version_id") @db.Uuid
+  categoryId String?        @map("category_id") @db.Uuid
+  label      String
+  limitCents BigInt         @map("limit_cents")
+  warnAtPct  Int?           @map("warn_at_pct")
+  groupLabel String?        @map("group_label")
+  metadata   Json?
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+  deletedAt  DateTime?      @map("deleted_at")
+  actuals    BudgetActual[]
+  category   Category?      @relation(fields: [categoryId], references: [id])
+  version    BudgetVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
 
   @@map("budget_envelopes")
 }
 
 model BudgetActual {
-  planId      String  @map("plan_id") @db.Uuid
-  versionId   String  @map("version_id") @db.Uuid
-  envelopeId  String  @map("envelope_id") @db.Uuid
-  workspaceId String  @map("workspace_id") @db.Uuid
-  period      DateTime @map("period") @db.Date
-  currency    String  @db.VarChar(3)
-  rollupMode  String  @map("rollup_mode")
-  postedAmountCents    BigInt @map("posted_amount_cents")
-  authorizedAmountCents BigInt @map("authorized_amount_cents")
-  workspaceCategoryId String? @map("workspace_category_id") @db.Uuid
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  planId                String             @map("plan_id") @db.Uuid
+  versionId             String             @map("version_id") @db.Uuid
+  envelopeId            String             @map("envelope_id") @db.Uuid
+  workspaceId           String             @map("workspace_id") @db.Uuid
+  period                DateTime           @map("period") @db.Date
+  currency              String             @db.VarChar(3)
+  rollupMode            String             @map("rollup_mode")
+  postedAmountCents     BigInt             @map("posted_amount_cents")
+  authorizedAmountCents BigInt             @map("authorized_amount_cents")
+  workspaceCategoryId   String?            @map("workspace_category_id") @db.Uuid
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  envelope              BudgetEnvelope     @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+  plan                  BudgetPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  version               BudgetVersion      @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  workspaceCategory     WorkspaceCategory? @relation(fields: [workspaceCategoryId], references: [id])
+  workspace             Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  plan     BudgetPlan     @relation(fields: [planId], references: [id], onDelete: Cascade)
-  version  BudgetVersion  @relation(fields: [versionId], references: [id], onDelete: Cascade)
-  envelope BudgetEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
-  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  workspaceCategory WorkspaceCategory? @relation(fields: [workspaceCategoryId], references: [id])
-
-  @@map("budget_actuals")
   @@id([planId, versionId, envelopeId, period])
   @@index([workspaceId, period])
+  @@map("budget_actuals")
 }
 
 model SyncSession {
-  id                 String   @id @default(uuid()) @db.Uuid
-  connectionId       String   @map("connection_id") @db.Uuid
-  initiatorProfileId String   @map("initiator_profile_id") @db.Uuid
-  status             String
-  startedAt          DateTime? @map("started_at")
-  endedAt            DateTime? @map("ended_at")
-  stats              Json?
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
-
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  initiator  Profile   @relation("SyncInitiator", fields: [initiatorProfileId], references: [id], onDelete: Cascade)
-  pagePayloads SessionPagePayload[]
-  idempotencyRecords SessionIdempotency[]
-  leases SessionLease[]
-  auditLog SyncAuditLog[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  connectionId         String                @map("connection_id") @db.Uuid
+  initiatorProfileId   String                @map("initiator_profile_id") @db.Uuid
+  status               String
+  startedAt            DateTime?             @map("started_at")
+  endedAt              DateTime?             @map("ended_at")
+  stats                Json?
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  idempotencyRecords   SessionIdempotency[]
+  leases               SessionLease[]
+  pagePayloads         SessionPagePayload[]
+  auditLog             SyncAuditLog[]
+  connection           Connection            @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  initiator            Profile               @relation("SyncInitiator", fields: [initiatorProfileId], references: [id], onDelete: Cascade)
   transactionAuditLogs TransactionAuditLog[]
 
-  @@map("sync_sessions")
   @@index([connectionId])
+  @@map("sync_sessions")
 }
 
 model SessionPagePayload {
-  id            String   @id @default(uuid()) @db.Uuid
-  syncSessionId String   @map("sync_session_id") @db.Uuid
-  pageNo        Int      @map("page_no")
+  id            String      @id @default(uuid()) @db.Uuid
+  syncSessionId String      @map("sync_session_id") @db.Uuid
+  pageNo        Int         @map("page_no")
   payload       Json
-  expiresAt     DateTime @map("expires_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  expiresAt     DateTime    @map("expires_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  session       SyncSession @relation(fields: [syncSessionId], references: [id], onDelete: Cascade)
 
-  session SyncSession @relation(fields: [syncSessionId], references: [id], onDelete: Cascade)
-
-  @@map("session_page_payloads")
   @@index([syncSessionId])
   @@index([expiresAt])
+  @@map("session_page_payloads")
 }
 
 model SessionIdempotency {
-  id            String   @id @default(uuid()) @db.Uuid
-  syncSessionId String   @map("sync_session_id") @db.Uuid
-  idempotencyKey String  @map("idempotency_key")
-  status        String
-  resultRef     String?  @map("result_ref")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id             String      @id @default(uuid()) @db.Uuid
+  syncSessionId  String      @map("sync_session_id") @db.Uuid
+  idempotencyKey String      @unique @map("idempotency_key")
+  status         String
+  resultRef      String?     @map("result_ref")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+  session        SyncSession @relation(fields: [syncSessionId], references: [id], onDelete: Cascade)
 
-  session SyncSession @relation(fields: [syncSessionId], references: [id], onDelete: Cascade)
-
-  @@map("session_idempotency")
   @@index([syncSessionId])
-  @@unique([idempotencyKey])
+  @@map("session_idempotency")
 }
 
 model SessionLease {
-  id            String   @id @default(uuid()) @db.Uuid
-  syncSessionId String   @map("sync_session_id") @db.Uuid
-  leasedUntil   DateTime @map("leased_until")
+  id            String      @id @default(uuid()) @db.Uuid
+  syncSessionId String      @map("sync_session_id") @db.Uuid
+  leasedUntil   DateTime    @map("leased_until")
   holder        String
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+  session       SyncSession @relation(fields: [syncSessionId], references: [id], onDelete: Cascade)
 
-  session SyncSession @relation(fields: [syncSessionId], references: [id], onDelete: Cascade)
-
-  @@map("session_leases")
   @@index([syncSessionId])
+  @@map("session_leases")
 }
 
 model SyncAuditLog {
-  id              String   @id @default(uuid()) @db.Uuid
-  connectionId    String   @map("connection_id") @db.Uuid
-  syncSessionId   String?  @map("sync_session_id") @db.Uuid
-  initiatorProfileId String? @map("initiator_profile_id") @db.Uuid
-  event           String
-  details         Json?
-  createdAt       DateTime @default(now()) @map("created_at")
+  id                 String       @id @default(uuid()) @db.Uuid
+  connectionId       String       @map("connection_id") @db.Uuid
+  syncSessionId      String?      @map("sync_session_id") @db.Uuid
+  initiatorProfileId String?      @map("initiator_profile_id") @db.Uuid
+  event              String
+  details            Json?
+  createdAt          DateTime     @default(now()) @map("created_at")
+  connection         Connection   @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  initiator          Profile?     @relation("SyncAuditInitiator", fields: [initiatorProfileId], references: [id])
+  session            SyncSession? @relation(fields: [syncSessionId], references: [id])
 
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  session    SyncSession? @relation(fields: [syncSessionId], references: [id])
-  initiator  Profile? @relation("SyncAuditInitiator", fields: [initiatorProfileId], references: [id])
-
-  @@map("sync_audit_log")
   @@index([connectionId])
+  @@map("sync_audit_log")
 }
 
 model UserConnectionAccessCache {
-  id           String   @id @default(uuid()) @db.Uuid
-  profileId    String   @map("profile_id") @db.Uuid
-  connectionId String   @map("connection_id") @db.Uuid
-  workspaceId  String?  @map("workspace_id") @db.Uuid
-  accountScope Json?    @map("account_scope_json")
-  userId       String?  @map("user_id") @db.Uuid
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id           String     @id @default(uuid()) @db.Uuid
+  profileId    String     @map("profile_id") @db.Uuid
+  connectionId String     @map("connection_id") @db.Uuid
+  workspaceId  String?    @map("workspace_id") @db.Uuid
+  accountScope Json?      @map("account_scope_json")
+  userId       String?    @map("user_id") @db.Uuid
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  profile      Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id])
 
-  profile    Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  connection Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  workspace  Workspace? @relation(fields: [workspaceId], references: [id])
-
-  @@map("user_connection_access_cache")
   @@index([profileId])
   @@index([connectionId])
+  @@map("user_connection_access_cache")
 }
 
 model ProfileTransactionAccessCache {
-  id            String   @id @default(uuid()) @db.Uuid
-  transactionId String   @map("transaction_id") @db.Uuid
-  profileId     String   @map("profile_id") @db.Uuid
-  workspaceId   String?  @map("workspace_id") @db.Uuid
-  connectionId  String?  @map("connection_id") @db.Uuid
-  bankAccountId String?  @map("bank_account_id") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id            String       @id @default(uuid()) @db.Uuid
+  transactionId String       @map("transaction_id") @db.Uuid
+  profileId     String       @map("profile_id") @db.Uuid
+  workspaceId   String?      @map("workspace_id") @db.Uuid
+  connectionId  String?      @map("connection_id") @db.Uuid
+  bankAccountId String?      @map("bank_account_id") @db.Uuid
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  connection    Connection?  @relation(fields: [connectionId], references: [id])
+  profile       Profile      @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  transaction   Transaction  @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  workspace     Workspace?   @relation(fields: [workspaceId], references: [id])
 
-  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  profile     Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  workspace   Workspace?  @relation(fields: [workspaceId], references: [id])
-  connection  Connection? @relation(fields: [connectionId], references: [id])
-  bankAccount BankAccount? @relation(fields: [bankAccountId], references: [id])
-
-  @@map("profile_transaction_access_cache")
   @@index([transactionId])
   @@index([profileId])
+  @@map("profile_transaction_access_cache")
 }

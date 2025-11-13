@@ -4,16 +4,25 @@
  */
 
 import type { AuthConfig } from "@auth/core";
+import type { Adapter } from "@auth/core/adapters";
 import Credentials from "@auth/core/providers/credentials";
 import Google from "@auth/core/providers/google";
 import Nodemailer from "@auth/core/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/database";
+import { encode as defaultJwtEncode, decode as defaultJwtDecode } from "@auth/core/jwt";
 import { verifyPassword } from "./password.js";
 import { sendMagicLinkEmail, getRecipientLogId } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
 import { hashToken } from "./pat.js";
+import {
+  createTokenHashEnvelope,
+  verifyTokenSecret,
+  parseOpaqueToken,
+  createOpaqueToken,
+} from "./token-hash.js";
+import type { TokenHashEnvelope } from "./token-hash.js";
 import { randomUUID } from "node:crypto";
 
 const MIN_AUTH_SECRET_LENGTH = 32;
@@ -56,9 +65,26 @@ function ensureAuthSecret(rawSecret: string | undefined): string {
 }
 
 const AUTH_SECRET = ensureAuthSecret(process.env.AUTH_SECRET);
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const SESSION_COOKIE_NAME = "authjs.session-token";
 
-function createPrismaAdapterWithLowercaseEmail() {
-  const adapter = PrismaAdapter(prisma);
+async function persistSessionToken(userId: string, expires: Date) {
+  const opaque = createOpaqueToken();
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenId: opaque.tokenId,
+      sessionTokenHash: createTokenHashEnvelope(opaque.tokenSecret),
+      expires,
+    },
+  });
+  return opaque.value;
+}
+
+
+function createPrismaAdapterWithLowercaseEmail(): Adapter {
+  const baseAdapter = PrismaAdapter(prisma);
+  const adapter: Adapter = { ...baseAdapter };
 
   adapter.getUserByEmail = async (email) => {
     if (!email) return null;
@@ -126,6 +152,111 @@ function createPrismaAdapterWithLowercaseEmail() {
     };
   };
 
+  adapter.createSession = async (session) => {
+    const parsed = parseOpaqueToken(session.sessionToken);
+    if (!parsed) {
+      throw new Error("Invalid session token format");
+    }
+
+    const sessionHash = createTokenHashEnvelope(parsed.tokenSecret);
+    const created = await prisma.session.create({
+      data: {
+        userId: session.userId,
+        tokenId: parsed.tokenId,
+        sessionTokenHash: sessionHash,
+        expires: session.expires,
+      },
+    });
+    return {
+      sessionToken: session.sessionToken,
+      userId: created.userId,
+      expires: created.expires,
+    };
+  };
+
+  adapter.getSessionAndUser = async (sessionToken) => {
+    const parsed = parseOpaqueToken(sessionToken);
+    if (!parsed) {
+      return null;
+    }
+
+    const record = await prisma.session.findUnique({
+      where: { tokenId: parsed.tokenId },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!record) {
+      return null;
+    }
+
+    if (
+      !verifyTokenSecret(parsed.tokenSecret, record.sessionTokenHash as TokenHashEnvelope)
+    ) {
+      await prisma.session
+        .delete({ where: { id: record.id } })
+        .catch(() => {});
+      return null;
+    }
+
+    if (record.expires < new Date()) {
+      await prisma.session
+        .delete({ where: { id: record.id } })
+        .catch(() => {});
+      return null;
+    }
+
+    return {
+      session: {
+        sessionToken,
+        userId: record.userId,
+        expires: record.expires,
+      },
+      user: record.user as any,
+    };
+  };
+
+  adapter.updateSession = async (session) => {
+    const parsed = parseOpaqueToken(session.sessionToken);
+    if (!parsed) {
+      return null;
+    }
+
+    const updated = await prisma.session.update({
+      where: { tokenId: parsed.tokenId },
+      data: {
+        ...(session.expires ? { expires: session.expires } : {}),
+      },
+    });
+
+    return {
+      sessionToken: session.sessionToken,
+      userId: updated.userId,
+      expires: updated.expires,
+    };
+  };
+
+  adapter.deleteSession = async (sessionToken) => {
+    const parsed = parseOpaqueToken(sessionToken);
+    if (!parsed) {
+      return null;
+    }
+
+    try {
+      const deleted = await prisma.session.delete({
+        where: { tokenId: parsed.tokenId },
+      });
+      return {
+        sessionToken,
+        userId: deleted.userId,
+        expires: deleted.expires,
+      };
+    } catch {
+      return null;
+    }
+  };
+
   return adapter;
 }
 
@@ -135,12 +266,12 @@ export const authConfig: AuthConfig = {
   adapter: createPrismaAdapterWithLowercaseEmail(), // For OAuth & magic link flows
   cookies: {
     sessionToken: {
-      name: "authjs.session-token",
+      name: SESSION_COOKIE_NAME,
       options: {
         httpOnly: true,
         sameSite: "lax", // Same-site cookies (api.superbasicfinance.com and www.superbasicfinance.com)
         path: "/",
-        secure: true, // HTTPS only
+        secure: IS_PRODUCTION, // allow http://localhost during development
       },
     },
     csrfToken: {
@@ -149,7 +280,7 @@ export const authConfig: AuthConfig = {
         httpOnly: true,
         sameSite: "lax", // Same-site cookies for CSRF protection
         path: "/",
-        secure: true, // HTTPS only
+        secure: IS_PRODUCTION,
       },
     },
   },
@@ -239,8 +370,54 @@ export const authConfig: AuthConfig = {
       },
     }) as any, // Type cast to avoid Auth.js provider type strictness issues
   ],
+  jwt: {
+    async encode(params) {
+      const token = params.token as Record<string, unknown> | null | undefined;
+      const sessionTokenValue = token?.sessionTokenValue;
+      if (typeof sessionTokenValue === "string") {
+        return sessionTokenValue;
+      }
+      return defaultJwtEncode(params);
+    },
+    async decode(params) {
+      const raw = params.token;
+      if (typeof raw === "string") {
+        const parsed = parseOpaqueToken(raw);
+        if (parsed) {
+          const record = await prisma.session.findUnique({
+            where: { tokenId: parsed.tokenId },
+            include: {
+              user: {
+                select: { id: true, email: true },
+              },
+            },
+          });
+          if (!record) {
+            return null;
+          }
+          const isValid = verifyTokenSecret(
+            parsed.tokenSecret,
+            record.sessionTokenHash as TokenHashEnvelope
+          );
+          if (!isValid || record.expires < new Date()) {
+            await prisma.session
+              .delete({ where: { id: record.id } })
+              .catch(() => {});
+            return null;
+          }
+          return {
+            sub: record.userId,
+            email: record.user.email,
+            sessionTokenValue: raw,
+            id: record.userId,
+          };
+        }
+      }
+      return defaultJwtDecode(params);
+    },
+  },
   session: {
-    strategy: "jwt", // Stateless sessions; no database session rows created
+    strategy: "jwt",
     maxAge: SESSION_MAX_AGE_SECONDS,
   },
   secret: AUTH_SECRET,
@@ -304,18 +481,23 @@ export const authConfig: AuthConfig = {
     },
     async jwt({ token, user }) {
       if (user) {
-        token.id = user.id;
-        token.email = user.email ?? null;
+        if (!user.id) {
+          return token;
+        }
+        const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+        const sessionTokenValue = await persistSessionToken(user.id, expires);
+        return {
+          sessionTokenValue,
+          id: user.id,
+          email: user.email ?? null,
+        };
       }
-      // Set required claims for middleware validation
-      token.iss = "sbfin";
-      token.aud = "sbfin:web";
       return token;
     },
     async session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.id as string;
-        session.user.email = token.email as string;
+        session.user.id = (token as any).id as string;
+        session.user.email = ((token as any).email as string) ?? session.user.email;
       }
       return session;
     },

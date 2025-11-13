@@ -11,16 +11,12 @@ vi.unmock('@repo/database');
 import { Hono } from "hono";
 import { unifiedAuthMiddleware } from "../auth-unified.js";
 import { resetDatabase, getTestPrisma } from "../../test/setup.js";
-import { makeRequest, createTestUser } from "../../test/helpers.js";
+import { makeRequest, createTestUser, createSessionToken } from "../../test/helpers.js";
 import {
   generateToken,
   hashToken,
-  authConfig,
-  JWT_SALT,
-  SESSION_MAX_AGE_SECONDS,
   COOKIE_NAME,
 } from "@repo/auth";
-import { encode } from "@auth/core/jwt";
 
 // Define context variables type
 type UnifiedContext = {
@@ -128,18 +124,7 @@ describe("Unified Authentication Middleware", () => {
       });
 
       // Create session token
-      const sessionToken = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: "sbfin",
-          aud: "sbfin:web",
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+      const sessionToken = await createSessionToken(user.id, user.email);
 
       const response = await makeRequest(app, "GET", "/protected", {
         headers: {
@@ -166,18 +151,7 @@ describe("Unified Authentication Middleware", () => {
       const app = createTestApp();
 
       // Create session token
-      const sessionToken = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: "sbfin",
-          aud: "sbfin:web",
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+      const sessionToken = await createSessionToken(user.id, user.email);
 
       const response = await makeRequest(app, "GET", "/protected", {
         cookies: {
@@ -199,18 +173,7 @@ describe("Unified Authentication Middleware", () => {
       const app = createTestApp();
 
       // Create session token
-      const sessionToken = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: "sbfin",
-          aud: "sbfin:web",
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+      const sessionToken = await createSessionToken(user.id, user.email);
 
       // Note: Invalid Bearer token will be rejected by PAT middleware
       // It won't fall back to session - Bearer header takes priority
@@ -291,18 +254,7 @@ describe("Unified Authentication Middleware", () => {
       expect(patData.profileId).toBe(profile!.id);
 
       // Test session auth
-      const sessionToken = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: "sbfin",
-          aud: "sbfin:web",
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+      const sessionToken = await createSessionToken(user.id, user.email);
 
       const sessionResponse = await makeRequest(app, "GET", "/protected", {
         cookies: {
@@ -351,18 +303,7 @@ describe("Unified Authentication Middleware", () => {
       expect(patData.authType).toBe("pat");
 
       // Test session auth
-      const sessionToken = await encode({
-        token: {
-          sub: user.id,
-          id: user.id,
-          email: user.email,
-          iss: "sbfin",
-          aud: "sbfin:web",
-        },
-        secret: authConfig.secret!,
-        salt: JWT_SALT,
-        maxAge: SESSION_MAX_AGE_SECONDS,
-      });
+      const sessionToken = await createSessionToken(user.id, user.email);
 
       const sessionResponse = await makeRequest(app, "GET", "/protected", {
         cookies: {

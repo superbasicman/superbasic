@@ -10,6 +10,10 @@ export interface TokenHashEnvelope {
 }
 
 const TOKEN_HASH_ALGO: TokenHashEnvelope["algo"] = "hmac-sha256";
+const OPAQUE_TOKEN_DELIMITER = ".";
+const DEFAULT_TOKEN_SECRET_BYTES = 32;
+const UUID_PATTERN =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
 type TokenHashKeyConfig = Record<string, string>;
 
@@ -106,4 +110,41 @@ export function verifyTokenSecret(
   } catch {
     return false;
   }
+}
+
+export interface OpaqueToken {
+  tokenId: string;
+  tokenSecret: string;
+  value: string;
+}
+
+export function createOpaqueToken(secretLength = DEFAULT_TOKEN_SECRET_BYTES): OpaqueToken {
+  const tokenId = crypto.randomUUID();
+  const tokenSecret = crypto.randomBytes(secretLength).toString("base64url");
+  return {
+    tokenId,
+    tokenSecret,
+    value: `${tokenId}${OPAQUE_TOKEN_DELIMITER}${tokenSecret}`,
+  };
+}
+
+export function parseOpaqueToken(token: string): { tokenId: string; tokenSecret: string } | null {
+  if (!token || typeof token !== "string") {
+    return null;
+  }
+
+  const delimiterIndex = token.indexOf(OPAQUE_TOKEN_DELIMITER);
+  if (delimiterIndex <= 0 || delimiterIndex === token.length - 1) {
+    return null;
+  }
+
+  const tokenId = token.slice(0, delimiterIndex);
+  if (!UUID_PATTERN.test(tokenId)) {
+    return null;
+  }
+
+  return {
+    tokenId,
+    tokenSecret: token.slice(delimiterIndex + 1),
+  };
 }

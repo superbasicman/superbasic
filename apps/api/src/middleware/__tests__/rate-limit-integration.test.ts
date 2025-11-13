@@ -13,13 +13,10 @@ import { resetDatabase, getTestPrisma } from "../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
+  createSessionToken,
   makeRequest,
 } from "../../test/helpers.js";
-import { encode } from "@auth/core/jwt";
 import {
-  SESSION_MAX_AGE_SECONDS,
-  JWT_SALT,
-  authConfig,
   generateToken,
   hashToken,
 } from "@repo/auth";
@@ -49,22 +46,6 @@ vi.mock("@repo/rate-limit", async () => {
 // Set environment variables to enable rate limiting
 process.env.UPSTASH_REDIS_REST_URL = "http://mock-redis";
 process.env.UPSTASH_REDIS_REST_TOKEN = "mock-token";
-
-// Helper to create session token for authenticated requests
-async function createSessionToken(userId: string, email: string) {
-  return await encode({
-    token: {
-      sub: userId,
-      id: userId,
-      email,
-      iss: "sbfin",
-      aud: "sbfin:web",
-    },
-    secret: authConfig.secret!,
-    salt: JWT_SALT,
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
-}
 
 // Create test app with tokens route
 function createTestApp() {

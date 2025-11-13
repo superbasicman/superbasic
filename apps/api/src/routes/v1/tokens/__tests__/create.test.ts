@@ -13,16 +13,13 @@ import { resetDatabase } from "../../../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
+  createSessionToken,
 } from "../../../../test/helpers.js";
 import {
-  SESSION_MAX_AGE_SECONDS,
-  JWT_SALT,
-  authConfig,
   authEvents,
   isValidTokenFormat,
   hashToken,
 } from "@repo/auth";
-import { encode } from "@auth/core/jwt";
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
@@ -33,22 +30,6 @@ function createTestApp() {
   app.use("*", corsMiddleware);
   app.route("/v1/tokens", tokensRoute);
   return app;
-}
-
-// Helper to create session token for authenticated requests
-async function createSessionToken(userId: string, email: string) {
-  return await encode({
-    token: {
-      sub: userId,
-      id: userId,
-      email,
-      iss: "sbfin",
-      aud: "sbfin:web",
-    },
-    secret: authConfig.secret!,
-    salt: JWT_SALT,
-    maxAge: SESSION_MAX_AGE_SECONDS,
-  });
 }
 
 describe("POST /v1/tokens - Token Creation", () => {
