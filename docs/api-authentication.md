@@ -1117,9 +1117,9 @@ Retry-After: 3600
 
 ## Additional Resources
 
-- [Project Plan](project_plan.md) - Complete roadmap and phase breakdown
-- [Phase 3 Spec](.kiro/specs/api-key-management/) - Detailed API key management specification
-- [Database Schema](.kiro/steering/database-schema.md) - Complete database schema reference
+- [Project Plan](../.scope/project_plan.md) - Complete roadmap and phase breakdown
+- [OAuth Setup Guide](oauth-setup-guide.md) - Step-by-step Google OAuth configuration
+- [Deployment Guide](vercel-deployment-guide.md) - Production deployment walkthrough
 
 ---
 

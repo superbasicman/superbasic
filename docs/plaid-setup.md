@@ -1,5 +1,9 @@
 # Plaid Integration Setup Guide
 
+> **⚠️ Phase 4 - Not Yet Implemented**  
+> This guide is for **Phase 4** of the project roadmap. Plaid integration has not been started yet.  
+> The setup wizard and configuration are ready, but no Plaid features are currently implemented in the application.
+
 This guide walks you through setting up Plaid Link integration for SuperBasic Finance (Phase 4).
 
 ## Quick Start

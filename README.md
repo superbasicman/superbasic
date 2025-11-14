@@ -14,11 +14,13 @@ An API-first personal finance platform built as a monorepo. The web client is a 
 
 ## Current Status
 
-✅ **Phase 1 Complete**: Monorepo infrastructure with pnpm workspaces, Turborepo, TypeScript, Biome, Vitest, and Playwright ([Phase 1 Guide](docs/phase-1-readme.md))  
-✅ **Phase 2 Complete**: Authentication with Auth.js, JWT sessions, httpOnly cookies, rate limiting, audit logging, and comprehensive E2E tests ([Phase 2 Guide](docs/phase-2-readme.md))  
-🚧 **Phase 3 In Progress**: API Key Management - Documentation complete, implementation in progress ([API Authentication Guide](docs/api-authentication.md))
+✅ **Phase 1 Complete**: Monorepo infrastructure with pnpm workspaces, Turborepo, TypeScript, Biome, Vitest, and Playwright  
+✅ **Phase 2 Complete**: Authentication with Auth.js, JWT sessions, httpOnly cookies, Google OAuth, magic links  
+✅ **Phase 3 Complete**: API Key Management with Bearer token auth and scope enforcement  
+🚧 **Phase 3.5 In Progress**: Architecture refactor to Service/Repository pattern for cleaner code organization  
+⏸️ **Phase 4 Planned**: Plaid Integration for bank connections (not yet started)
 
-See [Project Plan](docs/project_plan.md) for detailed roadmap.
+See `.scope/project_plan.md` for detailed roadmap.
 
 ## Project Structure
 
@@ -379,12 +381,6 @@ Configure OAuth providers for social login:
 3. Copy client ID and secret to `.env.local`
 4. See [OAuth Setup Guide](docs/oauth-setup-guide.md) for detailed step-by-step instructions
 
-**GitHub OAuth (Phase 16):**
-
-- Deferred to Phase 16 (Advanced Features)
-- Architecture supports adding additional OAuth providers without refactor
-- See [OAuth Setup Guide](docs/oauth-setup-guide.md) for implementation details
-
 ### Magic Links (Optional)
 
 Configure email provider for passwordless authentication:
@@ -403,53 +399,55 @@ Configure email provider for passwordless authentication:
 
 ## Security
 
-- ✅ All authentication endpoints require valid credentials
-- ✅ JWT sessions stored in httpOnly cookies (30-day expiration)
+- ✅ Auth.js authentication with JWT sessions (httpOnly cookies, 30-day expiration)
+- ✅ Google OAuth integration with CSRF protection
+- ✅ Magic link authentication with rate limiting (3 per hour per email)
 - ✅ Passwords hashed with bcrypt (cost factor 10)
 - ✅ Rate limiting on auth endpoints (10 req/min per IP) via Upstash Redis
-- ✅ Sliding window rate limiter with Redis sorted sets
-- ✅ Structured audit logging for all auth events (registration, login, logout)
-- ✅ CORS configured for cross-origin cookie support
-- ✅ Comprehensive E2E test coverage for authentication flows
-- ✅ Personal access tokens (PATs) with SHA-256 hashing and scope-based permissions
+- ✅ Personal access tokens (PATs) with SHA-256 hashing
 - ✅ Bearer token authentication for programmatic API access
-- ✅ Token lifecycle management (creation, listing, revocation, expiration)
-- ✅ Comprehensive API documentation with security best practices
-- 🚧 OAuth account linking (Google) - Phase 2.1 in progress
-- 🔮 Additional OAuth providers (GitHub, Apple) - Phase 16 planned
-- 🚧 Magic link authentication - Phase 2.1 in progress
-- 🚧 Row-level security policies in Postgres - Phase 6
-- 🚧 Stripe webhook signatures - Phase 7
+- ✅ Scope-based permissions system (read:transactions, write:budgets, etc.)
+- ✅ Comprehensive audit logging for auth and API key events
+- ✅ CORS configured for cross-origin cookie support
+- � Row-level security policies in Postgres - Phase 6
+- 🔮 Additional OAuth providers (GitHub, Apple) - Phase 16
+- � Stripe webhook signatures - Phase 7
 
 ## Deployment
 
-- **API**: Vercel with Node.js runtime (ready to deploy)
-- **Web**: Vercel as static SPA (ready to deploy)
+- **API**: Vercel with Node.js runtime (production ready)
+- **Web**: Vercel as static SPA (production ready)
 - **Database**: Neon Postgres with branch isolation
   - `main` branch → Production
-  - `dev` branch → Local development + Preview deployments
-- **Redis**: Upstash for rate limiting (configured)
-- **Jobs**: Upstash QStash for background processing (Phase 5)
+  - `dev` branch → Development + Preview deployments
+- **Redis**: Upstash for rate limiting
+- **Jobs**: Future Phase 5 (Upstash QStash for background processing)
 
 **Deployment Guides**:
 - [Vercel Deployment Guide](docs/vercel-deployment-guide.md) - Complete deployment walkthrough
-- [Neon Branch Setup](docs/SETUP-NEON-BRANCHES.md) - Quick database branch configuration
+- [Neon Branch Setup](docs/SETUP-NEON-BRANCHES.md) - Database branch configuration
 
 ## Documentation
 
-### Project Documentation
+### Setup Guides
 
-- [Open Docs Checklist](docs/open-docs.md) - Quick reference for all documentation files
-- [Project Plan](docs/project_plan.md) - Complete roadmap and phase breakdown
-- [Phase 1 Guide](docs/phase-1-readme.md) - Foundation & Infrastructure setup
-- [Phase 2 Guide](docs/phase-2-readme.md) - Authentication & Session Management
-- [Phase 3 Guide](docs/phase-3-readme.md) - API Key Management
+- [Quick Start](QUICKSTART.md) - Get running in 5 minutes with interactive setup
+- [OAuth Setup](docs/oauth-setup-guide.md) - Configure Google OAuth authentication
+- [Neon Setup](docs/SETUP-NEON-BRANCHES.md) - Database branch configuration
+- [Vercel Deployment](docs/vercel-deployment-guide.md) - Deploy to production
+- [PWA Setup](docs/pwa-setup.md) - Progressive Web App configuration
 
-### Technical Guides
+### Technical Documentation
 
-- [API Authentication Guide](docs/api-authentication.md) - Bearer token authentication and API key management
-- [OAuth Setup Guide](docs/oauth-setup-guide.md) - Step-by-step OAuth provider configuration (Google)
-- [E2E Testing Guide](apps/web/e2e/README.md) - Running end-to-end tests
+- [API Authentication](docs/api-authentication.md) - Complete auth guide (sessions, OAuth, magic links, API keys)
+- [Plaid Setup](docs/plaid-setup.md) - Bank integration setup (Phase 4 - not yet implemented)
+- [E2E Testing](apps/web/e2e/README.md) - End-to-end testing guide
+
+### Project Planning
+
+- [Project Plan](.scope/project_plan.md) - Complete roadmap and phase breakdown
+- [Current Phase](.scope/current-phase.md) - Active phase status and tasks
+- [Steering Docs](agent/steering/) - Architecture and best practices
 
 ## Contributing
 

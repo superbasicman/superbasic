@@ -36,34 +36,14 @@ pnpm tsx tooling/scripts/setup-plaid.ts
 
 **`check-auth-env.ts`**
 - Validates Auth.js environment variables
-- Checks for required secrets (NEXTAUTH_SECRET, OAuth credentials)
+- Checks for required secrets (OAuth credentials, email provider)
 - Run before deployment or when debugging auth issues
 
 ```bash
 pnpm tsx tooling/scripts/check-auth-env.ts
 ```
 
-**`task-4-sanity-checks.sh`**
-- Complete Auth.js integration test suite
-- Runs 7 sanity checks for credentials flow
-- Used for Phase 2.1 validation
-
-```bash
-./tooling/scripts/task-4-sanity-checks.sh
-```
-
 ### Database Operations
-
-**`backfill-profiles.ts`**
-- Creates profiles for users missing them
-- Idempotent - safe to run multiple times
-- Used during Auth.js migration
-
-```bash
-pnpm tsx tooling/scripts/backfill-profiles.ts
-```
-
-**`setup-neon-branches.ts`**
 - Interactive setup wizard for Neon database branch configuration
 - Walks you through configuring dev/main branch isolation
 - Updates local files and provides Vercel instructions
@@ -79,6 +59,27 @@ pnpm tsx tooling/scripts/setup-neon-branches.ts
 
 ```bash
 pnpm tsx tooling/scripts/check-db-branch.ts
+```
+
+**`reset-devdb-and-test.mjs`**
+- Resets dev database and runs core package tests
+- Used for testing against real Neon dev branch
+- Includes safety prompts to prevent accidental production resets
+
+```bash
+pnpm db:reset-and-test
+# OR
+node tooling/scripts/reset-devdb-and-test.mjs
+```
+
+**`run-core-tests-devdb.mjs`**
+- Runs core package tests against dev database without reset
+- Faster than full reset when database is already in clean state
+
+```bash
+pnpm test:core:devdb
+# OR
+node tooling/scripts/run-core-tests-devdb.mjs
 ```
 
 ### Rate Limiting
@@ -143,13 +144,13 @@ Each permanent script should have:
 
 ## Archived Scripts
 
-Temporary debugging scripts from Phase 2.1 have been removed:
-- `test-resend.ts` - Email verification (one-time)
-- `test-credentials-signin.sh` - Debugging helper
-- `test-magic-link-*.sh` - Debugging helpers
-- `test-session-endpoint.sh` - Debugging helper
-- `test-signout.sh` - Debugging helper
+The following scripts have been removed as they are no longer needed:
 
-These were used during development and are no longer needed. Their functionality is covered by:
-- Integration tests in `apps/api/src/routes/v1/__tests__/`
-- Sanity check suite in `task-4-sanity-checks.sh`
+**Phase 2.1 Migration Scripts (Removed):**
+- `task-4-sanity-checks.sh` - Auth.js validation (replaced by integration tests)
+- `backfill-profiles.ts` - One-time migration (profiles now auto-created via Auth.js callback)
+- `test-resend.ts` - Email verification (one-time testing)
+- `test-credentials-signin.sh`, `test-magic-link-*.sh`, `test-session-endpoint.sh`, `test-signout.sh` - Debugging helpers (replaced by test suites)
+
+**Deprecated Production Scripts (Removed):**
+- `migrate-production.ts` - Risky, use Prisma CLI directly instead

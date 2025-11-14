@@ -367,9 +367,8 @@ Phase 2 implemented a custom auth system, and Phase 3 built API key management o
 - Archived 2 completed task docs to `docs/archived/`
 - Deleted 9 temporary test/debug scripts from `tooling/scripts/`
 - Created comprehensive `tooling/scripts/README.md`
-- Updated `docs/open-docs.md` to reflect current state
+- Updated documentation index to reflect current state
 - Workspace now clean with clear permanent vs temporary artifacts
-- Documentation: `docs/archived/task-hygiene-cleanup-2025-10-25.md`
 
 **Task 25 Achievements (2025-10-26):**
 - Updated `docs/api-authentication.md` with comprehensive Auth.js documentation
@@ -640,8 +639,8 @@ None - Phase 2.1 is production-ready with no known issues. Rate limit test failu
 
 ## Related Documentation
 
-- **Documentation Index**: `docs/open-docs.md` - Quick reference for all documentation files
-- **Full Roadmap**: `docs/project_plan.md` - Complete 18-phase plan with all details
+- **Documentation Index**: `docs/README.md` - Overview of all documentation
+- **Full Roadmap**: `.scope/project_plan.md` - Complete 18-phase plan with all details
 - **Phase Summaries**: `docs/phase-1-readme.md`, `docs/phase-2-readme.md`, `docs/phase-3-readme.md`
 - **Database Schema**: `.kiro/steering/database-schema.md` - Complete schema reference
 - **API Authentication**: `docs/api-authentication.md` - Authentication guide
