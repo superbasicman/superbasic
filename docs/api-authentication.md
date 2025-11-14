@@ -28,7 +28,7 @@ SuperBasic Finance provides multiple authentication methods for accessing the AP
 
 ### Session Authentication
 
-Session authentication uses JWT tokens stored in httpOnly cookies, powered by Auth.js. This method is used by the web client and provides full access to all API endpoints without scope restrictions. SuperBasic Finance supports three session authentication methods:
+Session authentication uses opaque Auth.js session tokens stored in httpOnly cookies. The cookie value is a random, non-decodable string (not a JWT) that maps to server-side state in the `sessions` table. This method is used by the web client and provides full access to all API endpoints without scope restrictions. SuperBasic Finance supports three session authentication methods:
 
 1. **Credentials** - Traditional email/password login
 2. **OAuth** - Sign in with Google (GitHub and Apple coming in Phase 16)
@@ -39,6 +39,7 @@ All session authentication methods result in the same session cookie format and 
 **Session Cookie Details:**
 
 - **Cookie name:** `authjs.session-token`
+- **Value:** Random opaque token (not a JWT); server stores only a hash in the `sessions` table
 - **httpOnly:** `true` - Prevents JavaScript access
 - **secure:** `true` - HTTPS only (production)
 - **sameSite:** `lax` - CSRF protection
@@ -68,7 +69,7 @@ Traditional email and password authentication.
 1. Client fetches CSRF token from `/v1/auth/csrf`
 2. Client POSTs credentials to `/v1/auth/callback/credentials` with CSRF token
 3. Server validates credentials against hashed password in database
-4. Server creates JWT session and sets `authjs.session-token` cookie
+4. Server mints an opaque session token, hashes it in the database, and sets the `authjs.session-token` cookie
 5. Server redirects to callback URL (302 redirect)
 6. Client fetches session data from `/v1/auth/session`
 
@@ -87,7 +88,7 @@ curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
   -d "email=user@example.com&password=SecurePassword123!&csrfToken=$CSRF_TOKEN"
 
 # Response: HTTP/1.1 302 Found
-# Set-Cookie: authjs.session-token=<jwt>; Path=/; HttpOnly; SameSite=Lax
+# Set-Cookie: authjs.session-token=<opaque_token>; Path=/; HttpOnly; SameSite=Lax
 
 # Step 3: Get session data
 curl http://localhost:3000/v1/auth/session -b /tmp/cookies.txt
@@ -129,7 +130,7 @@ Sign in with Google account using OAuth 2.0 + OpenID Connect.
 4. Google redirects back to `/v1/auth/callback/google` with authorization code
 5. Server exchanges code for access token and user profile
 6. Server creates or links user account (by email)
-7. Server creates JWT session and sets `authjs.session-token` cookie
+7. Server mints an opaque session token, hashes it in the database, and sets the `authjs.session-token` cookie
 8. Server redirects to `callbackUrl`
 9. Client fetches session data from `/v1/auth/session`
 
@@ -217,8 +218,8 @@ Passwordless authentication via email link.
 4. Server sends email with magic link via Resend
 5. Server redirects to verify-request page (302 redirect)
 6. User clicks magic link in email
-7. Server validates token and creates JWT session
-8. Server sets `authjs.session-token` cookie
+7. Server validates the magic-link token and mints an opaque session token
+8. Server sets the `authjs.session-token` cookie
 9. Server redirects to callback URL
 10. Client fetches session data from `/v1/auth/session`
 
@@ -246,7 +247,7 @@ curl -i -X POST http://localhost:3000/v1/auth/signin/nodemailer \
 curl -i "http://localhost:3000/v1/auth/callback/email?token=<token>&email=user@example.com"
 
 # Response: HTTP/1.1 302 Found
-# Set-Cookie: authjs.session-token=<jwt>; Path=/; HttpOnly; SameSite=Lax
+# Set-Cookie: authjs.session-token=<opaque_token>; Path=/; HttpOnly; SameSite=Lax
 # Location: http://localhost:5173/  # Callback URL
 
 # Step 5: Get session data
@@ -451,7 +452,7 @@ Create a new Personal Access Token with specified scopes and expiration.
 ```bash
 curl -X POST https://api.superbasic.finance/v1/tokens \
   -H "Content-Type: application/json" \
-  -H "Cookie: __Host-sbfin_auth=<session_token>" \
+  -H "Cookie: authjs.session-token=<session_token>" \
   -d '{
     "name": "Mobile App",
     "scopes": ["read:transactions", "read:accounts"],
@@ -516,7 +517,7 @@ Retrieve all active API keys for the authenticated user.
 
 ```bash
 curl https://api.superbasic.finance/v1/tokens \
-  -H "Cookie: __Host-sbfin_auth=<session_token>"
+  -H "Cookie: authjs.session-token=<session_token>"
 ```
 
 ### Revoke API Key
@@ -553,7 +554,7 @@ No response body is returned on successful revocation.
 
 ```bash
 curl -X DELETE https://api.superbasic.finance/v1/tokens/tok_abc123 \
-  -H "Cookie: __Host-sbfin_auth=<session_token>"
+  -H "Cookie: authjs.session-token=<session_token>"
 ```
 
 ### Update API Key Name
@@ -610,7 +611,7 @@ Update the name of an existing API key without regenerating the token.
 ```bash
 curl -X PATCH https://api.superbasic.finance/v1/tokens/tok_abc123 \
   -H "Content-Type: application/json" \
-  -H "Cookie: __Host-sbfin_auth=<session_token>" \
+  -H "Cookie: authjs.session-token=<session_token>" \
   -d '{
     "name": "Production API Key"
   }'
@@ -897,7 +898,7 @@ sleep 60
 
 # 5. Revoke old token (via web UI or API)
 curl -X DELETE https://api.superbasic.finance/v1/tokens/tok_old123 \
-  -H "Cookie: __Host-sbfin_auth=<session_token>"
+  -H "Cookie: authjs.session-token=<session_token>"
 ```
 
 ### Least Privilege Scope Selection
@@ -1016,7 +1017,7 @@ Set appropriate expiration periods based on token usage:
 ```bash
 # Revoke compromised token immediately
 curl -X DELETE https://api.superbasic.finance/v1/tokens/tok_compromised \
-  -H "Cookie: __Host-sbfin_auth=<session_token>"
+  -H "Cookie: authjs.session-token=<session_token>"
 ```
 
 ### Secret Scanning

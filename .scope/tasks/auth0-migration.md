@@ -18,6 +18,7 @@ We decided to replace Auth.js + custom session plumbing with Auth0 so every clie
      - A documented `curl` example (client credentials or password grant) shows fetching an Auth0 token and hitting a protected API route successfully.
      - Context derivation reproduces the previous behavior for RLS and any failures are logged/alerted.
      - API key–based authentication continues to work unchanged and is explicitly tested.
+     - Tests covering Auth.js-only middleware or session code are deleted or rewritten to reflect the Auth0 flow.
 
 3. [ ] Update web client auth integration
    - Swap Auth.js calls for Auth0 SDK/REST (login, logout, token refresh) while keeping the API contract untouched.
@@ -35,7 +36,7 @@ We decided to replace Auth.js + custom session plumbing with Auth0 so every clie
      - Prisma schema + migrations reflect the final data model and run cleanly against staging.
      - Any data that must live on (e.g., user profile metadata) is backfilled into Auth0 or ancillary tables, with scripts checked in.
      - API key / PAT tests run under CI and confirm no regression.
-     - Legacy Auth.js artifacts are removed or clearly flagged for deletion.
+     - Legacy Auth.js artifacts (tables, services, tests, docs) are removed or clearly flagged for deletion.
 
 5. [ ] End-to-end validation
    - Re-run API + web suites, update docs (`agent/steering/security-and-secrets-management.md`, etc.), and add a cutover guide.
