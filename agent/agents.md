@@ -48,6 +48,8 @@ Treat this section as the per-chat system prompt for any work in this repo.
   - Respect the current phase and scope in `.scope/` and specs under `docs/`.
 - For larger tasks:
   - Break work into **small, numbered checklist items** in `.scope/tasks/` with quick sanity checks.
+    - Use the explicit format: `- [ ] 1. Task title` followed by an indented `- Sanity check: ...` line so it’s obvious how each step is validated.
+    - Every item must include a sanity check describing how to confirm completion (command, test, manual verification, etc.).
   - Keep related docs (specs, readmes) up to date as part of the change.
 - When changing schema, contracts, or invariants:
   - Update or propose changes in the **schema / API docs first**, then update code and tests to match.

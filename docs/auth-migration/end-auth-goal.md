@@ -1,4 +1,4 @@
-# Auth Architecture Plan (`auth-plan.md`)
+# Auth Architecture Plan (`end-auth-goal.md`)
 
 > Goal: Define the end-state authentication & authorization architecture for SuperBasic Finance that:
 > - Works cleanly for web, Capacitor, and fully native mobile.

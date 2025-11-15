@@ -1,9 +1,9 @@
 # Auth Architecture: Plan vs Implementation Comparison
 
-> **Document Purpose:** This document compares the end-state auth architecture defined in `auth-plan.md` with the current implementation in the codebase to identify gaps, alignment, and migration priorities.
+> **Document Purpose:** This document compares the end-state auth architecture defined in `end-auth-goal.md` with the current implementation in the codebase to identify gaps, alignment, and migration priorities.
 >
 > **Last Updated:** November 14, 2025  
-> **Status:** Current implementation is Phase 2.1 (Auth.js migration) - early in the journey toward the full auth-plan.md vision
+> **Status:** Current implementation is Phase 2.1 (Auth.js migration) - early in the journey toward the full end-auth-goal.md vision
 
 ---
 
@@ -16,7 +16,7 @@
 - **Multi-tenancy:** Workspace model exists in DB but auth layer is not workspace-aware
 - **Architecture:** Monolithic auth in API server, no separate auth-core package
 
-### Target State (auth-plan.md)
+### Target State (end-auth-goal.md)
 - **IdP:** IdP-agnostic with `VerifiedIdentity` and `UserIdentity` linking
 - **Tokens:** Short-lived JWTs (asymmetric), refresh tokens with rotation/reuse detection, scoped PATs
 - **Auth-Core:** Centralized `packages/auth-core` managing all token/session logic
