@@ -1,7 +1,17 @@
 import { PrismaClient } from "@prisma/client";
 
 export { PrismaClient };
-export type { User, Profile, ApiKey, Account, Session, VerificationToken } from "@prisma/client";
+export type {
+  User,
+  Profile,
+  ApiKey,
+  Account,
+  Session,
+  VerificationToken,
+  UserIdentity,
+  Token,
+  OAuthClient,
+} from "@prisma/client";
 
 // Global singleton instance for use across the application
 const globalForPrisma = globalThis as unknown as {

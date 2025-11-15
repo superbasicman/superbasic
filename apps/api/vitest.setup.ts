@@ -1,3 +1,7 @@
+/// <reference types="vitest" />
+
+import { vi } from 'vitest';
+
 /**
  * Vitest setup file
  * Runs before each test file

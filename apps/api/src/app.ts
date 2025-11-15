@@ -7,8 +7,10 @@ import { registerRoute } from './routes/v1/register.js';
 import { meRoute } from './routes/v1/me.js';
 import { tokensRoute } from './routes/v1/tokens/index.js';
 import { authApp } from './auth.js';
+import type { AppBindings } from './types/context.js';
+import { attachAuthContext } from './middleware/auth-context.js';
 
-const app = new Hono();
+const app = new Hono<AppBindings>();
 
 // Apply request ID middleware first for log correlation
 app.use('*', requestIdMiddleware);
@@ -16,10 +18,13 @@ app.use('*', requestIdMiddleware);
 // Apply CORS middleware globally for cross-origin cookie support
 app.use('*', corsMiddleware);
 
+// Reserve c.var.auth for the auth-core context
+app.use('*', attachAuthContext);
+
 app.route('/health', healthRoute);
 
 // Mount v1 routes
-const v1 = new Hono();
+const v1 = new Hono<AppBindings>();
 
 // Mount Auth.js handler (handles /v1/auth/*)
 // Magic link rate limiting is applied directly in auth.ts

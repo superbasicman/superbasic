@@ -16,6 +16,7 @@
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "skipLibCheck": true,
 
     // Interop
     "esModuleInterop": true,
@@ -26,6 +27,7 @@
     // Language and Environment
     "target": "ES2022",
     "lib": ["ES2022"],
+    "jsx": "react-jsx",
     "useDefineForClassFields": true,
 
     // Emit
@@ -36,6 +38,7 @@
     // Path Aliases
     "baseUrl": ".",
     "paths": {
+      "@repo/auth-core": ["./packages/auth-core/src"],
       "@repo/auth": ["./packages/auth/src"],
       "@repo/core": ["./packages/core/src"],
       "@repo/database": ["./packages/database/src"],

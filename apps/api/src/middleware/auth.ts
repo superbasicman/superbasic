@@ -59,7 +59,7 @@ export async function authMiddleware(c: Context, next: Next) {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
-    if (session.expires < new Date()) {
+    if (session.expiresAt < new Date()) {
       await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
       return c.json({ error: "Unauthorized" }, 401);
     }

@@ -302,14 +302,14 @@ export async function createSessionToken(
   const prisma = getTestPrisma();
   const opaqueToken = createOpaqueToken();
   const expiresInSeconds = options.expiresInSeconds ?? SESSION_MAX_AGE_SECONDS;
-  const expires = new Date(Date.now() + expiresInSeconds * 1000);
+  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
 
   await prisma.session.create({
     data: {
       userId,
       tokenId: opaqueToken.tokenId,
       sessionTokenHash: createTokenHashEnvelope(opaqueToken.tokenSecret),
-      expires,
+      expiresAt,
     },
   });
 

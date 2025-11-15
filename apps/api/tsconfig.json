@@ -3,7 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "lib": ["ES2022", "DOM"],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["vitest/globals"]
   },
   "include": ["src/**/*"]
 }

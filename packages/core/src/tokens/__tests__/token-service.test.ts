@@ -248,11 +248,14 @@ describe("TokenService", () => {
 
       // Assert
       expect(result).toHaveLength(2);
-      expect(result[0].name).toBe("Token 1");
-      expect(result[0].maskedToken).toBe("sbf_****abc1");
-      expect(result[1].name).toBe("Token 2");
-      expect(result[1].maskedToken).toBe("sbf_****abc2");
-      expect(result[1].lastUsedAt).toBe("2024-01-15T00:00:00.000Z");
+      const [first, second] = result;
+      expect(first).toBeDefined();
+      expect(second).toBeDefined();
+      expect(first!.name).toBe("Token 1");
+      expect(first!.maskedToken).toBe("sbf_****abc1");
+      expect(second!.name).toBe("Token 2");
+      expect(second!.maskedToken).toBe("sbf_****abc2");
+      expect(second!.lastUsedAt).toBe("2024-01-15T00:00:00.000Z");
     });
 
     it("should return empty array if no tokens", async () => {

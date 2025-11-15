@@ -81,6 +81,10 @@ Treat this section as the per-chat system prompt for any work in this repo.
   - Database: match Prisma schema, migrations, and `database-structure-*.md`.
   - API: match Zod schemas, handlers, OpenAPI spec, and SDK.
 - Prefer **small, incremental changes** with clear sanity checks over large, sweeping refactors—unless the user explicitly asks for one.
+- Per-package scripts:
+  - Packages that don't define a script (for example `tsc`) still run the underlying tool via `pnpm --filter <package> exec <command>`.
+  - Example: `pnpm --filter @repo/auth-core exec tsc --noEmit` instead of `pnpm --filter @repo/auth-core tsc --noEmit`.
+  - Turbo-powered commands (`pnpm lint`, `pnpm test`, etc.) fan out automatically; prefer the scoped `--filter` + `exec` form when you only need a single workspace.
 
 ---
 

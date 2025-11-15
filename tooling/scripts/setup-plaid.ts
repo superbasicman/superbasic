@@ -83,10 +83,14 @@ function readEnvFile(filePath: string): Map<string, string> {
     // Parse KEY=VALUE (handle quoted values)
     const match = trimmed.match(/^([^=]+)=(.*)$/);
     if (match) {
-      const [, key, value] = match;
+      const key = match[1]?.trim();
+      const value = match[2] ?? "";
+      if (!key) {
+        continue;
+      }
       // Remove surrounding quotes if present
       const cleanValue = value.replace(/^["']|["']$/g, '');
-      envMap.set(key.trim(), cleanValue);
+      envMap.set(key, cleanValue);
     }
   }
 
@@ -106,8 +110,7 @@ function writeEnvFile(filePath: string, envMap: Map<string, string>, updates: Re
     const originalContent = readFileSync(filePath, 'utf-8');
     const lines = originalContent.split('\n');
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    for (const line of lines) {
       const trimmed = line.trim();
       
       // Keep comments and empty lines as-is
@@ -119,12 +122,13 @@ function writeEnvFile(filePath: string, envMap: Map<string, string>, updates: Re
       // Update existing keys
       const match = trimmed.match(/^([^=]+)=/);
       if (match) {
-        const key = match[1].trim();
-        if (envMap.has(key)) {
-          // Check if value needs quotes (contains spaces)
-          const value = envMap.get(key)!;
-          const needsQuotes = value.includes(' ');
-          content += `${key}=${needsQuotes ? `"${value}"` : value}\n`;
+        const key = match[1]?.trim();
+        if (key && envMap.has(key)) {
+          const value = envMap.get(key);
+          if (value !== undefined) {
+            const needsQuotes = value.includes(' ');
+            content += `${key}=${needsQuotes ? `"${value}"` : value}\n`;
+          }
           envMap.delete(key); // Mark as written
         } else {
           content += line + '\n';

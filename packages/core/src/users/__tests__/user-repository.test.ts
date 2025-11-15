@@ -226,7 +226,9 @@ describe("UserRepository", () => {
       });
       // Should only have profile for first user
       expect(profiles).toHaveLength(1);
-      expect(profiles[0].userId).toBe(user1.id);
+      const [profile] = profiles;
+      expect(profile).toBeDefined();
+      expect(profile!.userId).toBe(user1.id);
     });
 
     it("should handle transaction atomicity", async () => {

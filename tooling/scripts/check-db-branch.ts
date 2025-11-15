@@ -32,14 +32,13 @@ if (!databaseUrl) {
 // Extract hostname from connection string
 // Format: postgresql://user:password@hostname/database?params
 const match = databaseUrl.match(/@([^/]+)\//);
+const hostname = match?.[1];
 
-if (!match) {
+if (!hostname) {
   console.error('❌ Could not parse DATABASE_URL');
   console.error('   Expected format: postgresql://user:password@hostname/database');
   process.exit(1);
 }
-
-const hostname = match[1];
 
 console.log('\n🔍 Database Connection Check\n');
 console.log('Connection String:', databaseUrl.replace(/:[^:@]+@/, ':****@')); // Mask password

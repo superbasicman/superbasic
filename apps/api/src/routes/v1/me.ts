@@ -15,9 +15,9 @@ import { unifiedAuthMiddleware } from '../../middleware/auth-unified.js';
 import { requireScope } from '../../middleware/scopes.js';
 import { profileService } from '../../services/index.js';
 import { UpdateProfileSchema, ProfileNotFoundError, InvalidProfileDataError } from '@repo/core';
-import type { AuthContext } from '../../types/context.js';
+import type { AppBindings } from '../../types/context.js';
 
-const meRoute = new Hono<AuthContext>();
+const meRoute = new Hono<AppBindings>();
 
 /**
  * GET /v1/me - Get current user profile

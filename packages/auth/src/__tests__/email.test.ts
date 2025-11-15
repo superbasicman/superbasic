@@ -14,6 +14,14 @@ vi.mock("resend", () => {
   };
 });
 
+function expectSentEmail(callIndex = 0) {
+  const call = mockSend.mock.calls[callIndex]?.[0];
+  if (!call) {
+    throw new Error("Expected mock email to be sent");
+  }
+  return call as { html?: string; text?: string; from?: string };
+}
+
 describe("sendMagicLinkEmail", () => {
   beforeEach(() => {
     mockSend.mockClear();
@@ -48,7 +56,7 @@ describe("sendMagicLinkEmail", () => {
 
     await sendMagicLinkEmail(params);
 
-    const callArgs = mockSend.mock.calls[0][0];
+    const callArgs = expectSentEmail();
     expect(callArgs.html).toContain(params.url);
     expect(callArgs.text).toContain(params.url);
   });
@@ -61,7 +69,7 @@ describe("sendMagicLinkEmail", () => {
 
     await sendMagicLinkEmail(params);
 
-    const callArgs = mockSend.mock.calls[0][0];
+    const callArgs = expectSentEmail();
     expect(callArgs.html).toContain("24 hours");
     expect(callArgs.text).toContain("24 hours");
   });
@@ -74,7 +82,7 @@ describe("sendMagicLinkEmail", () => {
 
     await sendMagicLinkEmail(params);
 
-    const callArgs = mockSend.mock.calls[0][0];
+    const callArgs = expectSentEmail();
     expect(callArgs.html).toContain("support@superbasicfinance.com");
     expect(callArgs.text).toContain("support@superbasicfinance.com");
   });

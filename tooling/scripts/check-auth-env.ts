@@ -19,7 +19,7 @@ async function checkAuthEnv() {
   console.log('🗄️  Testing Database Connection:');
   try {
     const { prisma } = await import('@repo/database');
-    const result = await prisma.$queryRaw`SELECT 1 as test`;
+    await prisma.$queryRaw`SELECT 1 as test`;
     console.log('  ✅ Database connection successful');
     
     // Check if verification_tokens table exists
@@ -46,9 +46,6 @@ async function checkAuthEnv() {
   console.log('📧 Testing Resend API:');
   if (process.env.RESEND_API_KEY) {
     try {
-      const { Resend } = await import('resend');
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      
       // Try to get API key info (this will fail with 401 if key is invalid)
       const response = await fetch('https://api.resend.com/api-keys', {
         headers: {

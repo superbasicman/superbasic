@@ -52,6 +52,31 @@ Create the shared domain models, DB schema, and the `auth-core` package skeleton
 - Refresh rotation, PAT logic, OAuth flows.
 - RLS and heavy auth middleware.
 
+### Schema deltas & migration notes
+
+| Entity/Table | Delta | Notes |
+| --- | --- | --- |
+| `users` | Add `status` (`active` default) | Enables request-time status checks before building tokens. |
+| `sessions` | Rename `expires → expiresAt` and add `client_type`, `kind`, `user_agent`, `ip_address`, `device_name`, `last_used_at`, `absolute_expires_at`, `revoked_at`, `mfa_level` | Backfills default to `'web'` + `'default'`, `last_used_at = created_at`, and `absolute_expires_at = expiresAt + SESSION_MAX_AGE`. |
+| `tokens` | New unified table for refresh tokens + PATs (`token_type`, `token_hash`, `scopes`, `name`, `family_id`, `workspace_id`, metadata timestamps) | Mirrors the end-state schema so API keys can migrate without another table rewrite. |
+| `user_identities` | New table mapping `(provider, provider_user_id) → user_id` plus metadata | Backfill by copying distinct rows from Auth.js `accounts` with provider namespace prefixes (`authjs:credentials`, etc.). |
+| `oauth_clients` | Stub table with `client_id`, `client_type`, `redirect_uris`, `disabled_at` | Seed a `mobile` public client now so PKCE flows have an ID before Phase 6. |
+
+#### Migration/backfill sequence
+
+1. `users.status`: add column with default `'active'`, then run a single `UPDATE users SET status = 'active' WHERE status IS NULL` to cover existing rows. Future admin tooling can flip status to `'disabled'` or `'locked'`.
+2. `sessions` metadata:
+   - `client_type` defaults to `'web'`.
+   - `kind` defaults to `'default'`.
+   - `last_used_at` backfilled from `updated_at`.
+   - `absolute_expires_at` = `expiresAt + 180 days` (matching session max age).
+   - `mfa_level` defaults to `'none'`; populate later when MFA lands.
+3. Unified `tokens` table:
+   - Existing PATs from `api_keys` migrate via `INSERT INTO tokens (...) SELECT ... FROM api_keys WHERE revoked_at IS NULL` (type = `'personal_access'`, `scopes` from JSON, `workspace_id` from `api_keys.workspace_id`).
+   - Refresh tokens will populate the same table during Phase 2.
+4. `user_identities`: run a job that copies Auth.js `accounts` rows into `user_identities`, namespacing providers (`'authjs:google'`, `'authjs:credentials'`). Future IdPs append to the same table.
+5. `oauth_clients`: seed a single row (`client_id = 'sb-mobile'`, `client_type = 'public'`, `redirect_uris = ['sb://callback']`) so downstream migrations can reference it without blocking on admin tooling.
+
 **Exit criteria**
 
 - Migrations run successfully and tables exist.
@@ -59,6 +84,14 @@ Create the shared domain models, DB schema, and the `auth-core` package skeleton
   - Core types.
   - Interface signatures.
 - API can compile using `AuthContext` without any token logic wired.
+
+### Phase 2 prep after Phase 1
+
+1. **AuthService implementation hooks** – Wire the new `auth-core` interfaces into `apps/api` so middleware calls `AuthService.verifyRequest` instead of duplicating logic.
+2. **Session writer** – Start populating the richer `sessions` metadata (`client_type`, `kind`, `last_used_at`) when Auth.js creates a session to avoid retroactive updates.
+3. **Token ingestion** – Add a background task that copies existing PATs into `tokens` and keeps the two tables in sync until the API switches over.
+4. **Workspace resolution** – Prototype the precedence rules (path param → header → default) and store the resolved workspace ID on the session/token so Phase 2 can immediately set Postgres GUCs.
+5. **Monitoring** – Add dashboards/alerts that watch the new tables so Phase 2 rollouts can surface anomalies (duplicate session families, stuck tokens, etc.).
 
 ---
 

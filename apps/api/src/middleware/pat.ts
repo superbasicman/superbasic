@@ -197,7 +197,7 @@ export async function patMiddleware(c: Context, next: Next) {
     // Attach user context and token metadata to request
     // Following user/profile reference pattern: userId for auth, profileId for business logic
     c.set("userId", apiKey.userId);
-    c.set("userEmail", apiKey.user.email);
+    c.set("userEmail", apiKey.user.email ?? "");
     c.set("profileId", apiKey.profileId);
     c.set("authType", "pat");
     c.set("tokenId", apiKey.id);

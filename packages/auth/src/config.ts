@@ -75,7 +75,7 @@ async function persistSessionToken(userId: string, expires: Date) {
       userId,
       tokenId: opaque.tokenId,
       sessionTokenHash: createTokenHashEnvelope(opaque.tokenSecret),
-      expires,
+      expiresAt: expires,
     },
   });
   return opaque.value;
@@ -164,13 +164,13 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
         userId: session.userId,
         tokenId: parsed.tokenId,
         sessionTokenHash: sessionHash,
-        expires: session.expires,
+        expiresAt: session.expires,
       },
     });
     return {
       sessionToken: session.sessionToken,
       userId: created.userId,
-      expires: created.expires,
+      expires: created.expiresAt,
     };
   };
 
@@ -200,7 +200,7 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
       return null;
     }
 
-    if (record.expires < new Date()) {
+    if (record.expiresAt < new Date()) {
       await prisma.session
         .delete({ where: { id: record.id } })
         .catch(() => {});
@@ -211,7 +211,7 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
       session: {
         sessionToken,
         userId: record.userId,
-        expires: record.expires,
+        expires: record.expiresAt,
       },
       user: record.user as any,
     };
@@ -226,14 +226,14 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
     const updated = await prisma.session.update({
       where: { tokenId: parsed.tokenId },
       data: {
-        ...(session.expires ? { expires: session.expires } : {}),
+        ...(session.expires ? { expiresAt: session.expires } : {}),
       },
     });
 
     return {
       sessionToken: session.sessionToken,
       userId: updated.userId,
-      expires: updated.expires,
+      expires: updated.expiresAt,
     };
   };
 
@@ -250,7 +250,7 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
       return {
         sessionToken,
         userId: deleted.userId,
-        expires: deleted.expires,
+        expires: deleted.expiresAt,
       };
     } catch {
       return null;
@@ -399,7 +399,7 @@ export const authConfig: AuthConfig = {
             parsed.tokenSecret,
             record.sessionTokenHash as TokenHashEnvelope
           );
-          if (!isValid || record.expires < new Date()) {
+          if (!isValid || record.expiresAt < new Date()) {
             await prisma.session
               .delete({ where: { id: record.id } })
               .catch(() => {});

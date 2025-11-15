@@ -8,7 +8,7 @@
  *   pnpm tsx tooling/scripts/setup-env.ts
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
 import * as readline from 'readline';

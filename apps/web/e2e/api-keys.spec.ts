@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { generateTestUser, registerUser, loginUser } from './helpers';
+import { generateTestUser, registerUser } from './helpers';
 
 test.describe('API Keys E2E Tests', () => {
   /**

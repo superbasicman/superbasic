@@ -243,8 +243,11 @@ describe("TokenRepository", () => {
 
       const tokens = await tokenRepo.findActiveByUserId(testUser.id);
       expect(tokens).toHaveLength(2);
-      expect(tokens[0].name).toBe("Token 2"); // Newest first
-      expect(tokens[1].name).toBe("Token 1");
+      const [newest, oldest] = tokens;
+      expect(newest).toBeDefined();
+      expect(oldest).toBeDefined();
+      expect(newest!.name).toBe("Token 2"); // Newest first
+      expect(oldest!.name).toBe("Token 1");
     });
 
     it("should exclude revoked tokens", async () => {
@@ -274,7 +277,9 @@ describe("TokenRepository", () => {
 
       const tokens = await tokenRepo.findActiveByUserId(testUser.id);
       expect(tokens).toHaveLength(1);
-      expect(tokens[0].name).toBe("Active Token");
+      const [active] = tokens;
+      expect(active).toBeDefined();
+      expect(active!.name).toBe("Active Token");
     });
 
     it("should return tokens sorted by creation date (newest first)", async () => {
@@ -304,8 +309,11 @@ describe("TokenRepository", () => {
 
       const tokens = await tokenRepo.findActiveByUserId(testUser.id);
       expect(tokens).toHaveLength(2);
-      expect(tokens[0].id).toBe(token2.id); // Newest first
-      expect(tokens[1].id).toBe(token1.id);
+      const [latest, earliest] = tokens;
+      expect(latest).toBeDefined();
+      expect(earliest).toBeDefined();
+      expect(latest!.id).toBe(token2.id); // Newest first
+      expect(earliest!.id).toBe(token1.id);
     });
   });
 
