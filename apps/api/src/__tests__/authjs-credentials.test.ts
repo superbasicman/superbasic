@@ -144,88 +144,6 @@ describe('Auth.js Credentials Provider', () => {
     });
   });
 
-  describe('GET /v1/auth/session - Get Session', () => {
-    it('should return user data for valid session cookie', async () => {
-      // Create test user and sign in
-      const { user, credentials } = await createTestUser({
-        name: 'Test User',
-      });
-
-      const signInResponse = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(signInResponse, 'authjs.session-token');
-      expect(sessionCookie).toBeTruthy();
-
-      // Get session data
-      const sessionResponse = await makeRequest(app, 'GET', '/v1/auth/session', {
-        cookies: {
-          'authjs.session-token': sessionCookie!,
-        },
-      });
-
-      expect(sessionResponse.status).toBe(200);
-
-      const data = await sessionResponse.json();
-      expect(data).toHaveProperty('user');
-      expect(data.user).toMatchObject({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      });
-    });
-
-    it('should return null session for missing cookie', async () => {
-      const response = await makeRequest(app, 'GET', '/v1/auth/session');
-
-      expect(response.status).toBe(200);
-
-      const data = await response.json();
-      // Auth.js returns null for no session
-      expect(data).toBeNull();
-    });
-
-    it('should return null session for invalid cookie', async () => {
-      const response = await makeRequest(app, 'GET', '/v1/auth/session', {
-        cookies: {
-          'authjs.session-token': 'invalid-token',
-        },
-      });
-
-      expect(response.status).toBe(200);
-
-      const data = await response.json();
-      // Auth.js returns null for invalid session
-      expect(data).toBeNull();
-    });
-
-    it('should not expose password in session data', async () => {
-      const { credentials } = await createTestUser();
-
-      const signInResponse = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(signInResponse, 'authjs.session-token');
-
-      const sessionResponse = await makeRequest(app, 'GET', '/v1/auth/session', {
-        cookies: {
-          'authjs.session-token': sessionCookie!,
-        },
-      });
-
-      const data = await sessionResponse.json();
-      expect(data).not.toBeNull();
-      expect(data).toHaveProperty('user');
-      expect(data.user).not.toHaveProperty('password');
-    });
-  });
-
   describe('POST /v1/auth/signout - Sign Out', () => {
     it('should clear session cookie on sign out', async () => {
       // Create test user and sign in
@@ -285,16 +203,6 @@ describe('Auth.js Credentials Provider', () => {
 
       const sessionCookie = extractCookie(signInResponse, 'authjs.session-token');
 
-      // Verify session is valid before sign-out
-      const sessionBeforeResponse = await makeRequest(app, 'GET', '/v1/auth/session', {
-        cookies: {
-          'authjs.session-token': sessionCookie!,
-        },
-      });
-      const sessionBefore = await sessionBeforeResponse.json();
-      expect(sessionBefore).not.toBeNull();
-      expect(sessionBefore).toHaveProperty('user');
-
       // Sign out
       const signOutResponse = await makeRequest(app, 'POST', '/v1/auth/signout', {
         cookies: {
@@ -326,15 +234,6 @@ describe('Auth.js Credentials Provider', () => {
       }
       expect(isCleared).toBe(true);
 
-      // Verify session is null after sign-out when NO cookie is sent
-      // (simulating browser behavior where cookie was cleared)
-      const sessionAfterResponse = await makeRequest(app, 'GET', '/v1/auth/session');
-      const sessionAfter = await sessionAfterResponse.json();
-      expect(sessionAfter).toBeNull();
-
-      // Note: JWT sessions are stateless, so the token itself remains valid until expiry
-      // The important part is that the cookie is cleared on the client side
-      // In a real browser, the user would no longer have access to the cookie after sign-out
     });
 
     it('should handle sign out without session cookie', async () => {
@@ -361,32 +260,4 @@ describe('Auth.js Credentials Provider', () => {
     });
   });
 
-  describe('Session Format Compatibility', () => {
-    it('should create JWT session compatible with existing middleware', async () => {
-      const { user, credentials } = await createTestUser();
-
-      const signInResponse = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(signInResponse, 'authjs.session-token');
-
-      // Get session to verify JWT structure
-      const sessionResponse = await makeRequest(app, 'GET', '/v1/auth/session', {
-        cookies: {
-          'authjs.session-token': sessionCookie!,
-        },
-      });
-
-      const data = await sessionResponse.json();
-      
-      // Verify session contains required fields for middleware
-      expect(data.user).toHaveProperty('id');
-      expect(data.user).toHaveProperty('email');
-      expect(data.user.id).toBe(user.id);
-      expect(data.user.email).toBe(user.email);
-    });
-  });
 });

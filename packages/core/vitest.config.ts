@@ -25,10 +25,10 @@ function loadEnvFile(relativePath: string) {
   }
 }
 
-// Prefer test environment configuration when running vitest
-loadEnvFile('../database/.env.test');
-// Fallback to local configuration if test config not present
+// Prefer developer-local configuration when available
 loadEnvFile('../database/.env.local');
+// Fall back to shared test configuration (e.g. CI) if local file missing
+loadEnvFile('../database/.env.test');
 
 // Provide a deterministic, high-entropy secret for tests when none set
 process.env.AUTH_SECRET ??= 'test_auth_secret_for_vitest_1234567890';

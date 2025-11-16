@@ -162,6 +162,11 @@ export class TokenService {
     // Update token name via repository
     const updated = await this.tokenRepo.update(params.id, {
       name: params.name,
+    }).catch((error: unknown) => {
+      if (isPrismaNotFoundError(error)) {
+        throw new TokenNotFoundError(params.id);
+      }
+      throw error;
     });
 
     return this.mapToTokenResponse(updated);
@@ -189,7 +194,12 @@ export class TokenService {
     // Idempotent: if already revoked, skip database update but still succeed
     if (!token.revokedAt) {
       // Soft delete token via repository
-      await this.tokenRepo.revoke(params.id);
+      await this.tokenRepo.revoke(params.id).catch((error: unknown) => {
+        if (isPrismaNotFoundError(error)) {
+          throw new TokenNotFoundError(params.id);
+        }
+        throw error;
+      });
 
       // Emit audit event (only on first revocation)
       this.authEvents.emit({
@@ -207,7 +217,6 @@ export class TokenService {
       });
     }
   }
-
   /**
    * Validate token creation parameters
    * 
@@ -256,4 +265,13 @@ export class TokenService {
       maskedToken: `sbf_****${apiKey.last4}`,
     };
   }
+}
+
+function isPrismaNotFoundError(error: unknown): error is { code: string } {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2025"
+  );
 }

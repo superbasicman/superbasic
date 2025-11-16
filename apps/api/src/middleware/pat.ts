@@ -191,6 +191,9 @@ export async function patMiddleware(c: Context, next: Next) {
         data: { lastUsedAt: new Date() },
       })
       .catch((err: unknown) => {
+        if (isPrismaNotFoundError(err)) {
+          return;
+        }
         console.error("Failed to update token lastUsedAt:", err);
       });
 
@@ -226,4 +229,13 @@ export async function patMiddleware(c: Context, next: Next) {
     await trackFailedAuth(ip);
     return c.json({ error: "Unauthorized" }, 401);
   }
+}
+
+function isPrismaNotFoundError(error: unknown): error is { code: string } {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code?: string }).code === "P2025"
+  );
 }

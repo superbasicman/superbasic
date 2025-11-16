@@ -204,8 +204,8 @@ describe('OAuth Flows', () => {
       // Verify required columns exist for OAuth
       const columns = (accountsTable as any[]).map((col) => col.column_name);
       expect(columns).toContain('provider');
-      expect(columns).toContain('providerAccountId');
-      expect(columns).toContain('userId');
+      expect(columns).toContain('provider_account_id');
+      expect(columns).toContain('user_id');
     });
   });
 

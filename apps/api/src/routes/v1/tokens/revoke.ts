@@ -16,12 +16,22 @@ type Variables = {
   requestId?: string;
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
 const revokeTokenRoute = new Hono<{ Variables: Variables }>();
 
 revokeTokenRoute.delete("/:id", authMiddleware, async (c) => {
   const userId = c.get("userId") as string;
   const requestId = c.get("requestId") || "unknown";
   const tokenId = c.req.param("id");
+
+  if (!isValidUuid(tokenId)) {
+    return c.json({ error: "Token not found" }, 404);
+  }
 
   try {
     await tokenService.revokeToken({

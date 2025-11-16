@@ -203,6 +203,13 @@ importers:
         version: 4.0.2(@types/node@20.19.21)(@vitest/ui@4.0.2)(jiti@2.6.1)(terser@5.44.0)(tsx@4.20.6)(yaml@2.8.1)
 
   packages/auth-core:
+    dependencies:
+      '@repo/database':
+        specifier: workspace:*
+        version: link:../database
+      jose:
+        specifier: ^5.10.0
+        version: 5.10.0
     devDependencies:
       '@types/node':
         specifier: ^20.17.0

@@ -9,7 +9,7 @@ export type ContextVariables = {
   userId: string;
   userEmail: string;
   jti?: string;
-  profileId?: string;
+  profileId?: string | null;
   authType?: "session" | "pat";
   tokenId?: string;
   tokenScopes?: string[];

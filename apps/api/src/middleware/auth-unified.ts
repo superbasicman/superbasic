@@ -32,6 +32,11 @@ import { patMiddleware } from "./pat.js";
  * ```
  */
 export async function unifiedAuthMiddleware(c: Context, next: Next) {
+  const authContext = c.get('auth');
+  if (authContext) {
+    return next();
+  }
+
   // Check for Bearer token first
   const authHeader = c.req.header("Authorization");
   const hasBearer = authHeader?.startsWith("Bearer ");

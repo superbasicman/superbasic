@@ -7,11 +7,19 @@
  *   pnpm deploy-check --full    # Full check (lint + typecheck + test + build)
  */
 
-import { execSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
+import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
 import process from 'node:process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const fullCheck = args.includes('--full');
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const errorReportPath = resolve(__dirname, '../../errors-to-fix.md');
+const MAX_ERROR_LOG_LENGTH = 4000;
 
 const colors = {
   reset: '\x1b[0m',
@@ -26,15 +34,95 @@ function log(message: string, color = colors.reset) {
   console.log(`${color}${message}${colors.reset}`);
 }
 
-function runCommand(command: string, description: string): boolean {
+async function runCommand(command: string, description: string): Promise<{ passed: boolean; output: string }> {
   log(`\n${colors.bright}▶ ${description}...${colors.reset}`, colors.blue);
-  try {
-    execSync(command, { stdio: 'inherit', cwd: process.cwd() });
-    log(`✓ ${description} passed`, colors.green);
-    return true;
-  } catch (error) {
-    log(`✗ ${description} failed`, colors.red);
-    return false;
+  return new Promise((resolve, reject) => {
+    let output = '';
+
+    const child = spawn(command, {
+      shell: true,
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: ['inherit', 'pipe', 'pipe'],
+    });
+
+    child.stdout?.on('data', (data) => {
+      process.stdout.write(data);
+      output += data.toString();
+    });
+
+    child.stderr?.on('data', (data) => {
+      process.stderr.write(data);
+      output += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        log(`✓ ${description} passed`, colors.green);
+        resolve({ passed: true, output });
+      } else {
+        log(`✗ ${description} failed`, colors.red);
+        resolve({ passed: false, output });
+      }
+    });
+
+    child.on('error', (error) => {
+      log(`✗ ${description} failed to run: ${error.message}`, colors.red);
+      reject(error);
+    });
+  });
+}
+
+function createOutputSnippet(output?: string) {
+  if (!output) return null;
+  const trimmed = output.trim();
+  if (!trimmed) return null;
+  if (trimmed.length <= MAX_ERROR_LOG_LENGTH) {
+    return trimmed;
+  }
+
+  return trimmed.slice(trimmed.length - MAX_ERROR_LOG_LENGTH);
+}
+
+function writeErrorReport(
+  failedCheck: { command: string; description: string } | null,
+  extraMessage?: string,
+  failedOutput?: string
+) {
+  const lines = [
+    '# errors-to-fix',
+    '',
+    `Deploy check mode: ${fullCheck ? 'Full (lint + typecheck + test + build)' : 'Quick (lint + typecheck)'}`,
+    '',
+  ];
+
+  if (failedCheck) {
+    lines.push('The deploy check failed with:', '');
+    lines.push(`- **Check:** ${failedCheck.description}`);
+    lines.push(`- **Command:** \`${failedCheck.command}\``);
+  }
+
+  const snippet = failedOutput ? createOutputSnippet(failedOutput) : null;
+
+  if (snippet) {
+    lines.push('', 'Last part of the command output:', '', '```', snippet, '```');
+  }
+
+  if (extraMessage) {
+    lines.push('', extraMessage);
+  }
+
+  lines.push(
+    '',
+    'Review the command output above, fix the issues, and rerun `pnpm deploy-check`.'
+  );
+
+  writeFileSync(errorReportPath, `${lines.join('\n')}\n`);
+}
+
+function cleanupErrorReport() {
+  if (existsSync(errorReportPath)) {
+    unlinkSync(errorReportPath);
   }
 }
 
@@ -63,11 +151,15 @@ async function main() {
   }
 
   let allPassed = true;
+  let failedCheck: { command: string; description: string } | null = null;
+  let failedOutput = '';
 
   for (const check of checks) {
-    const passed = runCommand(check.command, check.description);
-    if (!passed) {
+    const result = await runCommand(check.command, check.description);
+    if (!result.passed) {
       allPassed = false;
+      failedCheck = check;
+      failedOutput = result.output;
       break; // Stop on first failure
     }
   }
@@ -75,12 +167,14 @@ async function main() {
   log('\n' + '═'.repeat(46), colors.bright);
   
   if (allPassed) {
+    cleanupErrorReport();
     log('\n✓ All checks passed! Ready to deploy.', colors.green);
     log('\nNext steps:', colors.bright);
     log('  1. Commit your changes: git add . && git commit -m "..."');
     log('  2. Push to trigger deployment: git push');
     process.exit(0);
   } else {
+    writeErrorReport(failedCheck, undefined, failedOutput);
     log('\n✗ Deployment check failed. Fix errors before deploying.', colors.red);
     process.exit(1);
   }
@@ -88,5 +182,6 @@ async function main() {
 
 main().catch((error) => {
   log(`\n✗ Unexpected error: ${error.message}`, colors.red);
+  writeErrorReport(null, `Unexpected error: ${error.message}`);
   process.exit(1);
 });

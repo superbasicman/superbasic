@@ -24,6 +24,7 @@ export type AuthContext = {
   activeWorkspaceId: string | null;
   scopes: PermissionScope[];
   roles: WorkspaceRole[];
+  profileId: string | null;
   requestId?: string;
   mfaLevel?: MfaLevel;
 };
@@ -101,4 +102,18 @@ export type OAuthInitiationResult = {
 export type WorkspaceAssertionOptions = {
   workspaceId?: string | null;
   allowNull?: boolean;
+};
+
+export type AccessTokenClaims = {
+  iss: string;
+  aud: string | string[];
+  sub: string;
+  sid?: string | null;
+  wid?: string | null;
+  act?: string | null;
+  token_use: 'access';
+  jti: string;
+  iat: number;
+  exp: number;
+  client_type?: ClientType;
 };

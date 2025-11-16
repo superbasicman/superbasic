@@ -12,6 +12,7 @@ export type {
   Token,
   OAuthClient,
 } from "@prisma/client";
+export * from "./context.js";
 
 // Global singleton instance for use across the application
 const globalForPrisma = globalThis as unknown as {

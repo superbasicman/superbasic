@@ -9,6 +9,7 @@ import {
   createTokenHashEnvelope,
   createOpaqueToken,
   SESSION_MAX_AGE_SECONDS,
+  SESSION_ABSOLUTE_MAX_AGE_SECONDS,
 } from '@repo/auth';
 import { getTestPrisma } from './setup.js';
 
@@ -294,15 +295,38 @@ export async function createTestUser(
  * @param options - Optional overrides for expiration
  * @returns Session token string to be used as cookie value
  */
+function ensureTokenHashKeys() {
+  if (!process.env.TOKEN_HASH_KEYS) {
+    const fallback =
+      process.env.TOKEN_HASH_FALLBACK_SECRET ||
+      process.env.AUTH_SECRET ||
+      'test_token_hash_secret_for_vitest';
+    process.env.TOKEN_HASH_KEYS = JSON.stringify({ v1: fallback });
+    process.env.TOKEN_HASH_ACTIVE_KEY_ID ??= 'v1';
+  }
+}
+
+function computeSessionTimestamps(expiresInSeconds: number) {
+  const now = new Date();
+  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+  const absoluteExpiresAt = new Date(
+    now.getTime() + SESSION_ABSOLUTE_MAX_AGE_SECONDS * 1000
+  );
+  return { now, expiresAt, absoluteExpiresAt };
+}
+
 export async function createSessionToken(
   userId: string,
   _email?: string,
   options: { expiresInSeconds?: number } = {}
 ) {
+  ensureTokenHashKeys();
   const prisma = getTestPrisma();
   const opaqueToken = createOpaqueToken();
   const expiresInSeconds = options.expiresInSeconds ?? SESSION_MAX_AGE_SECONDS;
-  const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
+  const { now, expiresAt, absoluteExpiresAt } = computeSessionTimestamps(
+    expiresInSeconds
+  );
 
   await prisma.session.create({
     data: {
@@ -310,8 +334,38 @@ export async function createSessionToken(
       tokenId: opaqueToken.tokenId,
       sessionTokenHash: createTokenHashEnvelope(opaqueToken.tokenSecret),
       expiresAt,
+      clientType: 'web',
+      kind: 'default',
+      lastUsedAt: now,
+      absoluteExpiresAt,
     },
   });
 
   return opaqueToken.value;
+}
+
+export async function createSessionRecord(
+  userId: string,
+  options: { expiresInSeconds?: number } = {}
+) {
+  ensureTokenHashKeys();
+  const prisma = getTestPrisma();
+  const expiresInSeconds = options.expiresInSeconds ?? SESSION_MAX_AGE_SECONDS;
+  const { now, expiresAt, absoluteExpiresAt } = computeSessionTimestamps(
+    expiresInSeconds
+  );
+  const opaqueToken = createOpaqueToken();
+
+  return prisma.session.create({
+    data: {
+      userId,
+      tokenId: opaqueToken.tokenId,
+      sessionTokenHash: createTokenHashEnvelope(opaqueToken.tokenSecret),
+      expiresAt,
+      clientType: 'web',
+      kind: 'default',
+      lastUsedAt: now,
+      absoluteExpiresAt,
+    },
+  });
 }

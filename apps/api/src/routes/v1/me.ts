@@ -25,6 +25,11 @@ const meRoute = new Hono<AppBindings>();
  */
 meRoute.get('/', unifiedAuthMiddleware, requireScope('read:profile'), async (c) => {
   const userId = c.get('userId');
+  const profileId = c.get('profileId');
+
+  if (!profileId) {
+    return c.json({ error: 'Profile not found' }, 404);
+  }
 
   try {
     const result = await profileService.getCurrentProfile({ userId });

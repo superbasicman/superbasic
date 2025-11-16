@@ -18,6 +18,10 @@
       "typecheck": "tsc --noEmit",
       "lint": "biome check src"
   },
+  "dependencies": {
+    "@repo/database": "workspace:*",
+    "jose": "^5.10.0"
+  },
   "devDependencies": {
     "@types/node": "^20.17.0",
     "tsup": "^8.3.0",

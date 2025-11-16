@@ -171,6 +171,15 @@ Issue and validate short-lived JWT access tokens, create sessions, and build a m
 - Handlers can read `c.var.auth.userId` reliably.
 - API routes that previously depended on `apps/api/src/middleware/auth.ts` now call into `auth-core` for token verification (cookie middleware can be deleted once the new flow is live).
 
+### Phase 2 follow-ups / risks
+
+- `/v1/auth/token` still needs to be implemented so the SPA/mobile clients can actually mint the new JWTs from IdP logins; right now tests mint tokens via helpers only.
+- `AuthService.createSession` / refresh-token lifecycles remain TODO; Phase 3 must wire these so sessions are rotated and revocation works end-to-end.
+- Workspace resolution is still a stub (`activeWorkspaceId = null`), so every request sets `app.workspace_id = NULL`; Phase 3/4 must implement the header/path fallback rules.
+- Postgres GUCs are set via the shared helper but still run on the root Prisma client; Phase 3 should integrate the helper with the per-request transaction wrapper so SET LOCAL occurs inside each request transaction instead of the singleton.
+- Signing keys live in process env for dev/test; production still needs KMS-backed storage, rotation cadence, and operational docs.
+- `/v1/auth/session` still includes a temporary Auth.js cookie fallback so the SPA can read sessions; delete this branch once `/v1/auth/token` is live and the SPA sends `Authorization: Bearer`.
+
 ---
 
 ## Phase 3 – Refresh Tokens & Session Lifecycle
@@ -204,6 +213,7 @@ Add long-lived sessions via refresh tokens with rotation, reuse detection, and l
       - Refresh token (opaque).
     - Return:
       - `accessToken`, `refreshToken`, `expiresIn`.
+  - Cleanup: remove the temporary Auth.js cookie fallback from `/v1/auth/session` once clients call this endpoint and send `Authorization: Bearer`.
 
 - `/v1/auth/refresh` endpoint:
   - Accepts refresh token (body or HttpOnly cookie).

@@ -9,6 +9,8 @@ import { tokensRoute } from './routes/v1/tokens/index.js';
 import { authApp } from './auth.js';
 import type { AppBindings } from './types/context.js';
 import { attachAuthContext } from './middleware/auth-context.js';
+import { getCurrentSession } from './routes/v1/auth/session.js';
+import { getJwks } from './routes/v1/auth/jwks.js';
 
 const app = new Hono<AppBindings>();
 
@@ -21,14 +23,20 @@ app.use('*', corsMiddleware);
 // Reserve c.var.auth for the auth-core context
 app.use('*', attachAuthContext);
 
+app.get('/.well-known/jwks.json', getJwks);
+
 app.route('/health', healthRoute);
 
 // Mount v1 routes
 const v1 = new Hono<AppBindings>();
 
-// Mount Auth.js handler (handles /v1/auth/*)
-// Magic link rate limiting is applied directly in auth.ts
-v1.route('/auth', authApp);
+const authRoutes = new Hono<AppBindings>();
+authRoutes.get('/session', getCurrentSession);
+authRoutes.get('/jwks.json', getJwks);
+// Mount Auth.js handler (handles remaining /v1/auth/*)
+authRoutes.route('/', authApp);
+
+v1.route('/auth', authRoutes);
 
 v1.route('/health', healthRoute);
 

@@ -423,6 +423,21 @@ describe("PAT Authentication Middleware", () => {
         where: { userId: user.id },
       });
 
+      const workspace = await prisma.workspace.create({
+        data: {
+          ownerProfileId: profile!.id,
+          name: "Workspace Token",
+        },
+      });
+
+      await prisma.workspaceMember.create({
+        data: {
+          workspaceId: workspace.id,
+          memberProfileId: profile!.id,
+          role: "owner",
+        },
+      });
+
       // Create token with workspaceId scope
       const token = generateToken();
       const keyHash = hashToken(token);
@@ -432,7 +447,7 @@ describe("PAT Authentication Middleware", () => {
         data: {
           userId: user.id,
           profileId: profile!.id,
-          workspaceId: "workspace_123",
+          workspaceId: workspace.id,
           name: "Workspace Token",
           keyHash,
           last4,

@@ -20,6 +20,12 @@ type Variables = {
   userId: string;
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
+
 const updateTokenRoute = new Hono<{ Variables: Variables }>();
 
 updateTokenRoute.patch(
@@ -34,6 +40,10 @@ updateTokenRoute.patch(
     const userId = c.get("userId") as string;
     const tokenId = c.req.param("id");
     const { name } = c.req.valid("json");
+
+    if (!isValidUuid(tokenId)) {
+      return c.json({ error: "Token not found" }, 404);
+    }
 
     try {
       // Delegate business logic to service layer

@@ -13,7 +13,7 @@ import { prisma } from "@repo/database";
 import { encode as defaultJwtEncode, decode as defaultJwtDecode } from "@auth/core/jwt";
 import { verifyPassword } from "./password.js";
 import { sendMagicLinkEmail, getRecipientLogId } from "./email.js";
-import { SESSION_MAX_AGE_SECONDS } from "./constants.js";
+import { SESSION_MAX_AGE_SECONDS, SESSION_ABSOLUTE_MAX_AGE_SECONDS } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
 import { hashToken } from "./pat.js";
 import {
@@ -69,6 +69,10 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const SESSION_COOKIE_NAME = "authjs.session-token";
 
 async function persistSessionToken(userId: string, expires: Date) {
+  const now = new Date();
+  const absoluteExpiresAt = new Date(
+    now.getTime() + SESSION_ABSOLUTE_MAX_AGE_SECONDS * 1000
+  );
   const opaque = createOpaqueToken();
   await prisma.session.create({
     data: {
@@ -76,6 +80,10 @@ async function persistSessionToken(userId: string, expires: Date) {
       tokenId: opaque.tokenId,
       sessionTokenHash: createTokenHashEnvelope(opaque.tokenSecret),
       expiresAt: expires,
+      clientType: "web",
+      kind: "default",
+      lastUsedAt: now,
+      absoluteExpiresAt,
     },
   });
   return opaque.value;
@@ -159,12 +167,20 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
     }
 
     const sessionHash = createTokenHashEnvelope(parsed.tokenSecret);
+    const now = new Date();
+    const absoluteExpiresAt = new Date(
+      now.getTime() + SESSION_ABSOLUTE_MAX_AGE_SECONDS * 1000
+    );
     const created = await prisma.session.create({
       data: {
         userId: session.userId,
         tokenId: parsed.tokenId,
         sessionTokenHash: sessionHash,
         expiresAt: session.expires,
+        clientType: "web",
+        kind: "default",
+        lastUsedAt: now,
+        absoluteExpiresAt,
       },
     });
     return {

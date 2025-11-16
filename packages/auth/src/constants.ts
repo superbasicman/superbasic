@@ -5,6 +5,7 @@
 
 // Session configuration - single source of truth
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
+export const SESSION_ABSOLUTE_MAX_AGE_SECONDS = 180 * 24 * 60 * 60; // 180 days hard cap
 
 // Cookie configuration
 // Auth.js uses 'authjs.session-token' by default (or '__Secure-authjs.session-token' in production)
