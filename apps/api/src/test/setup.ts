@@ -39,22 +39,7 @@ export async function setupTestDatabase(): Promise<void> {
   }
 
   if (!testPrisma) {
-    try {
-      testPrisma = new PrismaClient({
-        datasources: {
-          db: {
-            url: databaseUrl,
-          },
-        },
-      });
-
-      // Connect to database
-      await testPrisma.$connect();
-    } catch (error) {
-      console.warn('Failed to initialize Prisma Client for tests:', error);
-      // Don't throw - allow unit tests to run without database
-      testPrisma = null;
-    }
+    testPrisma = await createPrismaClientWithRetry(databaseUrl);
   }
 
   // Initialize Redis client for test cleanup
@@ -197,6 +182,36 @@ export function getTestPrisma(): PrismaClient {
     throw new Error('Test database not initialized. Call setupTestDatabase first.');
   }
   return testPrisma;
+}
+
+async function createPrismaClientWithRetry(
+  url: string,
+  maxAttempts = 5,
+  delayMs = 1000
+): Promise<PrismaClient | null> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const client = new PrismaClient({
+        datasources: {
+          db: {
+            url,
+          },
+        },
+      });
+      await client.$connect();
+      return client;
+    } catch (error) {
+      console.warn(
+        `[test-db] Failed to connect to ${url} (attempt ${attempt}/${maxAttempts})`,
+        error
+      );
+      if (attempt === maxAttempts) {
+        return null;
+      }
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  return null;
 }
 
 // Vitest global setup hooks

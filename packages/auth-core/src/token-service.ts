@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
-import { prisma, type PrismaClient, type Token as PrismaToken } from '@repo/database';
-import type {
-  RefreshTokenRecord,
-  TokenHashEnvelope,
-} from './types.js';
+import { type PrismaClient, type Token as PrismaToken, prisma } from '@repo/database';
+import { toJsonInput } from './json.js';
+import type { RefreshTokenRecord, TokenHashEnvelope } from './types.js';
 
 export type IssueRefreshTokenInput = {
   userId: string;
@@ -48,6 +46,8 @@ export class TokenService {
     const opaque = this.tokenFactory();
     const tokenHash = this.hashFactory(opaque.tokenSecret);
 
+    const refreshMetadata = input.metadata !== undefined ? toJsonInput(input.metadata) : undefined;
+
     const created = await this.prisma.token.create({
       data: {
         id: opaque.tokenId,
@@ -59,7 +59,7 @@ export class TokenService {
         scopes: [],
         name: null,
         familyId,
-        metadata: input.metadata ?? null,
+        ...(refreshMetadata !== undefined ? { metadata: refreshMetadata } : {}),
         lastUsedAt: null,
         expiresAt: input.expiresAt,
         revokedAt: null,

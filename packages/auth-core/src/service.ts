@@ -1,8 +1,15 @@
-import { type PrismaClient, prisma, setPostgresContext } from '@repo/database';
+import {
+  SESSION_ABSOLUTE_MAX_AGE_SECONDS,
+  SESSION_MAX_AGE_SECONDS,
+  createOpaqueToken,
+  createTokenHashEnvelope,
+} from '@repo/auth';
+import { Prisma, type PrismaClient, prisma, setPostgresContext } from '@repo/database';
 import { jwtVerify } from 'jose';
 import { type AuthCoreEnvironment, loadAuthCoreConfig } from './config.js';
 import { InactiveUserError, UnauthorizedError } from './errors.js';
 import type { AuthService } from './interfaces.js';
+import { toJsonInput } from './json.js';
 import {
   type SignAccessTokenParams,
   SigningKeyStore,
@@ -125,8 +132,78 @@ export class AuthCoreService implements AuthService {
     });
   }
 
-  async createSession(_input: CreateSessionInput): Promise<SessionHandle> {
-    throw new Error('AuthCoreService.createSession is not implemented yet.');
+  async createSession(input: CreateSessionInput): Promise<SessionHandle> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: input.userId },
+      select: {
+        id: true,
+        status: true,
+        email: true,
+        emailLower: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    if (user.status !== 'active') {
+      throw new InactiveUserError();
+    }
+
+    const clientType = normalizeClientType(input.clientType);
+    const now = new Date();
+    const slidingWindowSeconds = input.rememberMe ? SESSION_MAX_AGE_SECONDS : 7 * 24 * 60 * 60;
+    const absoluteWindow = SESSION_ABSOLUTE_MAX_AGE_SECONDS;
+    const computedExpiresAt = new Date(now.getTime() + slidingWindowSeconds * 1000);
+    const absoluteExpiresAt = new Date(now.getTime() + absoluteWindow * 1000);
+    const expiresAt =
+      computedExpiresAt.getTime() > absoluteExpiresAt.getTime()
+        ? absoluteExpiresAt
+        : computedExpiresAt;
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await this.ensureIdentityLink(
+        tx,
+        {
+          id: user.id,
+          email: user.email,
+          emailLower: user.emailLower,
+        },
+        input.identity
+      );
+
+      const opaque = createOpaqueToken();
+      const sessionTokenHash = createTokenHashEnvelope(opaque.tokenSecret);
+
+      const session = await tx.session.create({
+        data: {
+          userId: user.id,
+          tokenId: opaque.tokenId,
+          sessionTokenHash,
+          expiresAt,
+          absoluteExpiresAt,
+          clientType,
+          kind: input.rememberMe ? 'persistent' : 'default',
+          lastUsedAt: now,
+          mfaLevel: input.mfaLevel ?? 'none',
+          ipAddress: input.ipAddress ?? null,
+          userAgent: input.userAgent ?? null,
+        },
+      });
+
+      return session;
+    });
+
+    return {
+      sessionId: created.id,
+      userId: created.userId,
+      clientType,
+      activeWorkspaceId: input.workspaceId ?? null,
+      createdAt: created.createdAt,
+      expiresAt: created.expiresAt,
+      absoluteExpiresAt: created.absoluteExpiresAt,
+    };
   }
 
   async revokeSession(_input: RevokeSessionInput): Promise<void> {
@@ -249,6 +326,93 @@ export class AuthCoreService implements AuthService {
     }
 
     return authContext;
+  }
+
+  private async ensureIdentityLink(
+    tx: Pick<PrismaClient, 'user' | 'userIdentity'>,
+    user: { id: string; email: string | null; emailLower: string | null },
+    identity: CreateSessionInput['identity']
+  ) {
+    if (!identity.provider || !identity.providerUserId) {
+      return;
+    }
+
+    try {
+      const normalizedEmail = identity.email?.trim() ?? null;
+
+      const existing = await tx.userIdentity.findUnique({
+        where: {
+          provider_providerUserId: {
+            provider: identity.provider,
+            providerUserId: identity.providerUserId,
+          },
+        },
+      });
+
+      if (existing && existing.userId !== user.id) {
+        throw new UnauthorizedError('Identity is linked to another user');
+      }
+
+      if (existing) {
+        const metadataUpdate: { metadata: Prisma.InputJsonValue } | undefined =
+          identity.metadata !== undefined
+            ? { metadata: toJsonInput(identity.metadata) }
+            : undefined;
+        await tx.userIdentity.update({
+          where: { id: existing.id },
+          data: {
+            email: normalizedEmail ?? existing.email,
+            emailVerified:
+              typeof identity.emailVerified === 'boolean'
+                ? identity.emailVerified
+                : existing.emailVerified,
+            ...(metadataUpdate ?? {}),
+          },
+        });
+      } else {
+        const metadataCreate: { metadata: Prisma.InputJsonValue } | undefined =
+          identity.metadata !== undefined
+            ? { metadata: toJsonInput(identity.metadata) }
+            : undefined;
+        await tx.userIdentity.create({
+          data: {
+            userId: user.id,
+            provider: identity.provider,
+            providerUserId: identity.providerUserId,
+            email: normalizedEmail,
+            emailVerified:
+              typeof identity.emailVerified === 'boolean' ? identity.emailVerified : null,
+            ...(metadataCreate ?? {}),
+          },
+        });
+      }
+
+      if (identity.email && identity.emailVerified) {
+        const normalized = identity.email.trim().toLowerCase();
+        if (!user.emailLower || user.emailLower !== normalized) {
+          const conflicting = await tx.user.findFirst({
+            where: {
+              emailLower: normalized,
+              NOT: { id: user.id },
+            },
+          });
+          if (!conflicting) {
+            await tx.user.update({
+              where: { id: user.id },
+              data: {
+                email: identity.email.trim(),
+                emailLower: normalized,
+              },
+            });
+          }
+        }
+      }
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
+        return;
+      }
+      throw error;
+    }
   }
 }
 

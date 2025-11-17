@@ -11,6 +11,7 @@ import type { AppBindings } from './types/context.js';
 import { attachAuthContext } from './middleware/auth-context.js';
 import { getCurrentSession } from './routes/v1/auth/session.js';
 import { getJwks } from './routes/v1/auth/jwks.js';
+import { authTokenValidator, exchangeAuthTokens } from './routes/v1/auth/token.js';
 
 const app = new Hono<AppBindings>();
 
@@ -33,6 +34,7 @@ const v1 = new Hono<AppBindings>();
 const authRoutes = new Hono<AppBindings>();
 authRoutes.get('/session', getCurrentSession);
 authRoutes.get('/jwks.json', getJwks);
+authRoutes.post('/token', authTokenValidator, exchangeAuthTokens);
 // Mount Auth.js handler (handles remaining /v1/auth/*)
 authRoutes.route('/', authApp);
 

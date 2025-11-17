@@ -11,7 +11,7 @@ Context to review before starting:
 - [x] 2. Implement refresh-token creation utilities (`TokenService`, helpers in `@repo/auth-core`) that mint opaque secrets, hash/envelope them, and persist `Token` rows linked to sessions  
   - Sanity check: `pnpm --filter @repo/auth-core exec vitest run` covers happy-path issuance plus hashing/TTL edge cases.
 
-- [ ] 3. Build `/v1/auth/token` to convert the IdP/Auth.js handoff into `VerifiedIdentity`, enforce user/identity linking rules, create `Session`, and respond with `{ accessToken, refreshToken, expiresIn }`  
+- [x] 3. Build `/v1/auth/token` to convert the IdP/Auth.js handoff into `VerifiedIdentity`, enforce user/identity linking rules, create `Session`, and respond with `{ accessToken, refreshToken, expiresIn }`  
   - Sanity check: `pnpm --filter @repo/api exec dotenv -e .env.local -- vitest run --runInBand` (or `--run` if needed) exercises login → issue flow, removes the legacy Auth.js cookie requirement from `/v1/auth/session`, and ensures auth middleware consumes `Authorization: Bearer`.
 
 - [ ] 4. Replace cookie-based auth middleware usage with JWT-based context  

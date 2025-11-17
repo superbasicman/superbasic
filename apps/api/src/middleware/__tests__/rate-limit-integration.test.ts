@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 vi.unmock('@repo/database');
 
 import { Hono } from "hono";
-import { resetDatabase, getTestPrisma } from "../../test/setup.js";
+import { setupTestDatabase, resetDatabase, getTestPrisma } from "../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
@@ -66,6 +66,9 @@ function createPATTestApp() {
 }
 
 describe("Rate Limiting Integration Tests", () => {
+  beforeAll(async () => {
+    await setupTestDatabase();
+  });
   beforeEach(async () => {
     await resetDatabase();
     // Initialize mock function

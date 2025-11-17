@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { PrismaClient, Token as PrismaToken } from '@repo/database';
-import type { TokenHashEnvelope } from '../types.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TokenService } from '../token-service.js';
+import type { TokenHashEnvelope } from '../types.js';
 
 function buildToken(overrides: Partial<PrismaToken> = {}): PrismaToken {
   const now = new Date('2025-01-01T00:00:00.000Z');
@@ -38,22 +38,20 @@ describe('TokenService.issueRefreshToken', () => {
     },
   } as unknown as PrismaClient;
 
-  const mockTokenFactory = vi
-    .fn()
-    .mockReturnValue({
-      tokenId: 'tok_abc',
-      tokenSecret: 'secret-abc',
-      value: 'tok_abc.secret-abc',
-    });
+  const mockTokenFactory = vi.fn().mockReturnValue({
+    tokenId: 'tok_abc',
+    tokenSecret: 'secret-abc',
+    value: 'tok_abc.secret-abc',
+  });
 
-const hashEnvelope = {
-  algo: 'hmac-sha256',
-  keyId: 'v1',
-  hash: 'hashed-secret',
-  issuedAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
-} satisfies TokenHashEnvelope;
+  const hashEnvelope = {
+    algo: 'hmac-sha256',
+    keyId: 'v1',
+    hash: 'hashed-secret',
+    issuedAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+  } satisfies TokenHashEnvelope;
 
-const mockHashFactory = vi.fn().mockReturnValue(hashEnvelope);
+  const mockHashFactory = vi.fn().mockReturnValue(hashEnvelope);
 
   beforeEach(() => {
     mockCreate.mockReset();
@@ -144,8 +142,7 @@ const mockHashFactory = vi.fn().mockReturnValue(hashEnvelope);
       service.issueRefreshToken({
         userId: 'user_123',
         sessionId: 'sess_123',
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        expiresAt: new Date('invalid' as any),
+        expiresAt: new Date('invalid-date'),
       })
     ).rejects.toThrow('expiresAt must be a valid Date instance');
   });
