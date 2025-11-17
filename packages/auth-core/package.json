@@ -19,6 +19,7 @@
       "lint": "biome check src"
   },
   "dependencies": {
+    "@repo/auth": "workspace:*",
     "@repo/database": "workspace:*",
     "jose": "^5.10.0"
   },

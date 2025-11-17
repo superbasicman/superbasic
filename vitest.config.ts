@@ -2,6 +2,8 @@ import { defineConfig } from 'vitest/config';
 
 process.env.TOKEN_HASH_KEYS ??= '{"v1":"test_token_hash_secret_for_vitest"}';
 process.env.TOKEN_HASH_ACTIVE_KEY_ID ??= 'v1';
+process.env.AUTH_SECRET ??=
+  'test_auth_secret_value_that_is_long_enough_12345678901234567890';
 
 export default defineConfig({
   test: {

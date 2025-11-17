@@ -3,6 +3,16 @@ export type ClientType = 'web' | 'mobile' | 'cli' | 'partner' | 'other';
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer';
 
 export type PermissionScope = string;
+export type TokenType = 'refresh' | 'personal_access';
+
+export type TokenHashEnvelope = {
+  algo: 'hmac-sha256';
+  keyId: string;
+  hash: string;
+  issuedAt: string;
+  salt?: string;
+  [key: string]: string | undefined;
+};
 
 export type MfaLevel = 'none' | 'mfa' | 'phishing_resistant';
 
@@ -86,11 +96,36 @@ export type RevokeTokenInput = {
 export type IssuedToken = {
   tokenId: string;
   secret: string;
-  type: 'refresh' | 'personal_access';
+  type: TokenType;
   scopes: PermissionScope[];
   name?: string;
   workspaceId?: string | null;
   expiresAt?: Date | null;
+};
+
+export type TokenRecord = {
+  id: string;
+  userId: string;
+  sessionId: string | null;
+  workspaceId: string | null;
+  type: TokenType;
+  tokenHash: TokenHashEnvelope;
+  scopes: PermissionScope[];
+  name: string | null;
+  familyId: string | null;
+  metadata: Record<string, unknown> | null;
+  lastUsedAt: Date | null;
+  expiresAt: Date | null;
+  revokedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type RefreshTokenRecord = TokenRecord & {
+  type: 'refresh';
+  sessionId: string;
+  familyId: string;
+  expiresAt: Date;
 };
 
 export type OAuthInitiationResult = {

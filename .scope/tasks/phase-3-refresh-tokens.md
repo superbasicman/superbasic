@@ -5,10 +5,10 @@ Context to review before starting:
 - `docs/auth-migration/end-auth-goal.md` (target auth UX)
 - `agent/agents.md` for checklist and delivery guardrails
 
-- [ ] 1. Extend the database + auth-core token models to support refresh tokens with uniqueness & hashing  
+- [x] 1. Extend the database + auth-core token models to support refresh tokens with uniqueness & hashing  
   - Sanity check: add migrations so `tokens` enforces `(familyId, revokedAt IS NULL)` uniqueness, exposes `type = 'refresh'`, and stores hashed secrets; run `pnpm --filter @repo/database exec dotenv -e .env.local -- prisma migrate deploy && pnpm --filter @repo/database exec prisma validate`.
 
-- [ ] 2. Implement refresh-token creation utilities (`TokenService`, helpers in `@repo/auth-core`) that mint opaque secrets, hash/envelope them, and persist `Token` rows linked to sessions  
+- [x] 2. Implement refresh-token creation utilities (`TokenService`, helpers in `@repo/auth-core`) that mint opaque secrets, hash/envelope them, and persist `Token` rows linked to sessions  
   - Sanity check: `pnpm --filter @repo/auth-core exec vitest run` covers happy-path issuance plus hashing/TTL edge cases.
 
 - [ ] 3. Build `/v1/auth/token` to convert the IdP/Auth.js handoff into `VerifiedIdentity`, enforce user/identity linking rules, create `Session`, and respond with `{ accessToken, refreshToken, expiresIn }`  

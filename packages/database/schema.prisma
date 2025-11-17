@@ -114,7 +114,7 @@ model Token {
   sessionId   String?    @map("session_id") @db.Uuid
   workspaceId String?    @map("workspace_id") @db.Uuid
   type        TokenType  @map("token_type")
-  tokenHash   String     @map("token_hash")
+  tokenHash   Json       @map("token_hash")
   scopes      String[]   @default([])
   name        String?
   familyId    String?    @map("family_id") @db.Uuid
