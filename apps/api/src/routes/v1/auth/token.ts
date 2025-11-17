@@ -24,11 +24,13 @@ type ValidatedJsonRequest = {
 
 export const authTokenValidator = zValidator('json', AuthTokenRequestSchema, (result, c) => {
   if (!result.success) {
+    const issues =
+      'error' in result && result.error ? result.error.issues : [{ message: 'Invalid payload' }];
     return c.json(
       {
         error: 'invalid_request',
         message: 'Request payload is invalid',
-        issues: result.error.issues,
+        issues,
       },
       400
     );
