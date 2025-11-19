@@ -8,6 +8,8 @@ export type AuthEventType =
   | "user.login.success"
   | "user.login.failed"
   | "user.logout"
+  | "session.revoked"
+  | "refresh.reuse_detected"
   | "token.created"
   | "token.used"
   | "token.revoked"
@@ -127,6 +129,34 @@ export interface AuthFailedRateLimitedEvent extends Omit<AuthEvent, "type"> {
     windowSeconds: number;
     maxAttempts: number;
     attemptsRecorded: number;
+    timestamp: string;
+  };
+}
+
+export interface SessionRevokedEvent extends Omit<AuthEvent, "type"> {
+  type: "session.revoked";
+  userId: string;
+  metadata: {
+    sessionId: string;
+    revokedBy?: string | null;
+    reason?: string;
+    ip?: string | null;
+    userAgent?: string | null;
+    requestId?: string | null;
+    timestamp: string;
+  };
+}
+
+export interface RefreshReuseDetectedEvent extends Omit<AuthEvent, "type"> {
+  type: "refresh.reuse_detected";
+  userId: string;
+  metadata: {
+    sessionId?: string | null;
+    tokenId: string;
+    familyId?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+    requestId?: string | null;
     timestamp: string;
   };
 }

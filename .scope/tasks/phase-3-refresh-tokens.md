@@ -14,16 +14,16 @@ Context to review before starting:
 - [x] 3. Build `/v1/auth/token` to convert the IdP/Auth.js handoff into `VerifiedIdentity`, enforce user/identity linking rules, create `Session`, and respond with `{ accessToken, refreshToken, expiresIn }`  
   - Sanity check: `pnpm --filter @repo/api exec dotenv -e .env.local -- vitest run --runInBand` (or `--run` if needed) exercises login → issue flow, removes the legacy Auth.js cookie requirement from `/v1/auth/session`, and ensures auth middleware consumes `Authorization: Bearer`.
 
-- [ ] 4. Replace cookie-based auth middleware usage with JWT-based context  
+- [x] 4. Replace cookie-based auth middleware usage with JWT-based context  
   - Sanity check: update Hono routes (tokens, me, etc.) to rely on `attachAuthContext`/`@repo/auth-core` instead of `authjs.session-token`, delete any direct Prisma session lookups from middleware, and rerun `pnpm --filter @repo/api exec vitest run --runInBand` so protected endpoints pass when only `Authorization: Bearer` is provided.
 
-- [ ] 5. Update SPA + mobile auth flows to consume the new token endpoints  
+- [x] 5. Update SPA + mobile auth flows to consume the new token endpoints  
   - Sanity check: run the web app (and mobile client if applicable) against local API so that login → `POST /v1/auth/token` works, access tokens are attached to API calls, refresh rotation via `POST /v1/auth/refresh` happens automatically on expiry/401, and `/v1/auth/logout` clears local tokens and invalidates the session server-side.
 
-- [ ] 6. Build `/v1/auth/refresh` with rotation + sliding session window and integrity checks  
+- [x] 6. Build `/v1/auth/refresh` with rotation + sliding session window and integrity checks *(when this lands, move refresh tokens into HttpOnly cookies so clients only keep short-lived access tokens in memory or session storage — no long-lived secrets in `localStorage`)*  
   - Sanity check: API tests cover: valid refresh returns new pair, expired/ revoked tokens return `401 invalid_grant`, session expiry blocks refresh, and `lastUsedAt`/`expiresAt` update in the DB.
 
-- [ ] 7. Implement reuse detection + logout and session management endpoints  
+- [x] 7. Implement reuse detection + logout and session management endpoints  
   - Sanity check: tests demonstrate reuse revokes the entire family & session, `/v1/auth/logout` tears down current session + cookies, `/v1/auth/sessions` lists active sessions, and `DELETE /v1/auth/sessions/:id` revokes targeted sessions with corresponding refresh tokens.
 
 - [ ] 8. Docs/testing sweep  

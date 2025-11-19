@@ -8,6 +8,7 @@ import { refreshTokenService } from '../../../lib/refresh-token-service.js';
 import { loadLegacyAuthSession } from '../../../lib/authjs-session.js';
 import { generateAccessToken } from '@repo/auth-core';
 import type { AppBindings } from '../../../types/context.js';
+import { setRefreshTokenCookie } from './refresh-cookie.js';
 
 const CLIENT_TYPES = ['web', 'mobile', 'cli', 'partner', 'other'] as const;
 
@@ -92,6 +93,8 @@ export async function exchangeAuthTokens(c: Context<AppBindings>) {
         source: 'auth-token-endpoint',
       },
     });
+
+    setRefreshTokenCookie(c, refreshResult.refreshToken, refreshResult.token.expiresAt);
 
     return c.json({
       tokenType: 'Bearer',

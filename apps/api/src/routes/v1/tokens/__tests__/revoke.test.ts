@@ -13,7 +13,7 @@ import { resetDatabase } from "../../../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
-  createSessionToken,
+  createAccessToken,
 } from "../../../../test/helpers.js";
 import {
   authEvents,
@@ -23,11 +23,13 @@ import {
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
+import { attachAuthContext } from "../../../../middleware/auth-context.js";
 
 // Create test app with tokens route
 function createTestApp() {
   const app = new Hono();
   app.use("*", corsMiddleware);
+  app.use("*", attachAuthContext);
   app.route("/v1/tokens", tokensRoute);
   return app;
 }
@@ -78,7 +80,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -109,7 +111,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Verify token is in list before revocation
       const listResponse1 = await makeAuthenticatedRequest(
@@ -156,7 +158,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Revoke token
       await makeAuthenticatedRequest(
@@ -195,7 +197,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       // Try to revoke as user2
       const app = createTestApp();
-      const sessionToken2 = await createSessionToken(user2.id, user2.email);
+      const { token: sessionToken2 } = await createAccessToken(user2.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -220,7 +222,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
     it("should return 404 for non-existent token", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -246,7 +248,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // First revocation
       const response1 = await makeAuthenticatedRequest(
@@ -291,7 +293,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // First revocation
       await makeAuthenticatedRequest(
@@ -332,7 +334,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Mock event handler
       const eventHandler = vi.fn();
@@ -372,7 +374,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Mock event handler
       const eventHandler = vi.fn();
@@ -459,7 +461,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Revoke token
       await makeAuthenticatedRequest(

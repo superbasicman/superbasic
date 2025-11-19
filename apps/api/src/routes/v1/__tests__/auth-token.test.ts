@@ -6,6 +6,7 @@ import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import { createSessionToken, createTestUser, makeRequest } from '../../../test/helpers.js';
 import { authService } from '../../../lib/auth-service.js';
 import { parseOpaqueToken } from '@repo/auth';
+import { REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
 
 const COOKIE_NAME = 'authjs.session-token';
 const TEST_SESSION_SECRET = 'local_test_auth_secret_32_chars_minimum';
@@ -54,6 +55,12 @@ describe('POST /v1/auth/token', () => {
     expect(storedToken).toBeTruthy();
     expect(storedToken?.userId).toBe(user.id);
     expect(storedToken?.sessionId).toBe(verifyResponse?.sessionId);
+
+    const setCookie = response.headers.getSetCookie?.() ?? [];
+    const hasRefreshCookie = setCookie.some((value) =>
+      value.startsWith(`${REFRESH_TOKEN_COOKIE}=`) && value.includes('HttpOnly')
+    );
+    expect(hasRefreshCookie).toBe(true);
   });
 
   it('allows session token in request body', async () => {

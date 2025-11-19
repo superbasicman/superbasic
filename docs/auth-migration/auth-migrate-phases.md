@@ -270,7 +270,11 @@ Add long-lived sessions via refresh tokens with rotation, reuse detection, and l
   - Logs in, gets access + refresh.
   - Can refresh successfully.
   - Cannot refresh after logout (refresh token invalid).
+  - Temporarily ships with a “silent token exchange” bootstrap that calls `/v1/auth/token` on load if no access token is cached; this keeps Auth.js-powered OAuth/magic-link flows working until Phase 4 removes the fallback.
 - Session list and remote logout work via API.
+- Testing & verification:
+  - `pnpm lint` and `pnpm typecheck` succeed for the monorepo.
+  - `pnpm test -- --run` is expected to pass once the shared Neon test DB is reachable; current runs fail with Prisma `P1001` (cannot reach `ep-restless-mode-…`), so rerun when connectivity is restored.
 
 ---
 
@@ -318,6 +322,8 @@ Implement proper authorization via roles and scopes, with multi-tenant workspace
       - Workspace-scoped scopes for `activeWorkspaceId`.
       - Global scopes (e.g. `read:profile`) regardless of workspace.
     - Populate `AuthContext` accordingly.
+- Client cleanup:
+  - Remove the SPA's temporary "silent token exchange" fallback (which calls `/v1/auth/token` on load when no access token is cached). Once OAuth/magic-link flows directly obtain API tokens, the app should rely solely on the stored refresh-cookie + access-token machinery.
 
 - Refactor API & services:
   - Replace adhoc checks like:
@@ -329,6 +335,8 @@ Implement proper authorization via roles and scopes, with multi-tenant workspace
 - RLS groundwork:
   - Extend the Phase 2 GUC plumbing so that once `activeWorkspaceId` is known, requests set `app.workspace_id` (and `app.mfa_level` when available) before touching the database.
   - Expand the RLS coverage now that the session variables are populated for every request.
+- Key management & JWKS rotation:
+  - Generate per-environment EdDSA key pairs, publish the public JWK entries (matching `kid`s), and configure `AUTH_JWT_*` variables for each deployment target before clients fully rely on bearer tokens.
 
 **Out of scope**
 

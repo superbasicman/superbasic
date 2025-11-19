@@ -13,7 +13,7 @@ import { resetDatabase } from "../../../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
-  createSessionToken,
+  createAccessToken,
 } from "../../../../test/helpers.js";
 import {
   authEvents,
@@ -23,11 +23,13 @@ import {
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
+import { attachAuthContext } from "../../../../middleware/auth-context.js";
 
 // Create test app with tokens route
 function createTestApp() {
   const app = new Hono();
   app.use("*", corsMiddleware);
+  app.use("*", attachAuthContext);
   app.route("/v1/tokens", tokensRoute);
   return app;
 }
@@ -46,7 +48,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should create token with valid request", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -87,7 +89,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should store token hash in database (not plaintext)", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const response = await makeAuthenticatedRequest(
@@ -124,7 +126,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should store last 4 characters for display", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const response = await makeAuthenticatedRequest(
@@ -157,7 +159,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should create token with multiple scopes", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -185,7 +187,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should create token with custom expiration", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -216,7 +218,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should use default 90-day expiration when not specified", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -246,7 +248,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should associate token with userId and profileId", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -282,7 +284,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with empty name", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -303,7 +305,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with name exceeding 100 characters", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -324,7 +326,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with no scopes", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -345,7 +347,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with invalid scope", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -366,7 +368,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with duplicate scopes", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -387,7 +389,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with expiration less than 1 day", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -409,7 +411,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with expiration exceeding 365 days", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -431,7 +433,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with non-integer expiration", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -455,7 +457,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should reject token with duplicate name for same user", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Create first token
       const response1 = await makeAuthenticatedRequest(
@@ -498,8 +500,8 @@ describe("POST /v1/tokens - Token Creation", () => {
       const { user: user2 } = await createTestUser();
       const app = createTestApp();
 
-      const sessionToken1 = await createSessionToken(user1.id, user1.email);
-      const sessionToken2 = await createSessionToken(user2.id, user2.email);
+      const { token: sessionToken1 } = await createAccessToken(user1.id);
+      const { token: sessionToken2 } = await createAccessToken(user2.id);
 
       // Create token for user 1
       const response1 = await makeAuthenticatedRequest(
@@ -579,7 +581,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should emit token.created event on successful creation", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Mock event handler
       const eventHandler = vi.fn();
@@ -618,7 +620,7 @@ describe("POST /v1/tokens - Token Creation", () => {
     it("should include IP and user agent in audit event", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Mock event handler
       const eventHandler = vi.fn();

@@ -12,6 +12,9 @@ import { attachAuthContext } from './middleware/auth-context.js';
 import { getCurrentSession } from './routes/v1/auth/session.js';
 import { getJwks } from './routes/v1/auth/jwks.js';
 import { authTokenValidator, exchangeAuthTokens } from './routes/v1/auth/token.js';
+import { refreshTokenValidator, refreshTokens } from './routes/v1/auth/refresh.js';
+import { logout } from './routes/v1/auth/logout.js';
+import { deleteSession, listSessions } from './routes/v1/auth/sessions.js';
 
 const app = new Hono<AppBindings>();
 
@@ -33,8 +36,12 @@ const v1 = new Hono<AppBindings>();
 
 const authRoutes = new Hono<AppBindings>();
 authRoutes.get('/session', getCurrentSession);
+authRoutes.get('/sessions', listSessions);
+authRoutes.delete('/sessions/:id', deleteSession);
 authRoutes.get('/jwks.json', getJwks);
 authRoutes.post('/token', authTokenValidator, exchangeAuthTokens);
+authRoutes.post('/refresh', refreshTokenValidator, refreshTokens);
+authRoutes.post('/logout', logout);
 // Mount Auth.js handler (handles remaining /v1/auth/*)
 authRoutes.route('/', authApp);
 

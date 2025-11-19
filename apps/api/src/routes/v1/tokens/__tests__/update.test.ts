@@ -13,7 +13,7 @@ import { resetDatabase } from "../../../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
-  createSessionToken,
+  createAccessToken,
 } from "../../../../test/helpers.js";
 import {
   authEvents,
@@ -23,11 +23,13 @@ import {
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
+import { attachAuthContext } from "../../../../middleware/auth-context.js";
 
 // Create test app with tokens route
 function createTestApp() {
   const app = new Hono();
   app.use("*", corsMiddleware);
+  app.use("*", attachAuthContext);
   app.route("/v1/tokens", tokensRoute);
   return app;
 }
@@ -74,7 +76,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id, "Old Name");
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -111,7 +113,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id, "Original Name");
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -150,7 +152,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -189,7 +191,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       const { apiKey: token2 } = await createTestApiKey(user.id, profile!.id, "Token 2");
 
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Try to rename token2 to token1's name
       const response = await makeAuthenticatedRequest(
@@ -224,7 +226,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id, "Same Name");
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Update to same name (should succeed)
       const response = await makeAuthenticatedRequest(
@@ -262,7 +264,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       const { apiKey: token2 } = await createTestApiKey(user2.id, profile2!.id, "Different Name");
 
       const app = createTestApp();
-      const sessionToken2 = await createSessionToken(user2.id, user2.email);
+      const { token: sessionToken2 } = await createAccessToken(user2.id);
 
       // Update user2's token to "Shared Name" (should succeed)
       const response = await makeAuthenticatedRequest(
@@ -297,7 +299,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       // Try to update as user2
       const app = createTestApp();
-      const sessionToken2 = await createSessionToken(user2.id, user2.email);
+      const { token: sessionToken2 } = await createAccessToken(user2.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -325,7 +327,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
     it("should return 404 for non-existent token", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -359,7 +361,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       });
 
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -388,7 +390,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey, token } = await createTestApiKey(user.id, profile!.id, "Original Name");
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Update token name
       const updateResponse = await makeAuthenticatedRequest(
@@ -427,7 +429,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id, "Original Name");
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Update token name
       await makeAuthenticatedRequest(
@@ -457,7 +459,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id, "Original Name");
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Update token name
       await makeAuthenticatedRequest(
@@ -489,7 +491,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -516,7 +518,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const longName = "a".repeat(101);
 
@@ -545,7 +547,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -572,7 +574,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const { apiKey } = await createTestApiKey(user.id, profile!.id);
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,

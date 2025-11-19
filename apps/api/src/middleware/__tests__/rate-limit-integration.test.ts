@@ -13,7 +13,7 @@ import { setupTestDatabase, resetDatabase, getTestPrisma } from "../../test/setu
 import {
   makeAuthenticatedRequest,
   createTestUser,
-  createSessionToken,
+  createAccessToken,
   makeRequest,
 } from "../../test/helpers.js";
 import {
@@ -23,6 +23,7 @@ import {
 import { tokensRoute } from "../../routes/v1/tokens/index.js";
 import { corsMiddleware } from "../../middleware/cors.js";
 import { patMiddleware } from "../../middleware/pat.js";
+import { attachAuthContext } from "../auth-context.js";
 import type { RateLimitResult } from "@repo/rate-limit";
 
 // Mock checkLimit function
@@ -51,6 +52,7 @@ process.env.UPSTASH_REDIS_REST_TOKEN = "mock-token";
 function createTestApp() {
   const app = new Hono();
   app.use("*", corsMiddleware);
+  app.use("*", attachAuthContext);
   app.route("/v1/tokens", tokensRoute);
   return app;
 }
@@ -84,7 +86,7 @@ describe("Rate Limiting Integration Tests", () => {
     it("should enforce 10 tokens per hour per user", { timeout: 30000 }, async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       // Mock rate limiter to allow first 10 requests
       let callCount = 0;
@@ -143,7 +145,7 @@ describe("Rate Limiting Integration Tests", () => {
     it("should include Retry-After header when rate limited", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const resetTime = Math.floor(Date.now() / 1000) + 3600;
 
@@ -179,7 +181,7 @@ describe("Rate Limiting Integration Tests", () => {
     it("should include rate limit headers in response", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const resetTime = Math.floor(Date.now() / 1000) + 3600;
 
@@ -217,7 +219,7 @@ describe("Rate Limiting Integration Tests", () => {
     it("should use userId as rate limit key", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       mockCheckLimit.mockResolvedValue({
         allowed: true,
@@ -569,7 +571,7 @@ describe("Rate Limiting Integration Tests", () => {
     it("should include Retry-After header for token creation rate limit", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const now = Date.now();
       const resetTime = Math.floor(now / 1000) + 3600;
@@ -609,7 +611,7 @@ describe("Rate Limiting Integration Tests", () => {
     it("should include rate limit headers for successful requests", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const resetTime = Math.floor(Date.now() / 1000) + 3600;
 

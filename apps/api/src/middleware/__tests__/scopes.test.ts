@@ -14,10 +14,9 @@ import {
   makeRequest,
   makeAuthenticatedRequest,
   createTestUser,
-  extractCookie,
-  signInWithCredentials,
+  createAccessToken,
 } from '../../test/helpers.js';
-import { generateToken, hashToken, COOKIE_NAME } from '@repo/auth';
+import { generateToken, hashToken } from '@repo/auth';
 
 // Use the full app which includes all routes (login, me, etc.)
 const testApp = app;
@@ -62,28 +61,18 @@ describe('Scope Enforcement Middleware', () => {
 
   describe('Profile Endpoints - read:profile scope', () => {
     it('should allow session auth to access GET /v1/me without scope check', async () => {
-      const { user, credentials } = await createTestUser({
+      const { user } = await createTestUser({
         name: 'Test User',
       });
 
-      // Login to get session using Auth.js
-      const loginResponse = await signInWithCredentials(
-        testApp,
-        credentials.email,
-        credentials.password
-      );
-
-      expect(loginResponse.status).toBe(302);
-
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
+      const { token } = await createAccessToken(user.id);
 
       // Make request with session auth (should bypass scope check)
       const response = await makeAuthenticatedRequest(
         testApp,
         'GET',
         '/v1/me',
-        sessionCookie!
+        token
       );
 
       expect(response.status).toBe(200);
@@ -178,25 +167,18 @@ describe('Scope Enforcement Middleware', () => {
 
   describe('Profile Endpoints - write:profile scope', () => {
     it('should allow session auth to access PATCH /v1/me without scope check', async () => {
-      const { credentials } = await createTestUser({
+      const { user } = await createTestUser({
         name: 'Test User',
       });
 
-      // Login to get session using Auth.js
-      const loginResponse = await signInWithCredentials(
-        testApp,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      const { token } = await createAccessToken(user.id);
 
       // Make request with session auth (should bypass scope check)
       const response = await makeAuthenticatedRequest(
         testApp,
         'PATCH',
         '/v1/me',
-        sessionCookie!,
+        token,
         {
           body: {
             name: 'Updated Name',
@@ -405,23 +387,15 @@ describe('Scope Enforcement Middleware', () => {
 
   describe('Session vs PAT Auth Behavior', () => {
     it('should allow session auth full access regardless of endpoint scope', async () => {
-      const { credentials } = await createTestUser();
-
-      // Login to get session using Auth.js
-      const loginResponse = await signInWithCredentials(
-        testApp,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      const { user } = await createTestUser();
+      const { token } = await createAccessToken(user.id);
 
       // Test read endpoint
       const readResponse = await makeAuthenticatedRequest(
         testApp,
         'GET',
         '/v1/me',
-        sessionCookie!
+        token
       );
       expect(readResponse.status).toBe(200);
 
@@ -430,7 +404,7 @@ describe('Scope Enforcement Middleware', () => {
         testApp,
         'PATCH',
         '/v1/me',
-        sessionCookie!,
+        token,
         {
           body: {
             name: 'Updated Name',
@@ -441,7 +415,7 @@ describe('Scope Enforcement Middleware', () => {
     });
 
     it('should enforce scopes for PAT auth but not session auth', async () => {
-      const { user, credentials } = await createTestUser();
+      const { user } = await createTestUser();
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -466,19 +440,13 @@ describe('Scope Enforcement Middleware', () => {
       expect(patWriteResponse.status).toBe(403);
 
       // Session should have write access
-      const loginResponse = await signInWithCredentials(
-        testApp,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(loginResponse, COOKIE_NAME);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const sessionWriteResponse = await makeAuthenticatedRequest(
         testApp,
         'PATCH',
         '/v1/me',
-        sessionCookie!,
+        sessionToken,
         {
           body: {
             name: 'Should Succeed',

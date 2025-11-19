@@ -1,23 +1,11 @@
 import type { Context } from 'hono';
 import { prisma } from '@repo/database';
 import type { AppBindings } from '../../../types/context.js';
-import { getCookie } from 'hono/cookie';
-import { COOKIE_NAME } from '@repo/auth';
-import { loadLegacyAuthSession } from '../../../lib/authjs-session.js';
 
 export async function getCurrentSession(c: Context<AppBindings>) {
   const auth = c.get('auth');
 
   if (!auth) {
-    const rawCookie = getCookie(c, COOKIE_NAME);
-    const legacy = rawCookie ? await loadLegacyAuthSession(rawCookie) : null;
-    if (legacy) {
-      return c.json({
-        auth: null,
-        user: legacy.user,
-        session: legacy.session,
-      });
-    }
     return c.json({ error: 'Unauthorized' }, 401);
   }
 

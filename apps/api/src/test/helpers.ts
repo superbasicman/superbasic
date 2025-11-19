@@ -11,6 +11,7 @@ import {
   SESSION_MAX_AGE_SECONDS,
   SESSION_ABSOLUTE_MAX_AGE_SECONDS,
 } from '@repo/auth';
+import { generateAccessToken } from '@repo/auth-core';
 import { getTestPrisma } from './setup.js';
 
 /**
@@ -69,33 +70,21 @@ export async function makeRequest(
 }
 
 /**
- * Make an authenticated HTTP request with session cookie
- * 
- * @param app - Hono application instance
- * @param method - HTTP method (GET, POST, etc.)
- * @param path - Request path (e.g., '/v1/me')
- * @param sessionCookie - Session cookie value (JWT token)
- * @param options - Additional request options
- * @returns Response object
+ * Make an authenticated HTTP request with a Bearer access token.
  */
 export async function makeAuthenticatedRequest(
   app: Hono<any>,
   method: string,
   path: string,
-  sessionCookie: string,
+  accessToken: string,
   options: RequestOptions = {}
 ): Promise<Response> {
-  // Import COOKIE_NAME dynamically to get the correct environment-specific name
-  const { COOKIE_NAME } = await import('@repo/auth');
-  
-  const cookies = {
-    ...options.cookies,
-    [COOKIE_NAME]: sessionCookie,
-  };
-
   return makeRequest(app, method, path, {
     ...options,
-    cookies,
+    headers: {
+      ...(options.headers ?? {}),
+      Authorization: `Bearer ${accessToken}`,
+    },
   });
 }
 
@@ -368,4 +357,18 @@ export async function createSessionRecord(
       absoluteExpiresAt,
     },
   });
+}
+
+export async function createAccessToken(
+  userId: string,
+  options: { expiresInSeconds?: number } = {}
+) {
+  const session = await createSessionRecord(userId, options);
+  const { token } = await generateAccessToken({
+    userId,
+    sessionId: session.id,
+    clientType: session.clientType,
+  });
+
+  return { token, session };
 }

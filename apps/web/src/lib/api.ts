@@ -1,4 +1,5 @@
 import type { LoginInput, RegisterInput, UserResponse } from "@repo/types";
+import { getAccessToken, getAccessTokenExpiry, saveTokens, clearTokens } from "./tokenStorage";
 
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -17,8 +18,11 @@ export class ApiError extends Error {
   }
 }
 
+const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
+let refreshPromise: Promise<void> | null = null;
+
 /**
- * Base fetch wrapper with credentials support and error handling
+ * Base fetch wrapper with credentials support, auto-refresh, and error handling
  */
 async function apiFetch<T>(
   endpoint: string,
@@ -26,24 +30,37 @@ async function apiFetch<T>(
 ): Promise<T> {
   const url = `${API_URL}${endpoint}`;
 
-  const response = await fetch(url, {
-    ...options,
-    credentials: "include", // Required for cross-origin cookie support
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
+  await maybeRefreshAccessToken();
 
-  // Handle 401 globally - will be caught by AuthContext
+  const performRequest = async (token?: string | null) => {
+    const headers = buildHeaders(options.headers, token);
+    return fetch(url, {
+      ...options,
+      credentials: options.credentials ?? "include",
+      headers,
+    });
+  };
+
+  let currentToken = getAccessToken();
+  let response = await performRequest(currentToken);
+
+  if (response.status === 401 && currentToken) {
+    try {
+      await refreshAccessToken(true);
+      currentToken = getAccessToken();
+      response = await performRequest(currentToken);
+    } catch (error) {
+      clearTokens();
+      throw new ApiError("Unauthorized", 401);
+    }
+  }
+
   if (response.status === 401) {
     throw new ApiError("Unauthorized", 401);
   }
 
-  // Parse response body
   const data = await response.json().catch(() => ({}));
 
-  // Handle non-2xx responses
   if (!response.ok) {
     throw new ApiError(
       data.error || "An error occurred",
@@ -53,6 +70,98 @@ async function apiFetch<T>(
   }
 
   return data;
+}
+
+function buildHeaders(
+  existing: RequestInit["headers"],
+  accessToken?: string | null
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (existing instanceof Headers) {
+    existing.forEach((value, key) => {
+      headers[key] = value;
+    });
+  } else if (Array.isArray(existing)) {
+    existing.forEach(([key, value]) => {
+      headers[key] = value;
+    });
+  } else if (existing) {
+    Object.assign(headers, existing);
+  }
+
+  const hasAuthorization = Object.keys(headers).some(
+    (key) => key.toLowerCase() === "authorization"
+  );
+
+  if (accessToken && !hasAuthorization) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  return headers;
+}
+
+async function maybeRefreshAccessToken() {
+  const token = getAccessToken();
+  const expiresAt = getAccessTokenExpiry();
+
+  if (!token || !expiresAt) {
+    return;
+  }
+
+  if (Date.now() + ACCESS_TOKEN_REFRESH_BUFFER_MS < expiresAt) {
+    return;
+  }
+
+  await refreshAccessToken();
+}
+
+async function refreshAccessToken(force = false) {
+  if (refreshPromise && !force) {
+    return refreshPromise;
+  }
+  refreshPromise = performAccessTokenRefresh().finally(() => {
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+async function performAccessTokenRefresh() {
+  const response = await fetch(`${API_URL}/v1/auth/refresh`, {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (response.status === 401) {
+    clearTokens();
+    throw new ApiError("Unauthorized", 401);
+  }
+
+  if (
+    !response.ok ||
+    !data ||
+    typeof data.accessToken !== "string" ||
+    typeof data.expiresIn !== "number"
+  ) {
+    clearTokens();
+    throw new ApiError(
+      "Unable to refresh session",
+      response.status || 500
+    );
+  }
+
+  saveTokens({
+    accessToken: data.accessToken,
+    expiresIn: data.expiresIn,
+  });
 }
 
 /**
@@ -145,7 +254,18 @@ export const authApi = {
       password: credentials.password,
     });
 
-    // Step 2: Check if session was created
+    // Step 2: Exchange Auth.js session cookie for API tokens
+    try {
+      await this.exchangeTokens();
+    } catch (error) {
+      clearTokens();
+      if (error instanceof ApiError && error.status === 401) {
+        throw new ApiError("Invalid email or password", 401);
+      }
+      throw error;
+    }
+
+    // Step 3: Fetch current user using access token
     try {
       const result = await this.me();
       return result;
@@ -157,6 +277,7 @@ export const authApi = {
       }
       // For any other error (5xx, network, etc), surface generic error
       // This prevents showing "Invalid credentials" when the API is down
+      clearTokens();
       throw new ApiError("Something went wrong. Please try again.", 500);
     }
   },
@@ -224,27 +345,64 @@ export const authApi = {
    * Logout - clears httpOnly cookie (Auth.js signout)
    */
   async logout(): Promise<void> {
+    clearTokens();
     await apiFormPost("/v1/auth/signout", {});
   },
 
   /**
-   * Get current user session (Auth.js session endpoint)
-   * Requires valid session cookie
+   * Get current user profile (requires Bearer token)
    */
   async me(): Promise<{ user: UserResponse }> {
-    const response = await apiFetch<{ user?: UserResponse } | null>(
-      "/v1/auth/session",
-      {
-        method: "GET",
-      }
-    );
+    const response = await apiFetch<{
+      user?: UserResponse & {
+        profile?: {
+          id: string;
+          timezone: string;
+          currency: string;
+        } | null;
+      };
+    }>("/v1/me", {
+      method: "GET",
+    });
 
-    // Auth.js returns null for no session, or { user: null }
     if (!response || !response.user) {
       throw new ApiError("Not authenticated", 401);
     }
 
-    return { user: response.user };
+    const { user } = response;
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+      },
+    };
+  },
+
+  /**
+   * Exchange Auth.js session cookie for access/refresh tokens
+   */
+  async exchangeTokens(params: { rememberMe?: boolean } = {}) {
+    const result = await apiFetch<{
+      tokenType: string;
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }>("/v1/auth/token", {
+      method: "POST",
+      body: JSON.stringify({
+        clientType: "web",
+        rememberMe: params.rememberMe ?? false,
+      }),
+    });
+
+    saveTokens({
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+    });
+    return result;
   },
 };
 

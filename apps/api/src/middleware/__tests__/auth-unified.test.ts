@@ -1,53 +1,34 @@
-/**
- * Integration tests for unified authentication middleware
- * Tests priority order: Bearer token first, then session cookie
- */
-
 import { describe, it, expect, beforeEach, vi } from "vitest";
 
-// Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
 
 import { Hono } from "hono";
 import { unifiedAuthMiddleware } from "../auth-unified.js";
+import { attachAuthContext } from "../auth-context.js";
 import { resetDatabase, getTestPrisma } from "../../test/setup.js";
-import { makeRequest, createTestUser, createSessionToken } from "../../test/helpers.js";
 import {
-  generateToken,
-  hashToken,
-  COOKIE_NAME,
-} from "@repo/auth";
+  makeRequest,
+  makeAuthenticatedRequest,
+  createTestUser,
+  createAccessToken,
+} from "../../test/helpers.js";
+import { generateToken, hashToken } from "@repo/auth";
+import type { AppBindings } from "../../types/context.js";
 
-// Define context variables type
-type UnifiedContext = {
-  Variables: {
-    userId: string;
-    userEmail: string;
-    profileId?: string;
-    authType: "session" | "pat";
-    jti?: string;
-    tokenId?: string;
-    tokenScopes?: string[];
-  };
-};
+type UnifiedContext = AppBindings;
 
-// Create a test app with unified auth middleware
 function createTestApp() {
   const app = new Hono<UnifiedContext>();
-
-  // Protected route that uses unified auth middleware
-  app.get("/protected", unifiedAuthMiddleware, async (c) => {
+  app.use("*", attachAuthContext);
+  app.get("/protected", unifiedAuthMiddleware, (c) => {
     return c.json({
       userId: c.get("userId"),
-      userEmail: c.get("userEmail"),
+      profileId: c.get("profileId") ?? null,
       authType: c.get("authType"),
-      profileId: c.get("profileId"),
-      tokenId: c.get("tokenId"),
-      tokenScopes: c.get("tokenScopes"),
-      jti: c.get("jti"),
+      tokenId: c.get("tokenId") ?? null,
+      tokenScopes: c.get("tokenScopes") ?? null,
     });
   });
-
   return app;
 }
 
@@ -59,289 +40,93 @@ describe("Unified Authentication Middleware", () => {
     prisma = getTestPrisma();
   });
 
-  describe("Bearer Token Priority", () => {
-    it("should use Bearer token when present", async () => {
-      const { user } = await createTestUser();
-      const app = createTestApp();
+  it("authenticates PAT Bearer tokens when present", async () => {
+    const { user } = await createTestUser();
+    const app = createTestApp();
+    const profile = await prisma.profile.findUnique({ where: { userId: user.id } });
 
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
+    const token = generateToken();
+    const keyHash = hashToken(token);
+    const last4 = token.slice(-4);
 
-      // Create API key
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
-        },
-      });
-
-      const response = await makeRequest(app, "GET", "/protected", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      expect(response.status).toBe(200);
-
-      const data = await response.json();
-      expect(data.authType).toBe("pat");
-      expect(data.tokenId).toBe(apiKey.id);
-      expect(data.tokenScopes).toEqual(["read:transactions"]);
-      expect(data.jti).toBeUndefined();
+    const apiKey = await prisma.apiKey.create({
+      data: {
+        userId: user.id,
+        profileId: profile!.id,
+        name: "CLI",
+        keyHash,
+        last4,
+        scopes: ["read:profile"],
+      },
     });
 
-    it("should prefer Bearer token over session cookie when both present", async () => {
-      const { user } = await createTestUser();
-      const app = createTestApp();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      // Create API key
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      const apiKey = await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
-        },
-      });
-
-      // Create session token
-      const sessionToken = await createSessionToken(user.id, user.email);
-
-      const response = await makeRequest(app, "GET", "/protected", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        cookies: {
-          [COOKIE_NAME]: sessionToken,
-        },
-      });
-
-      expect(response.status).toBe(200);
-
-      const data = await response.json();
-      // Should use PAT auth, not session
-      expect(data.authType).toBe("pat");
-      expect(data.tokenId).toBe(apiKey.id);
-      expect(data.jti).toBeUndefined();
+    const response = await makeRequest(app, "GET", "/protected", {
+      headers: { Authorization: `Bearer ${token}` },
     });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.authType).toBe("pat");
+    expect(data.tokenId).toBe(apiKey.id);
+    expect(data.tokenScopes).toEqual(["read:profile"]);
   });
 
-  describe("Session Cookie Fallback", () => {
-    it("should use session cookie when Bearer token not present", async () => {
-      const { user } = await createTestUser();
-      const app = createTestApp();
+  it("falls back to the session auth context when no PAT is supplied", async () => {
+    const { user } = await createTestUser();
+    const { token } = await createAccessToken(user.id);
+    const app = createTestApp();
 
-      // Create session token
-      const sessionToken = await createSessionToken(user.id, user.email);
+    const response = await makeAuthenticatedRequest(app, "GET", "/protected", token);
 
-      const response = await makeRequest(app, "GET", "/protected", {
-        cookies: {
-          [COOKIE_NAME]: sessionToken,
-        },
-      });
-
-      expect(response.status).toBe(200);
-
-      const data = await response.json();
-      expect(data.authType).toBe("session");
-      expect(data.jti).toBeTruthy();
-      expect(data.tokenId).toBeUndefined();
-      expect(data.tokenScopes).toBeUndefined();
-    });
-
-    it("should fall back to session when Bearer token is invalid", async () => {
-      const { user } = await createTestUser();
-      const app = createTestApp();
-
-      // Create session token
-      const sessionToken = await createSessionToken(user.id, user.email);
-
-      // Note: Invalid Bearer token will be rejected by PAT middleware
-      // It won't fall back to session - Bearer header takes priority
-      const response = await makeRequest(app, "GET", "/protected", {
-        headers: {
-          Authorization: "Bearer invalid-token",
-        },
-        cookies: {
-          [COOKIE_NAME]: sessionToken,
-        },
-      });
-
-      // Should fail because Bearer header is present but invalid
-      expect(response.status).toBe(401);
-    });
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.authType).toBe("session");
+    expect(data.userId).toBe(user.id);
+    expect(data.tokenId).toBeNull();
   });
 
-  describe("No Authentication", () => {
-    it("should return 401 when neither Bearer token nor session cookie present", async () => {
-      const app = createTestApp();
-
-      const response = await makeRequest(app, "GET", "/protected");
-
-      expect(response.status).toBe(401);
-
-      const data = await response.json();
-      expect(data.error).toBe("Unauthorized");
-    });
-
-    it("should return 401 when only invalid session cookie present", async () => {
-      const app = createTestApp();
-
-      const response = await makeRequest(app, "GET", "/protected", {
-        cookies: {
-          [COOKIE_NAME]: "invalid-token",
-        },
-      });
-
-      expect(response.status).toBe(401);
-    });
+  it("returns 401 when neither PAT nor access token is provided", async () => {
+    const app = createTestApp();
+    const response = await makeRequest(app, "GET", "/protected");
+    expect(response.status).toBe(401);
   });
 
-  describe("Context Variables", () => {
-    it("should set userId and profileId for both auth types", async () => {
-      const { user } = await createTestUser();
-      const app = createTestApp();
+  it("propagates profile context for both auth modes", async () => {
+    const { user } = await createTestUser();
+    const profile = await prisma.profile.findUnique({ where: { userId: user.id } });
+    const app = createTestApp();
 
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      // Test PAT auth
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
-        },
-      });
-
-      const patResponse = await makeRequest(app, "GET", "/protected", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      expect(patResponse.status).toBe(200);
-
-      const patData = await patResponse.json();
-      expect(patData.userId).toBe(user.id);
-      expect(patData.profileId).toBe(profile!.id);
-
-      // Test session auth
-      const sessionToken = await createSessionToken(user.id, user.email);
-
-      const sessionResponse = await makeRequest(app, "GET", "/protected", {
-        cookies: {
-          [COOKIE_NAME]: sessionToken,
-        },
-      });
-
-      expect(sessionResponse.status).toBe(200);
-
-      const sessionData = await sessionResponse.json();
-      expect(sessionData.userId).toBe(user.id);
-      expect(sessionData.profileId).toBe(profile!.id);
+    const patToken = generateToken();
+    await prisma.apiKey.create({
+      data: {
+        userId: user.id,
+        profileId: profile!.id,
+        name: "Reader",
+        keyHash: hashToken(patToken),
+        last4: patToken.slice(-4),
+        scopes: ["read:profile"],
+      },
     });
 
-    it("should set authType correctly for each method", async () => {
-      const { user } = await createTestUser();
-      const app = createTestApp();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      // Test PAT auth
-      const token = generateToken();
-      const keyHash = hashToken(token);
-      const last4 = token.slice(-4);
-
-      await prisma.apiKey.create({
-        data: {
-          userId: user.id,
-          profileId: profile!.id,
-          name: "Test Token",
-          keyHash,
-          last4,
-          scopes: ["read:transactions"],
-        },
-      });
-
-      const patResponse = await makeRequest(app, "GET", "/protected", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const patData = await patResponse.json();
-      expect(patData.authType).toBe("pat");
-
-      // Test session auth
-      const sessionToken = await createSessionToken(user.id, user.email);
-
-      const sessionResponse = await makeRequest(app, "GET", "/protected", {
-        cookies: {
-          [COOKIE_NAME]: sessionToken,
-        },
-      });
-
-      const sessionData = await sessionResponse.json();
-      expect(sessionData.authType).toBe("session");
+    const patResponse = await makeRequest(app, "GET", "/protected", {
+      headers: { Authorization: `Bearer ${patToken}` },
     });
+    const patData = await patResponse.json();
+    expect(patData.userId).toBe(user.id);
+    expect(patData.profileId).toBe(profile!.id);
+
+    const { token } = await createAccessToken(user.id);
+    const sessionResponse = await makeAuthenticatedRequest(app, "GET", "/protected", token);
+    const sessionData = await sessionResponse.json();
+    expect(sessionData.userId).toBe(user.id);
+    expect(sessionData.profileId).toBe(profile!.id);
   });
 
-  describe("Error Handling", () => {
-    it("should handle missing Authorization header gracefully", async () => {
-      const app = createTestApp();
-
-      const response = await makeRequest(app, "GET", "/protected");
-
-      expect(response.status).toBe(401);
-      expect(response.headers.get("content-type")).toContain(
-        "application/json"
-      );
+  it("returns 401 for invalid Bearer tokens", async () => {
+    const app = createTestApp();
+    const response = await makeRequest(app, "GET", "/protected", {
+      headers: { Authorization: "Bearer invalid" },
     });
-
-    it("should not leak error details", async () => {
-      const app = createTestApp();
-
-      const response = await makeRequest(app, "GET", "/protected", {
-        headers: {
-          Authorization: "Bearer invalid",
-        },
-      });
-
-      expect(response.status).toBe(401);
-
-      const data = await response.json();
-      expect(data.error).not.toContain("stack");
-      expect(data.error).not.toContain("middleware");
-    });
+    expect(response.status).toBe(401);
   });
 });

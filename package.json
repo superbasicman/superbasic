@@ -15,6 +15,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:auth-debug": "AUTH_DEBUG=1 turbo run dev",
     "dev:prod": "NODE_ENV=production turbo run dev",
     "build": "turbo run build",
     "test": "turbo run test -- --run",

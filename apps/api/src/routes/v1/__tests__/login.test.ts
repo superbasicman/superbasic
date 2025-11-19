@@ -275,7 +275,7 @@ describe('Auth.js Credentials Sign-In', () => {
   });
 
   describe('Session Creation', () => {
-    it('should create valid session that can be used for authenticated requests', async () => {
+    it('should create a session that can be exchanged for tokens', async () => {
       const { user, credentials } = await createTestUser();
 
       const signInResponse = await signInWithCredentials(
@@ -289,10 +289,24 @@ describe('Auth.js Credentials Sign-In', () => {
       const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
       expect(sessionCookie).toBeTruthy();
 
-      // Verify session works for authenticated endpoint
-      const meResponse = await makeRequest(app, 'GET', '/v1/me', {
+      // Exchange session for access token
+      const tokenResponse = await makeRequest(app, 'POST', '/v1/auth/token', {
         cookies: {
           [COOKIE_NAME]: sessionCookie!,
+        },
+        body: {
+          clientType: 'web',
+        },
+      });
+
+      expect(tokenResponse.status).toBe(200);
+      const tokenPayload = await tokenResponse.json();
+      expect(tokenPayload).toHaveProperty('accessToken');
+
+      // Verify access token works for authenticated endpoint
+      const meResponse = await makeRequest(app, 'GET', '/v1/me', {
+        headers: {
+          Authorization: `Bearer ${tokenPayload.accessToken}`,
         },
       });
 

@@ -3,11 +3,13 @@ import {
   useContext,
   useState,
   useEffect,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
 import { authApi, ApiError } from '../lib/api';
+import { getStoredTokens, clearTokens as clearStoredTokens } from '../lib/tokenStorage';
 
 interface AuthContextType {
   user: UserResponse | null;
@@ -34,6 +36,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const attemptedTokenBootstrapRef = useRef(false);
 
   // Check auth status on initialization and after navigation
   useEffect(() => {
@@ -50,6 +53,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Runs on app initialization to restore session from httpOnly cookie
    */
   async function checkAuthStatus() {
+    const tokens = getStoredTokens();
+    const hasValidAccessToken =
+      !!tokens && typeof tokens.accessTokenExpiresAt === 'number' && tokens.accessTokenExpiresAt > Date.now();
+
+    if (!hasValidAccessToken) {
+      clearStoredTokens();
+      const bootstrapped = await attemptTokenExchangeFromSession();
+      if (!bootstrapped) {
+        setUser(null);
+      }
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const { user: currentUser } = await authApi.me();
       setUser(currentUser);
@@ -84,6 +101,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSearchParams({});
         setAuthError(null);
       }, 5000);
+    }
+  }
+
+  async function attemptTokenExchangeFromSession(): Promise<boolean> {
+    if (attemptedTokenBootstrapRef.current) {
+      return false;
+    }
+    attemptedTokenBootstrapRef.current = true;
+
+    try {
+      await authApi.exchangeTokens();
+      const { user: currentUser } = await authApi.me();
+      setUser(currentUser);
+      return true;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        return false;
+      }
+      console.error('[AuthContext] Silent token exchange failed', error);
+      return false;
     }
   }
 
@@ -154,6 +191,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Log error but still clear local state
       console.error('Logout error:', error);
     } finally {
+      clearStoredTokens();
       // Always clear local state and redirect
       setUser(null);
       navigate('/login');

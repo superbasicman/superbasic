@@ -12,6 +12,19 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@repo/database";
 import { encode as defaultJwtEncode, decode as defaultJwtDecode } from "@auth/core/jwt";
 import { verifyPassword } from "./password.js";
+
+function logAuthDebug(event: string, data: Record<string, unknown>) {
+  const shouldLog =
+    process.env.AUTH_DEBUG === "1" || process.env.NODE_ENV !== "production";
+  if (!shouldLog) {
+    return;
+  }
+  try {
+    console.error("[auth][debug]", event, JSON.stringify(data));
+  } catch {
+    // Best-effort logging only
+  }
+}
 import { sendMagicLinkEmail, getRecipientLogId } from "./email.js";
 import { SESSION_MAX_AGE_SECONDS, SESSION_ABSOLUTE_MAX_AGE_SECONDS } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
@@ -300,42 +313,83 @@ export const authConfig: AuthConfig = {
       },
     },
   },
-  providers: [
+ providers: [
     Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
+	      credentials: {
+	        email: { label: "Email", type: "email" },
+	        password: { label: "Password", type: "password" },
+	      },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
+        try {
+          if (!credentials?.email || !credentials?.password) {
+            logAuthDebug("credentials_authorize", {
+              reason: "missing_email_or_password",
+            });
+            return null;
+          }
+
+          const rawEmail = String(credentials.email).trim();
+          const normalized = rawEmail.toLowerCase();
+
+          console.error("[auth][debug] credentials_authorize_invoked", {
+            email: rawEmail,
+            normalized,
+          });
+          logAuthDebug("credentials_authorize_start", { email: rawEmail });
+
+          // Prefer the canonical emailLower column but gracefully fall back to the
+          // legacy email field for any users that haven't been backfilled yet.
+          const user =
+            (await prisma.user.findUnique({
+              where: { emailLower: normalized },
+            })) ??
+            (await prisma.user.findFirst({
+              where: {
+                email: {
+                  equals: rawEmail,
+                  mode: "insensitive",
+                },
+              },
+            }));
+
+          if (!user || !user.password) {
+            logAuthDebug("credentials_authorize", {
+              email: rawEmail,
+              reason: "user_not_found_or_missing_password",
+            });
+            return null;
+          }
+
+          const isValid = await verifyPassword(
+            credentials.password as string,
+            user.password
+          );
+
+          if (!isValid) {
+            logAuthDebug("credentials_authorize", {
+              email: rawEmail,
+              reason: "invalid_password",
+            });
+            return null;
+          }
+
+          logAuthDebug("credentials_authorize_success", {
+            email: rawEmail,
+            userId: user.id,
+          });
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name ?? null,
+          };
+        } catch (error) {
+          logAuthDebug("credentials_authorize_error", {
+            email: credentials?.email ?? null,
+            message: error instanceof Error ? error.message : "unknown_error",
+          });
+          throw error;
         }
-
-        // Normalize email to lowercase
-        const email = String(credentials.email).trim().toLowerCase();
-
-        const user = await prisma.user.findUnique({
-          where: { emailLower: email },
-        });
-
-        if (!user || !user.password) {
-          return null;
-        }
-
-        const isValid = await verifyPassword(
-          credentials.password as string,
-          user.password
-        );
-
-        if (!isValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name ?? null,
-        };
       },
     }),
     Google({

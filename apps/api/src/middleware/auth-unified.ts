@@ -4,17 +4,13 @@
  */
 
 import type { Context, Next } from "hono";
-import { getCookie } from "hono/cookie";
 import { authMiddleware } from "./auth.js";
 import { patMiddleware } from "./pat.js";
 
 /**
  * Unified authentication middleware
- * Checks for Bearer token in Authorization header first, then falls back to session cookie
- *
- * Priority order:
- * 1. Authorization: Bearer <token> header (PAT auth)
- * 2. Session cookie (session auth)
+ * Checks for Bearer token in Authorization header first, then falls back to
+ * the authenticated session context populated by attachAuthContext.
  *
  * Both authentication methods set userId and profileId in context.
  * Use this on routes that accept both authentication methods.
@@ -39,21 +35,11 @@ export async function unifiedAuthMiddleware(c: Context, next: Next) {
 
   // Check for Bearer token first
   const authHeader = c.req.header("Authorization");
-  const hasBearer = authHeader?.startsWith("Bearer ");
+  const hasBearer = authHeader?.toLowerCase().startsWith("bearer ");
 
   if (hasBearer) {
     return patMiddleware(c, next);
   }
 
-  // Fall back to session cookie
-  // Auth.js uses 'authjs.session-token' cookie name
-  // Check if cookie exists using getCookie (more reliable than string matching)
-  const sessionCookie = getCookie(c, "authjs.session-token");
-
-  if (sessionCookie) {
-    return authMiddleware(c, next);
-  }
-
-  // No authentication provided
-  return c.json({ error: "Unauthorized" }, 401);
+  return authMiddleware(c, next);
 }

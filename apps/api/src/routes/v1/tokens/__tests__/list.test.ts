@@ -13,17 +13,19 @@ import { resetDatabase } from "../../../../test/setup.js";
 import {
   makeAuthenticatedRequest,
   createTestUser,
-  createSessionToken,
+  createAccessToken,
 } from "../../../../test/helpers.js";
 import { generateToken, hashToken } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
+import { attachAuthContext } from "../../../../middleware/auth-context.js";
 
 // Create test app with tokens route
 function createTestApp() {
   const app = new Hono();
   app.use("*", corsMiddleware);
+  app.use("*", attachAuthContext);
   app.route("/v1/tokens", tokensRoute);
   return app;
 }
@@ -74,7 +76,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should return empty array when user has no tokens", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -93,7 +95,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should return user's tokens with correct structure", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -134,7 +136,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should mask token values correctly using last4", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -172,7 +174,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should include lastUsedAt when token has been used", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -206,7 +208,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should return multiple tokens for user", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -252,7 +254,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should sort tokens by creation date (newest first)", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -307,7 +309,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should exclude revoked tokens from list", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -344,7 +346,7 @@ describe("GET /v1/tokens - Token Listing", () => {
     it("should return empty array when all tokens are revoked", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
-      const sessionToken = await createSessionToken(user.id, user.email);
+      const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
 
       const profile = await prisma.profile.findUnique({
@@ -405,7 +407,7 @@ describe("GET /v1/tokens - Token Listing", () => {
       });
 
       // User 1 should only see their token
-      const sessionToken1 = await createSessionToken(user1.id, user1.email);
+      const { token: sessionToken1 } = await createAccessToken(user1.id);
       const response1 = await makeAuthenticatedRequest(
         app,
         "GET",
@@ -420,7 +422,7 @@ describe("GET /v1/tokens - Token Listing", () => {
       expect(data1.tokens[0].name).toBe("User 1 Token");
 
       // User 2 should only see their token
-      const sessionToken2 = await createSessionToken(user2.id, user2.email);
+      const { token: sessionToken2 } = await createAccessToken(user2.id);
       const response2 = await makeAuthenticatedRequest(
         app,
         "GET",

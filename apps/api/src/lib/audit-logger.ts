@@ -51,6 +51,14 @@ async function handleAuthEvent(event: AuthEvent) {
       logger.info(logEntry, 'User logged out');
       break;
 
+    case 'session.revoked':
+      logger.info(logEntry, 'Session revoked');
+      break;
+
+    case 'refresh.reuse_detected':
+      logger.error(logEntry, 'Refresh token reuse detected');
+      break;
+
     case 'token.created':
       logger.info(logEntry, 'API token created');
       break;
