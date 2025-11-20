@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import { type PrismaClient, type Token as PrismaToken, prisma } from '@repo/database';
 import { toJsonInput } from './json.js';
-import type { RefreshTokenRecord, TokenHashEnvelope } from './types.js';
+import type { PermissionScope, RefreshTokenRecord, TokenHashEnvelope } from './types.js';
 
 export type IssueRefreshTokenInput = {
   userId: string;
@@ -97,7 +97,7 @@ function mapRefreshToken(record: PrismaToken): RefreshTokenRecord {
     workspaceId: record.workspaceId,
     type: 'refresh',
     tokenHash: record.tokenHash as TokenHashEnvelope,
-    scopes: record.scopes,
+    scopes: record.scopes as PermissionScope[],
     name: record.name,
     familyId: record.familyId,
     metadata: (record.metadata as Record<string, unknown> | null) ?? null,

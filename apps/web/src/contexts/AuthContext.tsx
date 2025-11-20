@@ -3,7 +3,6 @@ import {
   useContext,
   useState,
   useEffect,
-  useRef,
   type ReactNode,
 } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -36,7 +35,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const attemptedTokenBootstrapRef = useRef(false);
 
   // Check auth status on initialization and after navigation
   useEffect(() => {
@@ -50,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Check if user is authenticated by calling /v1/me
-   * Runs on app initialization to restore session from httpOnly cookie
+   * Runs on app initialization using stored access token
    */
   async function checkAuthStatus() {
     const tokens = getStoredTokens();
@@ -59,10 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     if (!hasValidAccessToken) {
       clearStoredTokens();
-      const bootstrapped = await attemptTokenExchangeFromSession();
-      if (!bootstrapped) {
-        setUser(null);
-      }
+      setUser(null);
       setIsLoading(false);
       return;
     }
@@ -101,26 +96,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setSearchParams({});
         setAuthError(null);
       }, 5000);
-    }
-  }
-
-  async function attemptTokenExchangeFromSession(): Promise<boolean> {
-    if (attemptedTokenBootstrapRef.current) {
-      return false;
-    }
-    attemptedTokenBootstrapRef.current = true;
-
-    try {
-      await authApi.exchangeTokens();
-      const { user: currentUser } = await authApi.me();
-      setUser(currentUser);
-      return true;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        return false;
-      }
-      console.error('[AuthContext] Silent token exchange failed', error);
-      return false;
     }
   }
 

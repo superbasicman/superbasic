@@ -204,9 +204,15 @@ importers:
 
   packages/auth-core:
     dependencies:
+      '@repo/auth':
+        specifier: workspace:*
+        version: link:../auth
       '@repo/database':
         specifier: workspace:*
         version: link:../database
+      '@repo/types':
+        specifier: workspace:*
+        version: link:../types
       jose:
         specifier: ^5.10.0
         version: 5.10.0

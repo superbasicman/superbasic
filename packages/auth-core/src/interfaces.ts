@@ -35,6 +35,8 @@ export interface AuthService {
 export interface AuthzService {
   hasScope(auth: AuthContext | null, scope: PermissionScope): boolean;
   requireScope(auth: AuthContext | null, scope: PermissionScope): asserts auth is AuthContext;
+  hasAnyScope(auth: AuthContext | null, scopes: PermissionScope[]): boolean;
+  requireAnyScope(auth: AuthContext | null, scopes: PermissionScope[]): asserts auth is AuthContext;
   hasWorkspaceRole(auth: AuthContext | null, role: WorkspaceRole): boolean;
   requireWorkspaceRole(auth: AuthContext | null, role: WorkspaceRole): asserts auth is AuthContext;
   assertWorkspaceAccess(

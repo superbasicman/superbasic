@@ -51,19 +51,25 @@ export async function patMiddleware(c: Context, next: Next) {
     c.req.header("x-real-ip") ||
     "unknown";
 
-  // Check if IP has exceeded failed auth rate limit (100 per hour)
-  const isRateLimited = await checkFailedAuthRateLimit(ip);
-  if (isRateLimited) {
-    return c.json(
-      {
-        error: "Too many failed authentication attempts",
-        message: "Rate limit exceeded. Please try again later.",
-      },
-      429
-    );
-  }
-
   try {
+    // Check if IP has exceeded failed auth rate limit (100 per hour)
+    // Wrap in try/catch to prevent 500s if rate limit storage fails
+    try {
+      const isRateLimited = await checkFailedAuthRateLimit(ip);
+      if (isRateLimited) {
+        return c.json(
+          {
+            error: "Too many failed authentication attempts",
+            message: "Rate limit exceeded. Please try again later.",
+          },
+          429
+        );
+      }
+    } catch (rateLimitError) {
+      console.error("Rate limit check failed:", rateLimitError);
+      // Continue if rate limit check fails (fail open)
+    }
+
     // Extract Bearer token from Authorization header
     const token = extractTokenFromHeader(c.req.header("Authorization"));
 
@@ -199,34 +205,61 @@ export async function patMiddleware(c: Context, next: Next) {
 
     // Attach user context and token metadata to request
     // Following user/profile reference pattern: userId for auth, profileId for business logic
+    const scopes = Array.isArray(apiKey.scopes)
+      ? (apiKey.scopes as unknown[]).map((scope) => scope?.toString() ?? '')
+      : [];
+
     c.set("userId", apiKey.userId);
     c.set("userEmail", apiKey.user.email ?? "");
     c.set("profileId", apiKey.profileId);
     c.set("authType", "pat");
     c.set("tokenId", apiKey.id);
-    c.set("tokenScopes", apiKey.scopes as string[]);
+    c.set("tokenScopes", scopes);
+
+    // Create AuthContext bridge for compatibility with new authz system
+    // TODO: Remove this bridge when PATs are fully migrated to auth-core in Phase 5
+    const authContext: import("@repo/auth-core").AuthContext = {
+      userId: apiKey.userId,
+      sessionId: null,
+      clientType: "cli",
+      activeWorkspaceId: null,
+      scopes: scopes as import("@repo/auth-core").PermissionScope[],
+      roles: [],
+      profileId: apiKey.profileId,
+      requestId,
+      mfaLevel: "none",
+    };
+    c.set("auth", authContext);
 
     await next();
 
     // Emit audit event for successful token usage after request completes
-    authEvents.emit({
-      type: "token.used",
-      userId: apiKey.userId,
-      metadata: {
-        tokenId: apiKey.id,
-        endpoint: c.req.path,
-        method: c.req.method,
-        status: c.res.status,
-        ip,
-        userAgent: c.req.header("user-agent") || "unknown",
-        requestId,
-        timestamp: new Date().toISOString(),
-      },
-    });
+    try {
+      authEvents.emit({
+        type: "token.used",
+        userId: apiKey.userId,
+        metadata: {
+          tokenId: apiKey.id,
+          endpoint: c.req.path,
+          method: c.req.method,
+          status: c.res?.status ?? 200,
+          ip,
+          userAgent: c.req.header("user-agent") || "unknown",
+          requestId,
+          timestamp: new Date().toISOString(),
+        },
+      });
+    } catch (emitError) {
+      console.error("Failed to emit token.used event:", emitError);
+    }
   } catch (error) {
     console.error("PAT middleware error:", error);
     // Track failed auth attempt on unexpected errors
-    await trackFailedAuth(ip);
+    try {
+      await trackFailedAuth(ip);
+    } catch (e) {
+      console.error("Failed to track auth failure:", e);
+    }
     return c.json({ error: "Unauthorized" }, 401);
   }
 }
@@ -234,8 +267,8 @@ export async function patMiddleware(c: Context, next: Next) {
 function isPrismaNotFoundError(error: unknown): error is { code: string } {
   return Boolean(
     error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: string }).code === "P2025"
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2025"
   );
 }

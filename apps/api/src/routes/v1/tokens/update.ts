@@ -15,6 +15,7 @@ import {
 } from "@repo/core";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { tokenService } from "../../../services/index.js";
+import { requireScope } from "../../../middleware/scopes.js";
 
 type Variables = {
   userId: string;
@@ -31,6 +32,7 @@ const updateTokenRoute = new Hono<{ Variables: Variables }>();
 updateTokenRoute.patch(
   "/:id",
   authMiddleware, // Requires session auth
+  requireScope("write:accounts"),
   zValidator("json", UpdateTokenRequestSchema, (result, c) => {
     if (!result.success) {
       return c.json({ error: "Validation failed", issues: (result as any).error.issues }, 400);

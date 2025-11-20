@@ -1,15 +1,15 @@
 /**
  * Scope enforcement middleware for API endpoints
- * Validates that PAT tokens have required permissions for operations
+ * Validates that the authenticated user/token has required permissions
  */
 
 import type { Context, Next } from "hono";
-import { hasScope, authEvents, type Scope } from "@repo/auth";
+import { authz, AuthorizationError, type PermissionScope } from "@repo/auth-core";
+import type { AppBindings } from "../types/context.js";
 
 /**
  * Scope enforcement middleware factory
- * Verifies token has required scope for the operation
- * Session auth bypasses scope checks (full access)
+ * Verifies auth context has required scope for the operation
  *
  * @param requiredScope - The scope required to access the endpoint
  * @returns Middleware function that enforces the scope
@@ -20,45 +20,48 @@ import { hasScope, authEvents, type Scope } from "@repo/auth";
  * app.post("/v1/transactions", requireScope("write:transactions"), handler);
  * ```
  */
-export function requireScope(requiredScope: Scope) {
-  return async (c: Context, next: Next) => {
+export function requireScope(requiredScope: PermissionScope) {
+  return async (c: Context<AppBindings>, next: Next) => {
+    const auth = c.get("auth");
     const authType = c.get("authType");
 
-    // Session auth has full access (bypass scope check)
+    // Session auth has full access (legacy behavior; scopes enforced for PATs only)
     if (authType === "session") {
-      return next();
+      await next();
+      return;
     }
 
-    // PAT auth requires scope check
-    if (authType === "pat") {
-      const tokenScopes = (c.get("tokenScopes") as string[]) || [];
-      const tokenId = c.get("tokenId") as string;
-      const userId = c.get("userId") as string;
-      const requestId = c.get("requestId") || "unknown";
-
-      if (!hasScope(tokenScopes, requiredScope)) {
-        // Emit audit event for scope denial
-        const ip =
-          c.req.header("x-forwarded-for") ||
-          c.req.header("x-real-ip") ||
-          "unknown";
-
-        authEvents.emit({
-          type: "token.scope_denied",
-          userId,
-          metadata: {
-            tokenId,
-            endpoint: c.req.path,
-            method: c.req.method,
-            requiredScope,
-            providedScopes: tokenScopes,
-            ip,
-            userAgent: c.req.header("user-agent") || "unknown",
-            requestId,
-            timestamp: new Date().toISOString(),
-          },
-        });
-
+    try {
+      if (auth) {
+        if (auth.scopes.includes("admin")) {
+          await next();
+          return;
+        }
+        authz.requireScope(auth, requiredScope);
+      } else {
+        const tokenScopes = ((c.get("tokenScopes") as string[]) || []).map((scope) =>
+          scope.toString()
+        );
+        if (tokenScopes.includes("admin")) {
+          await next();
+          return;
+        }
+        const hasRequired = tokenScopes.includes(requiredScope);
+        if (!hasRequired) {
+          return c.json(
+            {
+              error: "Insufficient permissions",
+              required: requiredScope,
+            },
+            403
+          );
+        }
+      }
+    } catch (error) {
+      if (
+        error instanceof AuthorizationError ||
+        (error instanceof Error && error.name === "AuthorizationError")
+      ) {
         return c.json(
           {
             error: "Insufficient permissions",
@@ -67,11 +70,9 @@ export function requireScope(requiredScope: Scope) {
           403
         );
       }
-
-      return next();
+      throw error;
     }
 
-    // No auth type set (shouldn't happen if auth middleware ran)
-    return c.json({ error: "Unauthorized" }, 401);
+    await next();
   };
 }

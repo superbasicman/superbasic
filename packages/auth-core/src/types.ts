@@ -1,8 +1,12 @@
+import type { Scope } from '@repo/types';
+
 export type ClientType = 'web' | 'mobile' | 'cli' | 'partner' | 'other';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'member' | 'viewer';
 
-export type PermissionScope = string;
+export type WorkspaceRoleScopeMap = Record<WorkspaceRole, readonly PermissionScope[]>;
+
+export type PermissionScope = Scope;
 export type TokenType = 'refresh' | 'personal_access';
 
 export type TokenHashEnvelope = {

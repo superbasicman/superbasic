@@ -8,6 +8,7 @@
 
 import { Hono } from "hono";
 import { authMiddleware } from "../../../middleware/auth.js";
+import { requireScope } from "../../../middleware/scopes.js";
 import { tokenService } from "../../../services/index.js";
 
 type Variables = {
@@ -16,7 +17,7 @@ type Variables = {
 
 const listTokensRoute = new Hono<{ Variables: Variables }>();
 
-listTokensRoute.get("/", authMiddleware, async (c) => {
+listTokensRoute.get("/", authMiddleware, requireScope("read:accounts"), async (c) => {
   const userId = c.get("userId") as string;
 
   // Delegate to service layer for business logic and data access

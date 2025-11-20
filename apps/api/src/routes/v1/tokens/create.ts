@@ -13,6 +13,7 @@ import { DuplicateTokenNameError, InvalidScopesError, InvalidExpirationError } f
 import { authMiddleware } from "../../../middleware/auth.js";
 import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit/index.js";
 import { tokenService } from "../../../services/index.js";
+import { requireScope } from "../../../middleware/scopes.js";
 
 type Variables = {
   userId: string;
@@ -25,6 +26,7 @@ const createTokenRoute = new Hono<{ Variables: Variables }>();
 createTokenRoute.post(
   "/",
   authMiddleware, // Requires session auth
+  requireScope("write:accounts"),
   tokenCreationRateLimitMiddleware, // 10 tokens per hour per user
   zValidator("json", CreateTokenRequestSchema, (result, c) => {
     if (!result.success) {

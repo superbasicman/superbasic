@@ -6,8 +6,9 @@ import {
 } from '@repo/auth';
 import { Prisma, type PrismaClient, prisma, setPostgresContext } from '@repo/database';
 import { jwtVerify } from 'jose';
+import { GLOBAL_PERMISSION_SCOPES, deriveScopesFromRoles, isWorkspaceRole } from './authz.js';
 import { type AuthCoreEnvironment, loadAuthCoreConfig } from './config.js';
-import { InactiveUserError, UnauthorizedError } from './errors.js';
+import { AuthorizationError, InactiveUserError, UnauthorizedError } from './errors.js';
 import type { AuthService } from './interfaces.js';
 import { toJsonInput } from './json.js';
 import {
@@ -23,10 +24,12 @@ import type {
   CreateSessionInput,
   IssuePersonalAccessTokenInput,
   IssuedToken,
+  PermissionScope,
   RevokeSessionInput,
   RevokeTokenInput,
   SessionHandle,
   VerifyRequestInput,
+  WorkspaceRole,
 } from './types.js';
 
 type AuthCoreServiceDependencies = {
@@ -54,6 +57,20 @@ type SigningResources = {
   keyStore: SigningKeyStore;
   config: AuthCoreEnvironment;
 };
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const WORKSPACE_ROLE_ALIASES: Record<string, WorkspaceRole> = {
+  readonly: 'viewer',
+};
+
+type WorkspaceResolution = {
+  workspaceId: string | null;
+  roles: WorkspaceRole[];
+  scopes: PermissionScope[];
+};
+
+type WorkspaceSelectorSource = 'path' | 'header' | 'hint';
 
 const CLIENT_TYPE_VALUES: ClientType[] = ['web', 'mobile', 'cli', 'partner', 'other'];
 
@@ -120,13 +137,15 @@ export class AuthCoreService implements AuthService {
 
     const sessionId =
       typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null;
-    const workspaceId =
+    const workspaceHint =
       typeof payload.wid === 'string' && payload.wid.length > 0 ? payload.wid : null;
 
     return this.buildAuthContext({
       userId: payload.sub,
       sessionId,
-      workspaceId,
+      workspaceHint,
+      workspaceHeader: input.workspaceHeader ?? null,
+      workspacePathParam: input.workspacePathParam ?? null,
       ...(input.requestId ? { requestId: input.requestId } : {}),
       ...(payload.client_type ? { clientTypeClaim: payload.client_type } : {}),
     });
@@ -243,7 +262,9 @@ export class AuthCoreService implements AuthService {
   private async buildAuthContext(options: {
     userId: string;
     sessionId: string | null;
-    workspaceId: string | null;
+    workspaceHint?: string | null;
+    workspaceHeader?: string | null;
+    workspacePathParam?: string | null;
     requestId?: string;
     clientTypeClaim?: string | ClientType;
   }): Promise<AuthContext> {
@@ -304,19 +325,26 @@ export class AuthCoreService implements AuthService {
 
     const clientType = normalizeClientType(session?.clientType ?? options.clientTypeClaim);
 
+    const workspaceResolution = await this.resolveWorkspaceContext({
+      profileId,
+      workspaceHint: options.workspaceHint ?? null,
+      workspaceHeader: options.workspaceHeader ?? null,
+      workspacePathParam: options.workspacePathParam ?? null,
+    });
+
     await this.setContext(this.prisma, {
       userId: user.id,
       profileId,
-      workspaceId: options.workspaceId ?? null,
+      workspaceId: workspaceResolution.workspaceId,
     });
 
     const authContext: AuthContext = {
       userId: user.id,
       sessionId: session?.id ?? null,
       clientType,
-      activeWorkspaceId: options.workspaceId ?? null,
-      scopes: [],
-      roles: [],
+      activeWorkspaceId: workspaceResolution.workspaceId,
+      scopes: workspaceResolution.scopes,
+      roles: workspaceResolution.roles,
       profileId,
       mfaLevel: session?.mfaLevel ?? 'none',
     };
@@ -326,6 +354,144 @@ export class AuthCoreService implements AuthService {
     }
 
     return authContext;
+  }
+
+  private normalizeWorkspaceSelector(
+    value: string | null | undefined,
+    source: WorkspaceSelectorSource
+  ): string | null {
+    if (!value) {
+      return null;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (!UUID_REGEX.test(trimmed)) {
+      if (source === 'hint') {
+        return null;
+      }
+      throw new AuthorizationError('Invalid workspace identifier');
+    }
+    return trimmed;
+  }
+
+  private async resolveWorkspaceContext(options: {
+    profileId: string | null;
+    workspaceHint: string | null;
+    workspaceHeader: string | null;
+    workspacePathParam: string | null;
+  }): Promise<WorkspaceResolution> {
+    const baseScopes = new Set<PermissionScope>(GLOBAL_PERMISSION_SCOPES);
+
+    if (!options.profileId) {
+      return {
+        workspaceId: null,
+        roles: [],
+        scopes: [...baseScopes],
+      };
+    }
+
+    const selectors: { value: string | null; source: WorkspaceSelectorSource }[] = [
+      { value: options.workspacePathParam, source: 'path' },
+      { value: options.workspaceHeader, source: 'header' },
+      { value: options.workspaceHint, source: 'hint' },
+    ];
+
+    for (const selector of selectors) {
+      const normalized = this.normalizeWorkspaceSelector(selector.value, selector.source);
+      if (!normalized) {
+        continue;
+      }
+
+      const membership = await this.findWorkspaceMembership(options.profileId, normalized);
+      if (membership) {
+        return this.resolveWorkspaceFromMembership(membership, baseScopes);
+      }
+
+      if (selector.source !== 'hint') {
+        throw new AuthorizationError('Workspace access denied');
+      }
+    }
+
+    const fallbackMembership = await this.findDefaultWorkspaceMembership(options.profileId);
+    if (fallbackMembership) {
+      return this.resolveWorkspaceFromMembership(fallbackMembership, baseScopes);
+    }
+
+    return {
+      workspaceId: null,
+      roles: [],
+      scopes: [...baseScopes],
+    };
+  }
+
+  private async findWorkspaceMembership(profileId: string, workspaceId: string) {
+    return this.prisma.workspaceMember.findFirst({
+      where: {
+        memberProfileId: profileId,
+        workspaceId,
+        workspace: {
+          deletedAt: null,
+        },
+      },
+      select: {
+        workspaceId: true,
+        role: true,
+      },
+    });
+  }
+
+  private async findDefaultWorkspaceMembership(profileId: string) {
+    return this.prisma.workspaceMember.findFirst({
+      where: {
+        memberProfileId: profileId,
+        workspace: {
+          deletedAt: null,
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      select: {
+        workspaceId: true,
+        role: true,
+      },
+    });
+  }
+
+  private resolveWorkspaceFromMembership(
+    membership: { workspaceId: string; role: string },
+    baseScopes: Set<PermissionScope>
+  ): WorkspaceResolution {
+    const normalizedRole = this.normalizeWorkspaceRole(membership.role);
+    if (!normalizedRole) {
+      throw new AuthorizationError('Workspace membership role is invalid');
+    }
+
+    const roles: WorkspaceRole[] = [normalizedRole];
+    const scopes = new Set<PermissionScope>(baseScopes);
+    for (const scope of deriveScopesFromRoles(roles)) {
+      scopes.add(scope);
+    }
+
+    return {
+      workspaceId: membership.workspaceId,
+      roles,
+      scopes: [...scopes],
+    };
+  }
+
+  private normalizeWorkspaceRole(role: string | null): WorkspaceRole | null {
+    if (!role) {
+      return null;
+    }
+    const normalized = role.toLowerCase();
+    if (isWorkspaceRole(normalized as WorkspaceRole)) {
+      return normalized as WorkspaceRole;
+    }
+    const alias = WORKSPACE_ROLE_ALIASES[normalized];
+    return alias ?? null;
   }
 
   private async ensureIdentityLink(

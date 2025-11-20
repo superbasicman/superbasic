@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { TokenNotFoundError } from "@repo/core";
 import { tokenService } from "../../../services/index.js";
+import { requireScope } from "../../../middleware/scopes.js";
 
 type Variables = {
   userId: string;
@@ -24,7 +25,7 @@ function isValidUuid(value: string): boolean {
 
 const revokeTokenRoute = new Hono<{ Variables: Variables }>();
 
-revokeTokenRoute.delete("/:id", authMiddleware, async (c) => {
+revokeTokenRoute.delete("/:id", authMiddleware, requireScope("write:accounts"), async (c) => {
   const userId = c.get("userId") as string;
   const requestId = c.get("requestId") || "unknown";
   const tokenId = c.req.param("id");

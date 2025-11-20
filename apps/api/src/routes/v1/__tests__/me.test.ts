@@ -22,6 +22,8 @@ describe('GET /v1/me', () => {
     expect(data.user.id).toBe(user.id);
     expect(data.user.email).toBe(user.email);
     expect(data.user.name).toBe('Profile User');
+    expect(data.workspaceContext?.activeWorkspaceId).toBeNull();
+    expect(data.workspaceContext?.currentSettingWorkspaceId).toBeNull();
   });
 
   it('returns 404 when the authenticated user is missing a profile', async () => {
@@ -59,5 +61,37 @@ describe('GET /v1/me', () => {
     const response = await makeAuthenticatedRequest(app, 'GET', '/v1/me', token);
 
     expect(response.status).toBe(401);
+  });
+
+  it('sets Postgres workspace context when workspace is selected', async () => {
+    const { user } = await createTestUser({ name: 'Workspace User' });
+    const prisma = getTestPrisma();
+    const profile = await prisma.profile.findUniqueOrThrow({ where: { userId: user.id } });
+    const workspace = await prisma.workspace.create({
+      data: {
+        ownerProfileId: profile.id,
+        name: 'Test Workspace',
+      },
+    });
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: workspace.id,
+        memberProfileId: profile.id,
+        role: 'owner',
+      },
+    });
+
+    const { token } = await createAccessToken(user.id);
+
+    const response = await makeAuthenticatedRequest(app, 'GET', '/v1/me', token, {
+      headers: {
+        'X-Workspace-Id': workspace.id,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.workspaceContext?.activeWorkspaceId).toBe(workspace.id);
+    expect(data.workspaceContext?.currentSettingWorkspaceId).toBe(workspace.id);
   });
 });

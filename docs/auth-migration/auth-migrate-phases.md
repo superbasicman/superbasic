@@ -337,6 +337,10 @@ Implement proper authorization via roles and scopes, with multi-tenant workspace
   - Expand the RLS coverage now that the session variables are populated for every request.
 - Key management & JWKS rotation:
   - Generate per-environment EdDSA key pairs, publish the public JWK entries (matching `kid`s), and configure `AUTH_JWT_*` variables for each deployment target before clients fully rely on bearer tokens.
+  - Environment references (do not commit the secrets):
+    - **local/dev**: `.env.local` / `.env.test` provide `AUTH_JWT_ALGORITHM=EdDSA`, `AUTH_JWT_KEY_ID=dev-access-key`, and a base64-encoded Ed25519 private key via `AUTH_JWT_PRIVATE_KEY`.
+    - **staging/prod**: set `AUTH_JWT_ALGORITHM=EdDSA`, a unique `AUTH_JWT_KEY_ID` per environment, and load the PEM via `AUTH_JWT_PRIVATE_KEY_FILE` or secret manager (`AUTH_JWT_PRIVATE_KEY`). Public JWK entries must reflect the same `kid`.
+  - JWKS endpoints are served from the API (`/.well-known/jwks.json` and `/v1/auth/jwks.json`) and must publish only the public keys referenced by `AUTH_JWT_KEY_ID`.
 
 **Out of scope**
 
@@ -345,8 +349,15 @@ Implement proper authorization via roles and scopes, with multi-tenant workspace
 
 **Exit criteria**
 
-- APIs consistently use `AuthContext` and `AuthzService` for workspace-level authorization.
-- Multi-tenant isolation is enforced at both service and DB levels for the most sensitive tables.
+- APIs consistently use `AuthContext` and `AuthzService` for workspace-level authorization (no adhoc scope checks).
+- Multi-tenant isolation is enforced at both service and DB levels for the most sensitive tables, including GUCs that set `app.workspace_id`.
+- The web SPA no longer performs a silent `/v1/auth/token` bootstrap on load; typecheck/build (`pnpm --filter @repo/web typecheck && pnpm --filter @repo/web build`) succeed using stored access/refresh tokens instead.
+- JWKS endpoints return the public keys associated with the configured `AUTH_JWT_KEY_ID`/`AUTH_JWT_ALGORITHM`, and per-environment key material is documented (see above) with `pnpm --filter @repo/auth-core build` succeeding under those envs.
+- `/v1` routes exercised in Phase 4 tests (e.g. `/v1/me`, `/v1/tokens`, scope middleware) enforce scopes/roles via `authz.requireScope/requireWorkspaceRole`.
+
+**Risks / known test blockers**
+
+- Integration and Vitest flows rely on the Neon/Postgres instance being reachable; network issues will present as `P1001`/connection failures rather than code regressions.
 
 ---
 
