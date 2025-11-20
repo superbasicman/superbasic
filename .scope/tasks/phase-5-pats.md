@@ -16,11 +16,10 @@ Context to review before starting:
     - Build `AuthContext` with `clientType='cli'` and derived scopes.
   - Sanity check: `pnpm --filter @repo/auth-core exec vitest run src/__tests__/auth-service.test.ts`
 
-- [/] 2. Refactor API Middleware (`apps/api/src/middleware/pat.ts`)
-  - ✅ Replace legacy `prisma.apiKey` logic with `AuthService.verifyRequest`.
- ✅ Ensure `c.set('auth', ...)` is populated correctly.
-  - ✅ Remove legacy `ApiKey` usage.
-  - ⚠️ Tests: 11/15 failing due to audit event reason mismatches (expecting "invalid_token" but getting "unauthorized")
+- [ ] 2. Refactor API Middleware (`apps/api/src/middleware/pat.ts`)
+  - Replace legacy `prisma.apiKey` logic with `AuthService.verifyRequest`.
+  - Ensure `c.set('auth', ...)` is populated correctly.
+  - Remove legacy `ApiKey` usage.
   - TODO: Debug `createAuthService()` errors in some test scenarios OR update test expectations
   - Sanity check: `pnpm --filter @repo/api exec vitest run src/middleware/__tests__/pat.test.ts`
 
