@@ -454,6 +454,7 @@ Support fully native iOS/Android login via OAuth 2.1 Authorization Code + PKCE a
     - Drive user through IdP login flow (web-based).
     - On success, generate short-lived, single-use auth code bound to:
       - `userId`, `clientId`, `redirectUri`, `code_challenge`, `requestedScopes`.
+    - Persist in `oauth_authorization_codes` (hashing plaintext code, S256/`plain` method stored).
     - Redirect to `redirect_uri?code=...`.
 
 - `/v1/oauth/token`:

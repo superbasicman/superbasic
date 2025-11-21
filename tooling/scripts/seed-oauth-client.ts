@@ -16,13 +16,24 @@ async function main() {
     throw new Error('DATABASE_URL is required to seed OAuth clients');
   }
 
-  const clientId = process.env.OAUTH_CLIENT_ID ?? 'mobile';
-  const redirectUris = (
-    process.env.OAUTH_REDIRECT_URIS ?? 'sb://callback,http://localhost:3000/v1/auth/callback/mobile'
-  )
-    .split(',')
-    .map((uri) => uri.trim())
-    .filter(Boolean);
+  const clientId = (process.env.OAUTH_CLIENT_ID ?? 'mobile').trim();
+  if (!clientId) {
+    throw new Error('OAUTH_CLIENT_ID must not be empty');
+  }
+
+  const redirectUris = Array.from(
+    new Set(
+      (process.env.OAUTH_REDIRECT_URIS ??
+        'sb://callback,http://localhost:3000/v1/auth/callback/mobile')
+        .split(',')
+        .map((uri) => uri.trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (redirectUris.length === 0) {
+    throw new Error('At least one redirect URI must be provided via OAUTH_REDIRECT_URIS');
+  }
 
   await prisma.oAuthClient.upsert({
     where: { clientId },

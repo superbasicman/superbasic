@@ -636,12 +636,32 @@ The scope system implements least-privilege access control for API keys. Each to
 | `read:profile`       | View user profile information                   |
 | `write:profile`      | Update user profile settings                    |
 
-<!-- TODO: Phase 6 - Document workspace scopes when workspace multi-tenancy is implemented -->
-**Future scopes (Phase 6+):**
+**Workspace scopes (Phase 6 PKCE/mobile):**
 
 - `read:workspaces` - View workspace information
 - `write:workspaces` - Manage workspace settings and members
 - `admin` - Full access to all resources (internal use only)
+
+### Mobile OAuth/PKCE
+
+Native clients authenticate via OAuth 2.1 Authorization Code + PKCE:
+
+1) `/v1/oauth/authorize` (system browser):
+   - `response_type=code`
+   - `client_id=mobile`
+   - `redirect_uri=sb://callback` (must be allowlisted)
+   - `code_challenge`, `code_challenge_method` (PKCE required)
+   - optional `scope`, `state`
+   - Redirects to `redirect_uri?code=...&state=...` with a short-lived, single-use code.
+
+2) `/v1/oauth/token` (app):
+   - `grant_type=authorization_code`
+   - `code`
+   - `redirect_uri`
+   - `client_id`
+   - `code_verifier` (must match challenge)
+
+On success, returns `accessToken` + `refreshToken` and creates a `mobile` session. Codes are single-use and PKCE-validated server-side.
 
 ### Scope Enforcement
 

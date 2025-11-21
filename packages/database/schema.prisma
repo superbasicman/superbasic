@@ -24,6 +24,7 @@ model User {
   sessions      Session[]
   tokens        Token[]
   identities    UserIdentity[]
+  authorizationCodes OAuthAuthorizationCode[]
 
   @@index([email])
   @@map("users")
@@ -259,8 +260,31 @@ model OAuthClient {
   redirectUris String[]        @map("redirect_uris")
   createdAt    DateTime        @default(now()) @map("created_at")
   disabledAt   DateTime?       @map("disabled_at")
+  authorizationCodes OAuthAuthorizationCode[]
 
   @@map("oauth_clients")
+  @@index([disabledAt])
+}
+
+model OAuthAuthorizationCode {
+  id                  String                @id @default(uuid()) @db.Uuid
+  userId              String                @map("user_id") @db.Uuid
+  clientId            String                @map("client_id")
+  redirectUri         String                @map("redirect_uri")
+  codeHash            Json                  @map("code_hash")
+  codeChallenge       String                @map("code_challenge")
+  codeChallengeMethod PkceChallengeMethod   @default(S256) @map("code_challenge_method")
+  scopes              String[]              @default([])
+  expiresAt           DateTime              @map("expires_at")
+  consumedAt          DateTime?             @map("consumed_at")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client              OAuthClient           @relation(fields: [clientId], references: [clientId])
+
+  @@map("oauth_authorization_codes")
+  @@index([clientId])
+  @@index([expiresAt])
+  @@index([consumedAt])
 }
 
 model SavedView {
@@ -920,4 +944,9 @@ enum TokenType {
 enum OAuthClientType {
   public
   confidential
+}
+
+enum PkceChallengeMethod {
+  S256
+  plain
 }

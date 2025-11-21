@@ -12,6 +12,7 @@ export type {
   UserIdentity,
   Token,
   OAuthClient,
+  OAuthAuthorizationCode,
 } from "@prisma/client";
 export * from "./context.js";
 

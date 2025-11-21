@@ -18,6 +18,17 @@ function mapClient(record: {
   };
 }
 
+export function normalizeRedirectUri(value: string | null | undefined): string {
+  if (!value || typeof value !== 'string') {
+    throw new AuthorizationError('redirect_uri is required');
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    throw new AuthorizationError('redirect_uri is required');
+  }
+  return normalized;
+}
+
 export async function findOAuthClient(
   prisma: Pick<PrismaClient, 'oAuthClient'>,
   clientId: string
@@ -29,12 +40,12 @@ export async function findOAuthClient(
 }
 
 export function validateRedirectUri(client: OAuthClientRecord, redirectUri: string): string {
-  const normalized = redirectUri.trim();
-  if (!normalized) {
-    throw new AuthorizationError('redirect_uri is required');
+  const normalized = normalizeRedirectUri(redirectUri);
+  const allowed = client.redirectUris.map(normalizeRedirectUri);
+  if (allowed.length === 0) {
+    throw new AuthorizationError('OAuth client has no redirect URIs configured');
   }
 
-  const allowed = client.redirectUris.map((uri) => uri.trim()).filter(Boolean);
   if (!allowed.includes(normalized)) {
     throw new AuthorizationError('redirect_uri is not allowed for this client');
   }

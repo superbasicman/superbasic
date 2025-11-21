@@ -15,6 +15,7 @@ import { authTokenValidator, exchangeAuthTokens } from './routes/v1/auth/token.j
 import { refreshTokenValidator, refreshTokens } from './routes/v1/auth/refresh.js';
 import { logout } from './routes/v1/auth/logout.js';
 import { deleteSession, listSessions } from './routes/v1/auth/sessions.js';
+import { oauthRoutes } from './routes/v1/oauth/index.js';
 
 const app = new Hono<AppBindings>();
 
@@ -55,6 +56,7 @@ v1.use('/register', authRateLimitMiddleware);
 v1.route('/register', registerRoute);
 v1.route('/me', meRoute);
 v1.route('/tokens', tokensRoute);
+v1.route('/oauth', oauthRoutes);
 
 app.route('/v1', v1);
 

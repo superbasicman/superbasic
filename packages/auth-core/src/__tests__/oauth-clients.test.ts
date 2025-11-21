@@ -1,7 +1,12 @@
 import type { PrismaClient } from '@repo/database';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthorizationError } from '../errors.js';
-import { findOAuthClient, requireOAuthClient, validateRedirectUri } from '../oauth-clients.js';
+import {
+  findOAuthClient,
+  normalizeRedirectUri,
+  requireOAuthClient,
+  validateRedirectUri,
+} from '../oauth-clients.js';
 
 const baseClient = {
   id: 'client-1',
@@ -47,6 +52,14 @@ describe('oauth client helpers', () => {
     expect(validateRedirectUri(baseClient, 'sb://callback')).toBe('sb://callback');
     expect(() => validateRedirectUri(baseClient, 'https://example.com/cb')).toThrow(
       AuthorizationError
+    );
+    expect(() => validateRedirectUri(baseClient, '   ')).toThrow(AuthorizationError);
+  });
+
+  it('normalizes redirect URIs before comparison', () => {
+    expect(validateRedirectUri(baseClient, ' sb://callback ')).toBe('sb://callback');
+    expect(normalizeRedirectUri(' http://localhost:3000/v1/auth/callback/mobile ')).toBe(
+      'http://localhost:3000/v1/auth/callback/mobile'
     );
   });
 

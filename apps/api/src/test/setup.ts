@@ -76,6 +76,8 @@ export async function resetDatabase(): Promise<void> {
   // Delete all data in reverse order of foreign key dependencies
   // This ensures referential integrity is maintained during cleanup
   
+  await testPrisma.oAuthAuthorizationCode.deleteMany();
+  await testPrisma.oAuthClient.deleteMany();
   // Delete API keys first (child of users and profiles)
   await testPrisma.apiKey.deleteMany();
   // Delete sessions before users to avoid orphaned records
