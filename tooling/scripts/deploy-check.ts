@@ -84,6 +84,17 @@ function createOutputSnippet(output?: string) {
   return trimmed.slice(trimmed.length - MAX_ERROR_LOG_LENGTH);
 }
 
+function redactDatabaseUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.username) parsed.username = '***';
+    if (parsed.password) parsed.password = '***';
+    return parsed.toString();
+  } catch {
+    return url.replace(/:[^:@/]+@/, ':***@');
+  }
+}
+
 function writeErrorReport(
   failedCheck: { command: string; description: string } | null,
   extraMessage?: string,
@@ -120,6 +131,42 @@ function writeErrorReport(
   writeFileSync(errorReportPath, `${lines.join('\n')}\n`);
 }
 
+async function checkDatabaseConnectivity() {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    return { passed: true };
+  }
+
+  const redacted = redactDatabaseUrl(databaseUrl);
+
+  try {
+    const { PrismaClient } = await import('@repo/database');
+    const prisma = new PrismaClient({
+      datasources: {
+        db: {
+          url: databaseUrl,
+        },
+      },
+    });
+
+    const timeout = setTimeout(() => {
+      prisma.$disconnect().catch(() => {});
+      throw new Error(`Database connectivity check timed out for ${redacted}`);
+    }, 5000);
+
+    await prisma.$queryRaw`SELECT 1`;
+    clearTimeout(timeout);
+    await prisma.$disconnect();
+
+    return { passed: true };
+  } catch (error) {
+    const message =
+      `Database unreachable at ${redacted}. ` +
+      'Ensure DATABASE_URL points to an accessible test database and the service is up.';
+    return { passed: false, output: error instanceof Error ? error.stack ?? error.message : String(error), extraMessage: message };
+  }
+}
+
 function cleanupErrorReport() {
   if (existsSync(errorReportPath)) {
     unlinkSync(errorReportPath);
@@ -153,6 +200,18 @@ async function main() {
   let allPassed = true;
   let failedCheck: { command: string; description: string } | null = null;
   let failedOutput = '';
+
+  // Pre-flight DB connectivity before kicking off tests to fail fast with a clear message
+  const dbCheck = await checkDatabaseConnectivity();
+  if (!dbCheck.passed) {
+    writeErrorReport(
+      { command: 'database connectivity', description: 'Database connectivity' },
+      dbCheck.extraMessage,
+      dbCheck.output
+    );
+    log('\n✗ Deployment check failed. Fix errors before deploying.', colors.red);
+    process.exit(1);
+  }
 
   for (const check of checks) {
     const result = await runCommand(check.command, check.description);

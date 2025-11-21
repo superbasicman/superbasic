@@ -184,11 +184,29 @@ export function getTestPrisma(): PrismaClient {
   return testPrisma;
 }
 
+function redactDatabaseUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.username) {
+      parsed.username = '***';
+    }
+    if (parsed.password) {
+      parsed.password = '***';
+    }
+    return parsed.toString();
+  } catch {
+    return url.replace(/:[^:@/]+@/, ':***@');
+  }
+}
+
 async function createPrismaClientWithRetry(
   url: string,
-  maxAttempts = 5,
-  delayMs = 1000
-): Promise<PrismaClient | null> {
+  maxAttempts = 3,
+  delayMs = 500
+): Promise<PrismaClient> {
+  const redactedUrl = redactDatabaseUrl(url);
+  let lastError: unknown;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const client = new PrismaClient({
@@ -201,17 +219,21 @@ async function createPrismaClientWithRetry(
       await client.$connect();
       return client;
     } catch (error) {
+      lastError = error;
       console.warn(
-        `[test-db] Failed to connect to ${url} (attempt ${attempt}/${maxAttempts})`,
+        `[test-db] Failed to connect to ${redactedUrl} (attempt ${attempt}/${maxAttempts})`,
         error
       );
-      if (attempt === maxAttempts) {
-        return null;
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       }
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
-  return null;
+
+  throw new Error(
+    `Test database unreachable at ${redactedUrl}. Ensure DATABASE_URL points to an accessible test database and the service is up.`,
+    { cause: lastError instanceof Error ? lastError : undefined }
+  );
 }
 
 // Vitest global setup hooks

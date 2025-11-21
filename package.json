@@ -25,6 +25,7 @@
     "typecheck": "turbo run typecheck",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "db:seed-oauth": "tsx tooling/scripts/seed-oauth-client.ts",
     "setup:env": "tsx tooling/scripts/setup-env.ts",
     "setup:plaid": "tsx tooling/scripts/setup-plaid.ts",
     "deploy-check": "tsx tooling/scripts/deploy-check.ts",

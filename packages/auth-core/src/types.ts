@@ -8,6 +8,7 @@ export type WorkspaceRoleScopeMap = Record<WorkspaceRole, readonly PermissionSco
 
 export type PermissionScope = Scope;
 export type TokenType = 'refresh' | 'personal_access';
+export type OAuthClientType = 'public' | 'confidential';
 
 export type TokenHashEnvelope = {
   algo: 'hmac-sha256';
@@ -19,6 +20,21 @@ export type TokenHashEnvelope = {
 };
 
 export type MfaLevel = 'none' | 'mfa' | 'phishing_resistant';
+
+export type PkceChallengeMethod = 'S256' | 'plain';
+
+export type PkceChallenge = {
+  codeChallenge: string;
+  codeChallengeMethod: PkceChallengeMethod;
+};
+
+export type OAuthClientRecord = {
+  id: string;
+  clientId: string;
+  type: OAuthClientType;
+  redirectUris: string[];
+  disabledAt: Date | null;
+};
 
 export type VerifiedIdentity = {
   provider: string;
