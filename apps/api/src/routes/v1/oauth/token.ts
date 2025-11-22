@@ -25,7 +25,7 @@ tokenRoute.post(
   zValidator('form', tokenSchema, (result, c) => {
     if (!result.success) {
       return c.json(
-        { error: 'invalid_request', message: 'Invalid request parameters', issues: result.error?.issues ?? [] },
+        { error: 'invalid_request', message: 'Invalid request parameters', issues: 'error' in result ? result.error.issues : [] },
         400
       );
     }
