@@ -5,6 +5,7 @@ vi.unmock('@repo/database');
 import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import { createTestUser, createAccessToken, makeAuthenticatedRequest, makeRequest } from '../../../test/helpers.js';
+import { generateToken, hashToken } from '@repo/auth';
 
 describe('GET /v1/me', () => {
   beforeEach(async () => {
@@ -87,6 +88,49 @@ describe('GET /v1/me', () => {
       headers: {
         'X-Workspace-Id': workspace.id,
       },
+    });
+
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.workspaceContext?.activeWorkspaceId).toBe(workspace.id);
+    expect(data.workspaceContext?.currentSettingWorkspaceId).toBe(workspace.id);
+  });
+
+  it('sets workspace context for PAT-authenticated requests', async () => {
+    const { user } = await createTestUser({ name: 'PAT Workspace User' });
+    const prisma = getTestPrisma();
+    const profile = await prisma.profile.findUniqueOrThrow({ where: { userId: user.id } });
+    const workspace = await prisma.workspace.create({
+      data: {
+        ownerProfileId: profile.id,
+        name: 'PAT Workspace',
+      },
+    });
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: workspace.id,
+        memberProfileId: profile.id,
+        role: 'owner',
+      },
+    });
+
+    const pat = generateToken();
+    const tokenHash = hashToken(pat);
+
+    await prisma.apiKey.create({
+      data: {
+        userId: user.id,
+        profileId: profile.id,
+        workspaceId: workspace.id,
+        name: 'Test PAT',
+        keyHash: tokenHash,
+        last4: pat.slice(-4),
+        scopes: ['read:profile'],
+      },
+    });
+
+    const response = await makeRequest(app, 'GET', '/v1/me', {
+      headers: { Authorization: `Bearer ${pat}` },
     });
 
     expect(response.status).toBe(200);

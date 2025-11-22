@@ -23,6 +23,15 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
   if (bearer?.startsWith('sbf_')) {
     // Personal access tokens are handled by patMiddleware/unifiedAuthMiddleware
     c.set('auth', null);
+    try {
+      await setPostgresContext(prisma, {
+        userId: null,
+        profileId: null,
+        workspaceId: null,
+      });
+    } catch (contextError) {
+      console.error('[auth-context] Failed to reset Postgres context for PAT request', contextError);
+    }
     await next();
     return;
   }
@@ -83,11 +92,30 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
       } catch (contextError) {
         console.error('[auth-context] Failed to set Postgres context', contextError);
       }
+    } else {
+      try {
+        await setPostgresContext(prisma, {
+          userId: null,
+          profileId: null,
+          workspaceId: null,
+        });
+      } catch (contextError) {
+        console.error('[auth-context] Failed to reset Postgres context for unauthenticated request', contextError);
+      }
     }
 
     await next();
   } catch (error) {
     console.error('[auth-context] Failed to verify request', error);
+    try {
+      await setPostgresContext(prisma, {
+        userId: null,
+        profileId: null,
+        workspaceId: null,
+      });
+    } catch (contextError) {
+      console.error('[auth-context] Failed to reset Postgres context after auth error', contextError);
+    }
     c.set('auth', null);
     return c.json({ error: 'Unauthorized' }, 401);
   }

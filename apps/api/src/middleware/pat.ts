@@ -12,7 +12,7 @@ import {
   authEvents,
   type TokenHashEnvelope,
 } from "@repo/auth";
-import { prisma } from "@repo/database";
+import { prisma, setPostgresContext } from "@repo/database";
 import type { ApiKey } from "@repo/database";
 import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit/index.js";
 
@@ -231,6 +231,16 @@ export async function patMiddleware(c: Context, next: Next) {
     };
     c.set("auth", authContext);
     c.set("workspaceId", apiKey.workspaceId ?? null);
+
+    try {
+      await setPostgresContext(prisma, {
+        userId: apiKey.userId,
+        profileId: apiKey.profileId,
+        workspaceId: apiKey.workspaceId ?? null,
+      });
+    } catch (contextError) {
+      console.error("[patMiddleware] Failed to set Postgres context", contextError);
+    }
 
     await next();
 

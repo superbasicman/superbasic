@@ -178,6 +178,14 @@ Issue and validate short-lived JWT access tokens, create sessions, and build a m
 - Workspace resolution is still a stub (`activeWorkspaceId = null`), so every request sets `app.workspace_id = NULL`; Phase 3/4 must implement the header/path fallback rules.
 - Postgres GUCs are set via the shared helper but still run on the root Prisma client; Phase 3 should integrate the helper with the per-request transaction wrapper so SET LOCAL occurs inside each request transaction instead of the singleton.
 - Signing keys live in process env for dev/test; production still needs KMS-backed storage plus a rotation cadence/runbook (see `docs/auth-migration/key-rotation-runbook.md`).
+
+### Phase 7 – Security Hardening notes (cookies, CSRF, rate limits, keys)
+
+- Cookies: refresh tokens live in `__Host-sb.refresh-token` (HttpOnly, Secure, SameSite=Lax, Path=/, domain-scoped to API origin). Access tokens stay in memory/headers only.
+- CSRF: cookie-backed flows require the `x-csrf-token` header echoing the `sb.csrf-token` cookie (double submit); missing/invalid header is rejected on `/v1/auth/refresh` and `/v1/auth/logout`.
+- CORS: allowlisted app origins only, with `Access-Control-Allow-Credentials: true`; preflight must include `Authorization`, `X-Workspace-Id`, and the CSRF header.
+- Rate limits: auth endpoints (`/v1/auth/token`, `/v1/auth/refresh`, `/v1/oauth/token`, `/v1/tokens` creation, credential callbacks) are throttled per-IP/email via `apps/api/src/middleware/rate-limit/*`.
+- Key rotation: JWKS publishes the active signing key plus optional verification-only keys supplied via `AUTH_JWT_ADDITIONAL_PUBLIC_KEYS(_FILE)`; see `docs/auth-migration/key-rotation-runbook.md` for cadence and emergency steps.
 - `/v1/auth/session` still includes a temporary Auth.js cookie fallback so the SPA can read sessions; delete this branch once `/v1/auth/token` is live and the SPA sends `Authorization: Bearer`.
 
 ---

@@ -26,16 +26,16 @@ Context to review:
   - Ensure no sensitive secrets (full tokens) are logged; consider IP/UA truncation.
   - Sanity check: logs appear in local/structured logger with redaction.
 
-- [ ] 5. Key management & rotation
+- [x] 5. Key management & rotation
   - Verify signing keys are KMS-backed/configurable; document rotation cadence and emergency steps.
   - Ensure JWKS update/retention behavior is defined; add tests if applicable.
   - Sanity check: rotated key still validates tokens; JWKS exposes active keys only.
 
-- [ ] 6. RLS refinement
+- [x] 6. RLS refinement
   - Expand/verify RLS on sensitive tables, especially workspace-scoped data.
   - Validate `app.workspace_id` is applied consistently.
   - Sanity check: unauthorized cross-workspace access blocked via tests or manual queries.
 
-- [ ] 7. Docs & final validation
+- [x] 7. Docs & final validation
   - Update auth docs with cookie/CSRF/rate-limit behavior and rotation notes.
   - Run: `pnpm --filter @repo/api typecheck && pnpm --filter @repo/auth-core build` and relevant auth e2e/regression suites.
