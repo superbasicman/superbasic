@@ -32,7 +32,7 @@ authorizeRoute.get(
         {
           error: 'invalid_request',
           message: 'Invalid request parameters',
-          issues: result.error?.issues ?? [],
+          issues: result.error.issues,
         },
         400
       );

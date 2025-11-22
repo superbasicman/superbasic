@@ -3,6 +3,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ApiKeys from './pages/Settings/ApiKeys';
+import Devices from './pages/Settings/Devices';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import AuthCallback from './pages/AuthCallback';
 
@@ -29,6 +30,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ApiKeys />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/devices"
+          element={
+            <ProtectedRoute>
+              <Devices />
             </ProtectedRoute>
           }
         />

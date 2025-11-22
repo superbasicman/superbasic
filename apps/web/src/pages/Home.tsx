@@ -30,6 +30,14 @@ function Home() {
                   Manage API Keys
                 </Button>
               </Link>
+              <Link to="/settings/devices">
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                >
+                  Manage Devices
+                </Button>
+              </Link>
               
               <Button
                 variant="secondary"

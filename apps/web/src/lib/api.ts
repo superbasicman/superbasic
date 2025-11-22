@@ -460,3 +460,20 @@ export const tokenApi = {
     });
   },
 };
+
+/**
+ * Session management API methods
+ */
+export const sessionApi = {
+  async list(): Promise<import("@repo/types").ListSessionsResponse> {
+    return apiFetch("/v1/auth/sessions", {
+      method: "GET",
+    });
+  },
+
+  async revoke(sessionId: string): Promise<void> {
+    return apiFetch(`/v1/auth/sessions/${sessionId}`, {
+      method: "DELETE",
+    });
+  },
+};
