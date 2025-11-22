@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ApiKeys from './pages/Settings/ApiKeys';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import AuthCallback from './pages/AuthCallback';
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
         
         {/* Protected routes */}
         <Route

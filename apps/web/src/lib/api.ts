@@ -1,5 +1,6 @@
 import type { LoginInput, RegisterInput, UserResponse } from "@repo/types";
 import { getAccessToken, getAccessTokenExpiry, saveTokens, clearTokens } from "./tokenStorage";
+import { getCookieValue } from "./cookies";
 
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
@@ -20,6 +21,7 @@ export class ApiError extends Error {
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 let refreshPromise: Promise<void> | null = null;
+const REFRESH_CSRF_COOKIE = "sb.refresh-csrf";
 
 /**
  * Base fetch wrapper with credentials support, auto-refresh, and error handling
@@ -129,11 +131,14 @@ async function refreshAccessToken(force = false) {
 }
 
 async function performAccessTokenRefresh() {
+  const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
+
   const response = await fetch(`${API_URL}/v1/auth/refresh`, {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
     },
     body: JSON.stringify({}),
   });
@@ -312,7 +317,7 @@ export const authApi = {
     const callbackInput = document.createElement("input");
     callbackInput.type = "hidden";
     callbackInput.name = "callbackUrl";
-    callbackInput.value = `${window.location.origin}/`;
+    callbackInput.value = `${window.location.origin}/auth/callback?provider=google`;
     form.appendChild(callbackInput);
 
     document.body.appendChild(form);
@@ -327,6 +332,7 @@ export const authApi = {
     // Auth.js email provider expects form-encoded data
     await apiFormPost("/v1/auth/signin/nodemailer", {
       email,
+      callbackUrl: `${window.location.origin}/auth/callback?provider=magic_link`,
     });
   },
 

@@ -2,13 +2,23 @@ import type { Context } from 'hono';
 import { authEvents } from '@repo/auth';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import type { AppBindings } from '../../../types/context.js';
-import { clearRefreshTokenCookie } from './refresh-cookie.js';
+import {
+  clearRefreshTokenCookie,
+  getRefreshTokenFromCookie,
+  validateRefreshCsrf,
+} from './refresh-cookie.js';
 
 export async function logout(c: Context<AppBindings>) {
   const auth = c.get('auth');
 
   if (!auth || !auth.sessionId) {
     return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  // If a refresh cookie is present, require the CSRF double-submit header.
+  const hasRefreshCookie = Boolean(getRefreshTokenFromCookie(c));
+  if (hasRefreshCookie && !validateRefreshCsrf(c)) {
+    return c.json({ error: 'invalid_csrf', message: 'CSRF token missing or invalid.' }, 403);
   }
 
   const ipAddress = extractIp(c) ?? null;

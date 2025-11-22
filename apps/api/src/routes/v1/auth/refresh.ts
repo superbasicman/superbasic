@@ -11,6 +11,7 @@ import {
   getRefreshTokenFromCookie,
   setRefreshTokenCookie,
   clearRefreshTokenCookie,
+  validateRefreshCsrf,
 } from './refresh-cookie.js';
 
 const RefreshRequestSchema = z.object({
@@ -45,6 +46,14 @@ export async function refreshTokens(c: Context<AppBindings>) {
 
   if (!presentedToken) {
     return invalidGrant(c);
+  }
+
+  // If the refresh token came from a cookie, require double-submit CSRF header.
+  if (!payload.refreshToken) {
+    const csrfOk = validateRefreshCsrf(c);
+    if (!csrfOk) {
+      return c.json({ error: 'invalid_csrf', message: 'CSRF token missing or invalid.' }, 403);
+    }
   }
 
   const parsed = parseOpaqueToken(presentedToken);

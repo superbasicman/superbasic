@@ -12,6 +12,7 @@ import {
   credentialsRateLimitMiddleware,
   magicLinkRateLimitMiddleware,
 } from "./middleware/rate-limit/index.js";
+import { computeAllowedOrigins } from "./middleware/cors.js";
 
 const authApp = new Hono();
 
@@ -50,12 +51,11 @@ authApp.all("/*", async (c) => {
     // We need to add them manually for cross-origin cookie support
     const origin = request.headers.get("origin");
     const headers = new Headers(authResponse.headers);
+    const allowedOrigins = computeAllowedOrigins();
 
     if (origin) {
-      // Check if origin is allowed (same logic as CORS middleware)
-      const isAllowed =
-        origin === "https://app.superbasicfinance.com" ||
-        /^http:\/\/localhost:\d+$/.test(origin);
+      // Check if origin is allowed (aligned with CORS middleware)
+      const isAllowed = allowedOrigins.has(origin) || /^http:\/\/localhost:\d+$/.test(origin);
 
       if (isAllowed) {
         headers.set("Access-Control-Allow-Origin", origin);

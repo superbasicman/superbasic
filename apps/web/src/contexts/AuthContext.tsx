@@ -51,6 +51,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Runs on app initialization using stored access token
    */
   async function checkAuthStatus() {
+    setIsLoading(true);
+
     const tokens = getStoredTokens();
     const hasValidAccessToken =
       !!tokens && typeof tokens.accessTokenExpiresAt === 'number' && tokens.accessTokenExpiresAt > Date.now();
@@ -66,11 +68,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const { user: currentUser } = await authApi.me();
       setUser(currentUser);
     } catch (error) {
-      // 401 means not authenticated - this is expected
       if (error instanceof ApiError && error.status === 401) {
         setUser(null);
       } else {
-        // Log other errors but don't block app initialization
         console.error('Failed to check auth status:', error);
         setUser(null);
       }

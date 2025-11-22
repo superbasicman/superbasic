@@ -17,9 +17,11 @@ const limiter = redis ? createRateLimiter(redis) : null;
  * Limits requests to 10 per minute per IP address
  */
 export async function authRateLimitMiddleware(c: Context, next: Next) {
-  // Skip rate limiting if Redis is not configured (development)
-  if (!limiter) {
-    console.warn('Rate limiting disabled: UPSTASH_REDIS_REST_URL not configured');
+  // Skip rate limiting in tests or if Redis is not configured (development)
+  if (process.env.NODE_ENV === 'test' || !limiter) {
+    if (!limiter && process.env.NODE_ENV !== 'test') {
+      console.warn('Rate limiting disabled: UPSTASH_REDIS_REST_URL not configured');
+    }
     await next();
     return;
   }

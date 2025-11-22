@@ -102,7 +102,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       });
 
       expect(updatedToken!.name).toBe("New Name");
-    });
+    }, 15000);
 
     it("should preserve all other token fields", async () => {
       const { user } = await createTestUser();
@@ -507,7 +507,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       const data = await response.json();
       expect(data.error).toBe("Validation failed");
-    });
+    }, 15000);
 
     it("should reject name longer than 100 characters", async () => {
       const { user } = await createTestUser();

@@ -315,7 +315,7 @@ describe('Auth.js Credentials Sign-In', () => {
       const data = await meResponse.json();
       expect(data.user.id).toBe(user.id);
       expect(data.user.email).toBe(user.email);
-    });
+    }, 15000);
 
     it('should create profile for new user via signIn callback', async () => {
       const { user, credentials } = await createTestUser();

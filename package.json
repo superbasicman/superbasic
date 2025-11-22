@@ -29,6 +29,7 @@
     "setup:env": "tsx tooling/scripts/setup-env.ts",
     "setup:plaid": "tsx tooling/scripts/setup-plaid.ts",
     "deploy-check": "tsx tooling/scripts/deploy-check.ts",
+    "check-db-connection": "node tooling/scripts/check-db-connection.mjs",
     "db:generate": "turbo run generate --filter=@repo/database",
     "db:migrate": "turbo run migrate --filter=@repo/database",
     "db:studio": "turbo run studio --filter=@repo/database",

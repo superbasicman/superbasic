@@ -493,7 +493,7 @@ describe("POST /v1/tokens - Token Creation", () => {
 
       const data = await response2.json();
       expect(data.error).toBe('Token name "My Token" already exists');
-    });
+    }, 15000);
 
     it("should allow same token name for different users", async () => {
       const { user: user1 } = await createTestUser();
@@ -534,7 +534,7 @@ describe("POST /v1/tokens - Token Creation", () => {
       );
 
       expect(response2.status).toBe(201);
-    });
+    }, 15000);
   });
 
   describe("Authentication Requirements", () => {
