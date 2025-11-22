@@ -169,6 +169,21 @@ export class TokenService {
       throw error;
     });
 
+    const context = params.requestContext || {};
+    await this.authEvents.emit({
+      type: "token.updated",
+      userId: params.userId,
+      metadata: {
+        tokenId: params.id,
+        previousName: token.name ?? "",
+        newName: updated.name ?? "",
+        ip: context.ip || "unknown",
+        userAgent: context.userAgent || "unknown",
+        requestId: context.requestId || null,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
     return this.mapToTokenResponse(updated);
   }
 

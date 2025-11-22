@@ -47,6 +47,10 @@ async function handleAuthEvent(event: AuthEvent) {
       logger.warn(logEntry, 'User login failed');
       break;
 
+    case 'user.status_changed':
+      logger.info(logEntry, 'User account status changed');
+      break;
+
     case 'user.logout':
       logger.info(logEntry, 'User logged out');
       break;
@@ -59,8 +63,16 @@ async function handleAuthEvent(event: AuthEvent) {
       logger.error(logEntry, 'Refresh token reuse detected');
       break;
 
+    case 'refresh.rotated':
+      logger.info(logEntry, 'Refresh token rotated');
+      break;
+
     case 'token.created':
       logger.info(logEntry, 'API token created');
+      break;
+
+    case 'token.updated':
+      logger.info(logEntry, 'API token updated');
       break;
 
     case 'token.used':

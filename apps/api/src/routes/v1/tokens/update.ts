@@ -42,6 +42,9 @@ updateTokenRoute.patch(
     const userId = c.get("userId") as string;
     const tokenId = c.req.param("id");
     const { name } = c.req.valid("json");
+    const ipHeader = c.req.header("x-forwarded-for") || c.req.header("x-real-ip");
+    const userAgentHeader = c.req.header("user-agent");
+    const requestId = c.get("requestId");
 
     if (!isValidUuid(tokenId)) {
       return c.json({ error: "Token not found" }, 404);
@@ -53,6 +56,11 @@ updateTokenRoute.patch(
         id: tokenId,
         userId,
         name,
+        requestContext: {
+          ...(ipHeader ? { ip: ipHeader } : {}),
+          ...(userAgentHeader ? { userAgent: userAgentHeader } : {}),
+          ...(requestId ? { requestId } : {}),
+        },
       });
 
       return c.json(token);

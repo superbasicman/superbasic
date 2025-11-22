@@ -24,8 +24,11 @@ export type {
   TokenRevokedEvent,
   TokenAuthFailedEvent,
   TokenScopeDeniedEvent,
+  TokenUpdatedEvent,
+  RefreshRotatedEvent,
   SessionRevokedEvent,
   RefreshReuseDetectedEvent,
+  UserStatusChangedEvent,
 } from "./events.js";
 
 // Constants

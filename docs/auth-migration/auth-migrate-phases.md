@@ -177,7 +177,7 @@ Issue and validate short-lived JWT access tokens, create sessions, and build a m
 - `AuthService.createSession` / refresh-token lifecycles remain TODO; Phase 3 must wire these so sessions are rotated and revocation works end-to-end.
 - Workspace resolution is still a stub (`activeWorkspaceId = null`), so every request sets `app.workspace_id = NULL`; Phase 3/4 must implement the header/path fallback rules.
 - Postgres GUCs are set via the shared helper but still run on the root Prisma client; Phase 3 should integrate the helper with the per-request transaction wrapper so SET LOCAL occurs inside each request transaction instead of the singleton.
-- Signing keys live in process env for dev/test; production still needs KMS-backed storage, rotation cadence, and operational docs.
+- Signing keys live in process env for dev/test; production still needs KMS-backed storage plus a rotation cadence/runbook (see `docs/auth-migration/key-rotation-runbook.md`).
 - `/v1/auth/session` still includes a temporary Auth.js cookie fallback so the SPA can read sessions; delete this branch once `/v1/auth/token` is live and the SPA sends `Authorization: Bearer`.
 
 ---

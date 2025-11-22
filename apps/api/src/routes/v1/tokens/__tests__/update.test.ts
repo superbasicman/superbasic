@@ -143,6 +143,52 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       expect(updatedToken!.revokedAt).toBeNull();
     });
 
+    it("should emit token.updated audit event", async () => {
+      authEvents.clearHandlers();
+      const events: any[] = [];
+      authEvents.on((event) => {
+        events.push(event);
+      });
+
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
+
+      const { apiKey } = await createTestApiKey(user.id, profile!.id, "Old Name");
+      const app = createTestApp();
+      const { token: sessionToken } = await createAccessToken(user.id);
+
+      const response = await makeAuthenticatedRequest(
+        app,
+        "PATCH",
+        `/v1/tokens/${apiKey.id}`,
+        sessionToken,
+        {
+          body: { name: "Updated Name" },
+          headers: {
+            "user-agent": "vitest-agent",
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
+
+      // Allow async audit emission to complete
+      await vi.waitFor(() => {
+        const event = events.find((e) => e.type === "token.updated");
+        expect(event).toBeDefined();
+      }, { timeout: 1000 });
+
+      const updateEvent = events.find((event) => event.type === "token.updated");
+      expect(updateEvent?.metadata?.previousName).toBe("Old Name");
+      expect(updateEvent?.metadata?.newName).toBe("Updated Name");
+      expect(updateEvent?.metadata?.userAgent).toBe("vitest-agent");
+
+      authEvents.clearHandlers();
+    });
+
     it("should return updated token metadata in response", async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();

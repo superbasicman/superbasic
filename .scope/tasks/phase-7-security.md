@@ -16,12 +16,12 @@ Context to review:
   - Double-submit cookie or custom non-simple header; document expected client behavior.
   - Sanity check: requests without CSRF token/header are blocked; happy-path passes.
 
-- [ ] 3. Rate limiting for auth-sensitive endpoints
+- [x] 3. Rate limiting for auth-sensitive endpoints
   - Per-IP and/or per-user limits on `/v1/auth/token`, `/v1/auth/refresh`, `/v1/oauth/token`, `/v1/tokens` creation, login/signup.
   - Reuse `apps/api/src/middleware/rate-limit/*` or extend infra; add tests.
   - Sanity check: burst beyond threshold returns 429 with proper headers; normal flow unaffected.
 
-- [ ] 4. Logging & auditing
+- [x] 4. Logging & auditing
   - Emit structured events for login success/failure, token creation/rotation, refresh reuse detection, session revocation, PAT create/update/delete, account status changes.
   - Ensure no sensitive secrets (full tokens) are logged; consider IP/UA truncation.
   - Sanity check: logs appear in local/structured logger with redaction.

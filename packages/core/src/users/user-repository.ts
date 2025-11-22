@@ -6,6 +6,7 @@
  */
 
 import type { PrismaClient, User } from '@repo/database';
+import type { UserStatus } from './user-types.js';
 
 export interface CreateUserData {
   email: string;
@@ -29,6 +30,15 @@ export class UserRepository {
     const normalizedEmail = email.trim().toLowerCase();
     return this.prisma.user.findUnique({
       where: { emailLower: normalizedEmail },
+    });
+  }
+
+  /**
+   * Find user by ID
+   */
+  async findById(userId: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
     });
   }
 
@@ -79,4 +89,42 @@ export class UserRepository {
       return user;
     });
   }
+
+  /**
+   * Update a user's status and return previous value
+   */
+  async updateStatus(
+    userId: string,
+    status: UserStatus
+  ): Promise<{ user: User; previousStatus: UserStatus } | null> {
+    // Fast-return for obviously invalid IDs to avoid Prisma UUID parse errors
+    if (!isValidUuid(userId)) {
+      return null;
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.status === status) {
+      return { user: existing, previousStatus: existing.status };
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { status },
+    });
+
+    return { user: updated, previousStatus: existing.status };
+  }
+}
+
+function isValidUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value.trim()
+  );
 }

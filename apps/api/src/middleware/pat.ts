@@ -222,7 +222,7 @@ export async function patMiddleware(c: Context, next: Next) {
       userId: apiKey.userId,
       sessionId: null,
       clientType: "cli",
-      activeWorkspaceId: null,
+      activeWorkspaceId: apiKey.workspaceId ?? null,
       scopes: scopes as import("@repo/auth-core").PermissionScope[],
       roles: [],
       profileId: apiKey.profileId,
@@ -230,6 +230,7 @@ export async function patMiddleware(c: Context, next: Next) {
       mfaLevel: "none",
     };
     c.set("auth", authContext);
+    c.set("workspaceId", apiKey.workspaceId ?? null);
 
     await next();
 

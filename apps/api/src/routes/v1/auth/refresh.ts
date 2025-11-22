@@ -158,6 +158,21 @@ export async function refreshTokens(c: Context<AppBindings>) {
 
   setRefreshTokenCookie(c, rotated.refreshToken, rotated.token.expiresAt);
 
+  await authEvents.emit({
+    type: 'refresh.rotated',
+    userId: tokenRecord.userId,
+    metadata: {
+      sessionId: session.id,
+      previousTokenId: tokenRecord.id,
+      newTokenId: rotated.token.id,
+      familyId: tokenRecord.familyId ?? null,
+      ip: ipAddress,
+      userAgent,
+      requestId,
+      timestamp: new Date().toISOString(),
+    },
+  });
+
   return c.json({
     tokenType: 'Bearer',
     accessToken,

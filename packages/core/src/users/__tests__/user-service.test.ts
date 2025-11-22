@@ -11,6 +11,7 @@ import {
   DuplicateEmailError,
   InvalidEmailError,
   WeakPasswordError,
+  UserNotFoundError,
 } from '../user-errors.js';
 
 // Mock the hashPassword function
@@ -33,6 +34,8 @@ describe('UserService', () => {
       findByEmail: vi.fn(),
       create: vi.fn(),
       createWithProfile: vi.fn(),
+      findById: vi.fn(),
+      updateStatus: vi.fn(),
     } as any;
 
     // Mock auth events
@@ -309,6 +312,79 @@ describe('UserService', () => {
 
       // Act & Assert
       await expect(userService.registerUser(params)).resolves.toBeDefined();
+    });
+  });
+
+  describe('updateUserStatus', () => {
+    it('should update status and emit audit event', async () => {
+      mockUserRepo.findById = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        status: 'active',
+      });
+
+      mockUserRepo.updateStatus = vi.fn().mockResolvedValue({
+        user: {
+          id: 'user-123',
+          email: 'test@example.com',
+          status: 'disabled',
+        },
+        previousStatus: 'active',
+      });
+
+      const result = await userService.updateUserStatus({
+        userId: 'user-123',
+        status: 'disabled' as any,
+        reason: 'manual_admin_action',
+        changedBy: 'admin-1',
+        requestId: 'req-1',
+        ip: '1.1.1.1',
+        userAgent: 'vitest',
+      });
+
+      expect(result).toEqual({ id: 'user-123', status: 'disabled' });
+      expect(mockAuthEvents.emit).toHaveBeenCalledWith({
+        type: 'user.status_changed',
+        userId: 'user-123',
+        email: 'test@example.com',
+        metadata: expect.objectContaining({
+          previousStatus: 'active',
+          newStatus: 'disabled',
+          reason: 'manual_admin_action',
+          changedBy: 'admin-1',
+          requestId: 'req-1',
+          ip: '1.1.1.1',
+          userAgent: 'vitest',
+        }),
+      });
+    });
+
+    it('should skip emit when status is unchanged', async () => {
+      mockUserRepo.findById = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        email: 'test@example.com',
+        status: 'active',
+      });
+
+      const result = await userService.updateUserStatus({
+        userId: 'user-123',
+        status: 'active' as any,
+      });
+
+      expect(result).toEqual({ id: 'user-123', status: 'active' });
+      expect(mockAuthEvents.emit).not.toHaveBeenCalled();
+      expect(mockUserRepo.updateStatus).not.toHaveBeenCalled();
+    });
+
+    it('should throw UserNotFoundError when user does not exist', async () => {
+      mockUserRepo.findById = vi.fn().mockResolvedValue(null);
+
+      await expect(
+        userService.updateUserStatus({
+          userId: 'missing',
+          status: 'disabled' as any,
+        })
+      ).rejects.toThrow(UserNotFoundError);
     });
   });
 });

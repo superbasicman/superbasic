@@ -11,6 +11,7 @@ import {
 } from '../../../test/helpers.js';
 import { refreshTokenService } from '../../../lib/refresh-token-service.js';
 import { REFRESH_TOKEN_COOKIE, REFRESH_CSRF_COOKIE } from '../auth/refresh-cookie.js';
+import { authEvents } from '@repo/auth';
 
 describe('POST /v1/auth/refresh', () => {
   const prisma = getTestPrisma;
@@ -50,6 +51,43 @@ describe('POST /v1/auth/refresh', () => {
 
     const dbToken = await prisma().token.findUnique({ where: { id: initial.token.id } });
     expect(dbToken?.revokedAt).not.toBeNull();
+  });
+
+  it('emits refresh.rotated audit event when rotating token', async () => {
+    authEvents.clearHandlers();
+    const events: any[] = [];
+    authEvents.on((event) => {
+      events.push(event);
+    });
+
+    const { user } = await createTestUser();
+    const session = await createSessionRecord(user.id);
+
+    const initial = await refreshTokenService.issueRefreshToken({
+      userId: user.id,
+      sessionId: session.id,
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    });
+
+    const response = await makeRequest(app, 'POST', '/v1/auth/refresh', {
+      body: {
+        refreshToken: initial.refreshToken,
+      },
+      headers: {
+        'user-agent': 'vitest',
+      },
+    });
+
+    expect(response.status).toBe(200);
+
+    const rotatedEvent = events.find((event) => event.type === 'refresh.rotated');
+    expect(rotatedEvent).toBeDefined();
+    expect(rotatedEvent?.metadata?.previousTokenId).toBe(initial.token.id);
+    expect(rotatedEvent?.metadata?.newTokenId).toBeDefined();
+    expect(rotatedEvent?.metadata?.sessionId).toBe(session.id);
+    expect(rotatedEvent?.metadata?.userAgent).toBe('vitest');
+
+    authEvents.clearHandlers();
   });
 
   it('returns 401 for expired refresh token', async () => {

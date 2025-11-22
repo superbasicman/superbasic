@@ -48,6 +48,11 @@ export interface UpdateTokenParams {
   id: string;
   userId: string;
   name: string;
+  requestContext?: {
+    ip?: string;
+    userAgent?: string;
+    requestId?: string;
+  };
 }
 
 export interface UpdateTokenData {

@@ -4,6 +4,8 @@
  * Type definitions for user service operations.
  */
 
+export type UserStatus = 'active' | 'disabled' | 'locked';
+
 export interface RegisterUserParams {
   email: string;
   password: string;
@@ -30,4 +32,14 @@ export interface UserProfileData {
   userId: string;
   timezone: string;
   currency: string;
+}
+
+export interface UpdateUserStatusParams {
+  userId: string;
+  status: UserStatus;
+  reason?: string;
+  changedBy?: string;
+  requestId?: string | null;
+  ip?: string | null;
+  userAgent?: string | null;
 }

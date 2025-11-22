@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import type { PrismaClient } from '@repo/database';
-import { exportJWK } from 'jose';
+import { SignJWT, exportJWK } from 'jose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthorizationError, InactiveUserError } from '../errors.js';
 import { AuthCoreService } from '../service.js';
@@ -249,6 +249,75 @@ describe('AuthCoreService.verifyRequest', () => {
     expect(resolved.scopes).toEqual(
       expect.arrayContaining(['write:workspaces', 'write:accounts', 'read:profile'])
     );
+  });
+
+  it('accepts tokens signed with a rotated-but-published key', async () => {
+    const { privateKey: oldPrivateKey, publicKey: oldPublicKey } = generateKeyPairSync('ed25519');
+    const { privateKey: newPrivateKey, publicKey: newPublicKey } = generateKeyPairSync('ed25519');
+
+    const rotatedKeyStore = new SigningKeyStore(
+      [
+        {
+          kid: 'new-key',
+          alg: 'EdDSA',
+          privateKey: newPrivateKey,
+          publicKey: newPublicKey,
+          jwk: await exportJWK(newPublicKey),
+        },
+        {
+          kid: 'old-key',
+          alg: 'EdDSA',
+          privateKey: null,
+          publicKey: oldPublicKey,
+          jwk: await exportJWK(oldPublicKey),
+        },
+      ],
+      'new-key'
+    );
+
+    const token = await new SignJWT({
+      sub: 'user-rotated',
+      sid: 'session-rotated',
+      token_use: 'access',
+      client_type: 'web',
+    })
+      .setProtectedHeader({ alg: 'EdDSA', kid: 'old-key', typ: 'JWT' })
+      .setIssuedAt()
+      .setExpirationTime('5m')
+      .setIssuer(ISSUER)
+      .setAudience(AUDIENCE)
+      .sign(oldPrivateKey);
+
+    prismaStub.user.findUnique.mockResolvedValue({
+      id: 'user-rotated',
+      status: 'active',
+      profile: { id: 'profile-rotated' },
+    });
+    prismaStub.session.findUnique.mockResolvedValue({
+      id: 'session-rotated',
+      userId: 'user-rotated',
+      clientType: 'web',
+      expiresAt: new Date(Date.now() + 60_000),
+      absoluteExpiresAt: new Date(Date.now() + 120_000),
+      revokedAt: null,
+      mfaLevel: 'none',
+    });
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore: rotatedKeyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+      setContext: setContextMock,
+    });
+
+    const context = await service.verifyRequest({
+      authorizationHeader: `Bearer ${token}`,
+    });
+
+    expect(context?.sessionId).toBe('session-rotated');
+    expect(context?.userId).toBe('user-rotated');
   });
 
   it('throws when user is inactive', async () => {

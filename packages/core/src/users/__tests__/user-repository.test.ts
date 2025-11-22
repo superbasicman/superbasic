@@ -277,4 +277,28 @@ describe("UserRepository", () => {
       expect(profileCountForUser).toBe(1);
     });
   });
+
+  describe("updateStatus", () => {
+    it("should update status and return previous status", async () => {
+      const email = uniqueEmail();
+      const user = await userRepo.create({
+        email,
+        password: "hashed_password",
+        name: "Test User",
+      });
+      testUsers.push(user);
+
+      const result = await userRepo.updateStatus(user.id, "disabled" as any);
+      expect(result?.previousStatus).toBe("active");
+      expect(result?.user.status).toBe("disabled");
+
+      const refreshed = await prisma.user.findUnique({ where: { id: user.id } });
+      expect(refreshed?.status).toBe("disabled");
+    });
+
+    it("should return null when user not found", async () => {
+      const result = await userRepo.updateStatus("non-existent", "disabled" as any);
+      expect(result).toBeNull();
+    });
+  });
 });

@@ -37,6 +37,7 @@ import {
 } from "./token-hash.js";
 import type { TokenHashEnvelope } from "./token-hash.js";
 import { randomUUID } from "node:crypto";
+import { authEvents } from "./events.js";
 
 const MIN_AUTH_SECRET_LENGTH = 32;
 const LOW_ENTROPY_THRESHOLD = 16;
@@ -80,6 +81,57 @@ function ensureAuthSecret(rawSecret: string | undefined): string {
 const AUTH_SECRET = ensureAuthSecret(process.env.AUTH_SECRET);
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const SESSION_COOKIE_NAME = "authjs.session-token";
+
+type RequestMetadata = {
+  ip: string;
+  userAgent: string;
+  requestId?: string | null;
+};
+
+function extractRequestMetadata(req?: Request | null): RequestMetadata {
+  const headers = req?.headers;
+  const forwarded = headers?.get("x-forwarded-for");
+  const ip =
+    forwarded?.split(",")[0]?.trim() ||
+    headers?.get("x-real-ip") ||
+    "unknown";
+
+  return {
+    ip,
+    userAgent: headers?.get("user-agent") || "unknown",
+    requestId:
+      headers?.get("x-request-id") ||
+      headers?.get("x-correlation-id") ||
+      null,
+  };
+}
+
+function emitLoginAudit(
+  type: "user.login.success" | "user.login.failed",
+  params: {
+    provider: string;
+    email?: string | null;
+    userId?: string;
+    reason?: string;
+    request?: Request | null;
+  }
+) {
+  const metadata = extractRequestMetadata(params.request);
+
+  void authEvents.emit({
+    type,
+    ...(params.userId ? { userId: params.userId } : {}),
+    ...(params.email ? { email: params.email } : {}),
+    metadata: {
+      provider: params.provider,
+      ip: metadata.ip,
+      userAgent: metadata.userAgent,
+      requestId: metadata.requestId,
+      timestamp: new Date().toISOString(),
+      ...(params.reason ? { reason: params.reason } : {}),
+    },
+  });
+}
 
 async function persistSessionToken(userId: string, expires: Date) {
   const now = new Date();
@@ -319,11 +371,20 @@ export const authConfig: AuthConfig = {
 	        email: { label: "Email", type: "email" },
 	        password: { label: "Password", type: "password" },
 	      },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         try {
+          const request = (req as any)?.request ?? (req as Request | undefined);
+          const provider = "credentials";
+
           if (!credentials?.email || !credentials?.password) {
             logAuthDebug("credentials_authorize", {
               reason: "missing_email_or_password",
+            });
+            emitLoginAudit("user.login.failed", {
+              provider,
+              email: credentials?.email?.toString() ?? null,
+              reason: "missing_email_or_password",
+              request: request ?? null,
             });
             return null;
           }
@@ -357,6 +418,12 @@ export const authConfig: AuthConfig = {
               email: rawEmail,
               reason: "user_not_found_or_missing_password",
             });
+            emitLoginAudit("user.login.failed", {
+              provider,
+              email: rawEmail,
+              reason: "user_not_found_or_missing_password",
+              request: request ?? null,
+            });
             return null;
           }
 
@@ -370,12 +437,25 @@ export const authConfig: AuthConfig = {
               email: rawEmail,
               reason: "invalid_password",
             });
+            emitLoginAudit("user.login.failed", {
+              provider,
+              email: rawEmail,
+              reason: "invalid_password",
+              request: request ?? null,
+            });
             return null;
           }
 
           logAuthDebug("credentials_authorize_success", {
             email: rawEmail,
             userId: user.id,
+          });
+
+          emitLoginAudit("user.login.success", {
+            provider,
+            userId: user.id,
+            email: user.email ?? rawEmail,
+            request: request ?? null,
           });
 
           return {
@@ -492,62 +572,98 @@ export const authConfig: AuthConfig = {
   },
   secret: AUTH_SECRET,
   callbacks: {
-    async signIn({ user, account, profile: oauthProfile }) {
-      if (!account || account.provider === "credentials") {
+    async signIn({ user, account, profile: oauthProfile, request }: any) {
+      const provider = account?.provider ?? "unknown";
+      const rawRequest = (request as Request | undefined) ?? undefined;
+
+      if (!account) {
+        emitLoginAudit("user.login.failed", {
+          provider,
+          email: user?.email ?? null,
+          reason: "missing_account",
+          request: rawRequest ?? null,
+        });
+        return false;
+      }
+
+      if (account.provider === "credentials") {
         return true;
       }
 
       const normalizedEmail = user.email?.trim().toLowerCase();
       if (!normalizedEmail) {
+        emitLoginAudit("user.login.failed", {
+          provider,
+          email: user?.email ?? null,
+          reason: "missing_email",
+          request: rawRequest ?? null,
+        });
         return false;
       }
 
-      const existingUser = await prisma.user.findUnique({
-        where: { emailLower: normalizedEmail },
-      });
-
-      let userId: string;
-
-      if (!existingUser) {
-        const newUser = await prisma.user.create({
-          data: {
-            email: user.email!,
-            emailLower: normalizedEmail,
-            name: user.name || oauthProfile?.name || null,
-            image: user.image || oauthProfile?.picture || null,
-            emailVerified: account.provider === "email" ? null : new Date(),
-          },
-        });
-        userId = newUser.id;
-      } else {
-        userId = existingUser.id;
-      }
-
-      await ensureProfileExists(userId);
-
-      if (account.provider !== "email") {
-        const existingAccount = await prisma.account.findUnique({
-          where: {
-            provider_providerAccountId: {
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
-            },
-          },
+      try {
+        const existingUser = await prisma.user.findUnique({
+          where: { emailLower: normalizedEmail },
         });
 
-        if (!existingAccount) {
-          await prisma.account.create({
+        let userId: string;
+
+        if (!existingUser) {
+          const newUser = await prisma.user.create({
             data: {
-              userId,
-              type: account.type,
-              provider: account.provider,
-              providerAccountId: account.providerAccountId,
+              email: user.email!,
+              emailLower: normalizedEmail,
+              name: user.name || oauthProfile?.name || null,
+              image: user.image || oauthProfile?.picture || null,
+              emailVerified: account.provider === "email" ? null : new Date(),
             },
           });
+          userId = newUser.id;
+        } else {
+          userId = existingUser.id;
         }
-      }
 
-      return true;
+        await ensureProfileExists(userId);
+
+        if (account.provider !== "email") {
+          const existingAccount = await prisma.account.findUnique({
+            where: {
+              provider_providerAccountId: {
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
+            },
+          });
+
+          if (!existingAccount) {
+            await prisma.account.create({
+              data: {
+                userId,
+                type: account.type,
+                provider: account.provider,
+                providerAccountId: account.providerAccountId,
+              },
+            });
+          }
+        }
+
+        emitLoginAudit("user.login.success", {
+          provider,
+          userId,
+          email: user.email ?? normalizedEmail,
+          request: rawRequest ?? null,
+        });
+
+        return true;
+      } catch (error) {
+        emitLoginAudit("user.login.failed", {
+          provider,
+          email: user?.email ?? normalizedEmail,
+          reason: "sign_in_error",
+          request: rawRequest ?? null,
+        });
+        throw error;
+      }
     },
     async jwt({ token, user }) {
       if (user) {

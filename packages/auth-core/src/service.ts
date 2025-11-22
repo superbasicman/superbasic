@@ -15,6 +15,7 @@ import {
   type SignAccessTokenParams,
   SigningKeyStore,
   buildSigningKey,
+  buildVerificationKey,
   signAccessToken,
 } from './signing.js';
 import type {
@@ -86,14 +87,22 @@ function normalizeClientType(value?: string | ClientType | null): ClientType {
 
 let signingResourcesPromise: Promise<SigningResources> | null = null;
 
+async function buildKeyStoreFromConfig(config: AuthCoreEnvironment) {
+  const signingKey = await buildSigningKey(config);
+  const verificationKeys = await Promise.all(
+    (config.verificationKeys ?? []).map((keyConfig) => buildVerificationKey(keyConfig))
+  );
+
+  return new SigningKeyStore([signingKey, ...verificationKeys], config.keyId);
+}
+
 async function getDefaultSigningResources(): Promise<SigningResources> {
   if (!signingResourcesPromise) {
     signingResourcesPromise = (async () => {
       const config = loadAuthCoreConfig();
-      const signingKey = await buildSigningKey(config);
       return {
         config,
-        keyStore: new SigningKeyStore([signingKey], config.keyId),
+        keyStore: await buildKeyStoreFromConfig(config),
       };
     })();
   }
@@ -601,8 +610,7 @@ export async function createAuthService(
     resolvedConfig = loadAuthCoreConfig();
     keyStore = options.keyStore;
   } else if (options.config) {
-    const signingKey = await buildSigningKey(options.config);
-    keyStore = new SigningKeyStore([signingKey], options.config.keyId);
+    keyStore = await buildKeyStoreFromConfig(options.config);
     resolvedConfig = options.config;
   } else {
     const resources = await getDefaultSigningResources();

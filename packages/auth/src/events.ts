@@ -7,10 +7,13 @@ export type AuthEventType =
   | "user.registered"
   | "user.login.success"
   | "user.login.failed"
+  | "user.status_changed"
   | "user.logout"
   | "session.revoked"
   | "refresh.reuse_detected"
+  | "refresh.rotated"
   | "token.created"
+  | "token.updated"
   | "token.used"
   | "token.revoked"
   | "token.auth_failed"
@@ -122,6 +125,35 @@ export interface TokenScopeDeniedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
+export interface TokenUpdatedEvent extends Omit<AuthEvent, "type"> {
+  type: "token.updated";
+  userId: string;
+  metadata: {
+    tokenId: string;
+    previousName: string;
+    newName: string;
+    ip: string;
+    userAgent: string;
+    requestId?: string | null;
+    timestamp: string;
+  };
+}
+
+export interface RefreshRotatedEvent extends Omit<AuthEvent, "type"> {
+  type: "refresh.rotated";
+  userId: string;
+  metadata: {
+    sessionId: string;
+    previousTokenId: string;
+    newTokenId: string;
+    familyId?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+    requestId?: string | null;
+    timestamp: string;
+  };
+}
+
 export interface AuthFailedRateLimitedEvent extends Omit<AuthEvent, "type"> {
   type: "auth.failed_rate_limited";
   metadata: {
@@ -154,6 +186,22 @@ export interface RefreshReuseDetectedEvent extends Omit<AuthEvent, "type"> {
     sessionId?: string | null;
     tokenId: string;
     familyId?: string | null;
+    ip?: string | null;
+    userAgent?: string | null;
+    requestId?: string | null;
+    timestamp: string;
+  };
+}
+
+export interface UserStatusChangedEvent extends Omit<AuthEvent, "type"> {
+  type: "user.status_changed";
+  userId: string;
+  email?: string;
+  metadata: {
+    previousStatus: string;
+    newStatus: string;
+    reason?: string | null;
+    changedBy?: string | null;
     ip?: string | null;
     userAgent?: string | null;
     requestId?: string | null;

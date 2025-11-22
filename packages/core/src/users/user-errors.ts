@@ -31,3 +31,10 @@ export class WeakPasswordError extends UserError {
     this.name = 'WeakPasswordError';
   }
 }
+
+export class UserNotFoundError extends UserError {
+  constructor(userId: string) {
+    super(`User not found: ${userId}`);
+    this.name = 'UserNotFoundError';
+  }
+}

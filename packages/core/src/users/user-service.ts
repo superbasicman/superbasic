@@ -11,12 +11,14 @@ import {
   DuplicateEmailError,
   InvalidEmailError,
   WeakPasswordError,
+  UserNotFoundError,
 } from './user-errors.js';
 import type {
   RegisterUserParams,
   RegisterUserResult,
   CreateUserData,
   UserProfileData,
+  UpdateUserStatusParams,
 } from './user-types.js';
 
 export class UserService {
@@ -82,6 +84,45 @@ export class UserService {
 
     // Return user response
     return this.mapToUserResponse(user);
+  }
+
+  /**
+   * Update a user's account status and emit audit event
+   */
+  async updateUserStatus(params: UpdateUserStatusParams): Promise<{ id: string; status: string }> {
+    const existing = await this.userRepo.findById(params.userId);
+
+    if (!existing) {
+      throw new UserNotFoundError(params.userId);
+    }
+
+    if (existing.status === params.status) {
+      return { id: existing.id, status: existing.status };
+    }
+
+    const updated = await this.userRepo.updateStatus(params.userId, params.status);
+
+    if (!updated) {
+      throw new UserNotFoundError(params.userId);
+    }
+
+    this.authEvents.emit({
+      type: 'user.status_changed',
+      userId: params.userId,
+      email: existing.email,
+      metadata: {
+        previousStatus: updated.previousStatus,
+        newStatus: params.status,
+        reason: params.reason ?? null,
+        changedBy: params.changedBy ?? null,
+        ip: params.ip ?? null,
+        userAgent: params.userAgent ?? null,
+        requestId: params.requestId ?? null,
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    return { id: updated.user.id, status: updated.user.status };
   }
 
   /**

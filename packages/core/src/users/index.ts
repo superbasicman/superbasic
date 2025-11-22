@@ -12,6 +12,8 @@ export type {
   RegisterUserParams,
   RegisterUserResult,
   UserProfileData,
+  UpdateUserStatusParams,
+  UserStatus,
 } from './user-types.js';
 
 export {
@@ -19,4 +21,5 @@ export {
   DuplicateEmailError,
   InvalidEmailError,
   WeakPasswordError,
+  UserNotFoundError,
 } from './user-errors.js';

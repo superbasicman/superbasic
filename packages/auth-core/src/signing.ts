@@ -1,12 +1,12 @@
 import { createPrivateKey, createPublicKey, randomUUID } from 'node:crypto';
 import { type JWK, type JWTPayload, type KeyLike, SignJWT, exportJWK } from 'jose';
-import type { AuthCoreEnvironment } from './config.js';
+import type { AuthCoreEnvironment, VerificationKeyConfig } from './config.js';
 import type { AccessTokenClaims, ClientType } from './types.js';
 
 export type SigningKey = {
   kid: string;
   alg: 'EdDSA' | 'RS256';
-  privateKey: KeyLike;
+  privateKey: KeyLike | null;
   publicKey: KeyLike;
   jwk: JWK;
 };
@@ -19,6 +19,9 @@ export class SigningKeyStore {
     private activeKid: string
   ) {
     for (const key of keys) {
+      if (this.keyMap.has(key.kid)) {
+        throw new Error(`Duplicate signing key id detected: ${key.kid}`);
+      }
       this.keyMap.set(key.kid, key);
     }
     if (!this.keyMap.size) {
@@ -30,12 +33,15 @@ export class SigningKeyStore {
     }
   }
 
-  getActiveKey(): SigningKey {
+  getActiveKey(): SigningKey & { privateKey: KeyLike } {
     const key = this.keyMap.get(this.activeKid);
     if (!key) {
       throw new Error(`Active signing key "${this.activeKid}" not found`);
     }
-    return key;
+    if (!key.privateKey) {
+      throw new Error(`Active signing key "${this.activeKid}" is missing a private key`);
+    }
+    return key as SigningKey & { privateKey: KeyLike };
   }
 
   getVerificationKey(kid?: string): SigningKey {
@@ -72,6 +78,22 @@ export async function buildSigningKey(config: AuthCoreEnvironment): Promise<Sign
     kid: config.keyId,
     alg: config.algorithm,
     privateKey,
+    publicKey,
+    jwk,
+  };
+}
+
+export async function buildVerificationKey(config: VerificationKeyConfig): Promise<SigningKey> {
+  const publicKey = createPublicKey({
+    key: config.publicKeyPem,
+    format: 'pem',
+  });
+  const jwk = await exportJWK(publicKey);
+
+  return {
+    kid: config.kid,
+    alg: config.alg,
+    privateKey: null,
     publicKey,
     jwk,
   };

@@ -194,6 +194,95 @@ describe("Audit Logger", () => {
         "API token scope denied"
       );
     });
+
+    it("should log token.updated events", async () => {
+      authEvents.emit({
+        type: "token.updated",
+        userId: "user_123",
+        metadata: {
+          tokenId: "tok_update",
+          previousName: "Old Name",
+          newName: "New Name",
+          ip: "10.0.0.1",
+          userAgent: "UA",
+          requestId: "req_token_update",
+          timestamp: "2025-01-18T11:00:00Z",
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockInfo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "token.updated",
+          userId: "user_123",
+          requestId: "req_token_update",
+          metadata: expect.objectContaining({
+            previousName: "Old Name",
+            newName: "New Name",
+          }),
+        }),
+        "API token updated"
+      );
+    });
+
+    it("should log refresh.rotated events", async () => {
+      authEvents.emit({
+        type: "refresh.rotated",
+        userId: "user_123",
+        metadata: {
+          sessionId: "sess_1",
+          previousTokenId: "tok_old",
+          newTokenId: "tok_new",
+          familyId: "fam_1",
+          ip: "10.0.0.2",
+          userAgent: "Mozilla/5.0",
+          requestId: "req_refresh_rotate",
+          timestamp: "2025-01-18T11:05:00Z",
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockInfo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "refresh.rotated",
+          userId: "user_123",
+          requestId: "req_refresh_rotate",
+        }),
+        "Refresh token rotated"
+      );
+    });
+
+    it("should log user.status_changed events", async () => {
+      authEvents.emit({
+        type: "user.status_changed",
+        userId: "user_123",
+        email: "user@example.com",
+        metadata: {
+          previousStatus: "active",
+          newStatus: "disabled",
+          reason: "manual_admin_action",
+          changedBy: "admin_1",
+          ip: "10.0.0.3",
+          userAgent: "UA",
+          requestId: "req_status_change",
+          timestamp: "2025-01-18T11:10:00Z",
+        },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      expect(mockInfo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: "user.status_changed",
+          userId: "user_123",
+          email: "user@example.com",
+          requestId: "req_status_change",
+        }),
+        "User account status changed"
+      );
+    });
   });
 
   describe("RequestId Inclusion", () => {
