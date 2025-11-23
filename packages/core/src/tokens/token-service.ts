@@ -85,6 +85,7 @@ export class TokenService {
       keyHash,
       last4,
       scopes: params.scopes,
+      workspaceId: params.workspaceId ?? null,
       expiresAt,
     });
 
@@ -274,6 +275,7 @@ export class TokenService {
       id: apiKey.id,
       name: apiKey.name,
       scopes: apiKey.scopes as string[],
+      workspaceId: apiKey.workspaceId ?? null,
       createdAt: apiKey.createdAt.toISOString(),
       lastUsedAt: apiKey.lastUsedAt?.toISOString() ?? null,
       expiresAt: apiKey.expiresAt?.toISOString() ?? null,

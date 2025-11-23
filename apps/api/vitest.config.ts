@@ -18,6 +18,8 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['src/**/*.test.ts'],
     exclude: ['node_modules', 'dist'],
+    // Integration tests talk to real Postgres/Redis and can occasionally run slow
+    testTimeout: 15000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

@@ -11,6 +11,7 @@ export interface CreateTokenParams {
   profileId: string;
   name: string;
   scopes: string[];
+  workspaceId?: string | null;
   expiresInDays: number;
   requestContext?: {
     ip?: string;
@@ -26,6 +27,7 @@ export interface CreateTokenData {
   keyHash: TokenHashEnvelope;
   last4: string;
   scopes: string[];
+  workspaceId?: string | null;
   expiresAt: Date;
 }
 
@@ -38,6 +40,7 @@ export interface TokenResponse {
   id: string;
   name: string;
   scopes: string[];
+  workspaceId: string | null;
   createdAt: string;
   lastUsedAt: string | null;
   expiresAt: string | null;

@@ -42,6 +42,7 @@ export const TokenResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   scopes: z.array(z.string()),
+  workspaceId: z.string().nullable(),
   createdAt: z.string(), // ISO 8601 timestamp
   lastUsedAt: z.string().nullable(), // ISO 8601 timestamp or null
   expiresAt: z.string().nullable(), // ISO 8601 timestamp or null

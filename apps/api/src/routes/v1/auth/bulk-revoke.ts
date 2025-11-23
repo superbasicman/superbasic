@@ -1,0 +1,102 @@
+import type { Context } from 'hono';
+import { prisma } from '@repo/database';
+import type { AppBindings } from '../../../types/context.js';
+import { revokeSessionForUser } from '../../../lib/session-revocation.js';
+import { tokenService } from '../../../services/index.js';
+import { clearRefreshTokenCookie } from './refresh-cookie.js';
+
+export async function bulkRevokeSessions(c: Context<AppBindings>) {
+  const auth = c.get('auth');
+
+  if (!auth) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const { userId } = auth;
+  const ipAddress = extractIp(c) ?? null;
+  const userAgent = c.req.header('user-agent') ?? null;
+  const requestId = c.get('requestId') ?? null;
+
+  const sessions = await prisma.session.findMany({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+    select: { id: true },
+  });
+
+  await Promise.all(
+    sessions.map((session) =>
+      revokeSessionForUser({
+        sessionId: session.id,
+        userId,
+        revokedBy: userId,
+        reason: 'user_bulk_logout',
+        ipAddress,
+        userAgent,
+        requestId,
+      })
+    )
+  );
+
+  clearRefreshTokenCookie(c);
+  return c.body(null, 204);
+}
+
+export async function bulkRevokeTokens(c: Context<AppBindings>) {
+  const auth = c.get('auth');
+
+  if (!auth) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const requestId = c.get('requestId');
+  const ip = extractIp(c);
+  const userAgent = c.req.header('user-agent') ?? undefined;
+
+  const requestContext: {
+    ip?: string;
+    userAgent?: string;
+    requestId?: string;
+  } = {};
+
+  if (ip) {
+    requestContext.ip = ip;
+  }
+  if (userAgent) {
+    requestContext.userAgent = userAgent;
+  }
+  if (requestId) {
+    requestContext.requestId = requestId;
+  }
+
+  const tokens = await prisma.apiKey.findMany({
+    where: {
+      userId: auth.userId,
+      revokedAt: null,
+    },
+    select: { id: true },
+  });
+
+  for (const token of tokens) {
+    await tokenService.revokeToken({
+      id: token.id,
+      userId: auth.userId,
+      requestContext,
+    });
+  }
+
+  return c.body(null, 204);
+}
+
+function extractIp(c: Context<AppBindings>): string | undefined {
+  const forwarded = c.req.header('x-forwarded-for');
+  if (forwarded) {
+    const [first] = forwarded.split(',');
+    if (first?.trim()) {
+      return first.trim();
+    }
+  }
+  const realIp = c.req.header('x-real-ip');
+  return realIp ?? undefined;
+}

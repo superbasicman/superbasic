@@ -22,6 +22,8 @@ export default function ApiKeys() {
   
   // Edit name dialog state
   const [tokenToEdit, setTokenToEdit] = useState<TokenResponse | null>(null);
+  const [scopeFilter, setScopeFilter] = useState('');
+  const [workspaceFilter, setWorkspaceFilter] = useState<'all' | 'bound' | 'unbound'>('all');
 
   useEffect(() => {
     loadTokens();
@@ -141,6 +143,19 @@ export default function ApiKeys() {
     );
   }
 
+  const filteredTokens = tokens.filter((token) => {
+    const scopeMatch = scopeFilter
+      ? token.scopes.some((s) => s.toLowerCase().includes(scopeFilter.toLowerCase()))
+      : true;
+    const workspaceMatch =
+      workspaceFilter === 'all'
+        ? true
+        : workspaceFilter === 'bound'
+          ? Boolean(token.workspaceId)
+          : !token.workspaceId;
+    return scopeMatch && workspaceMatch;
+  });
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -163,18 +178,36 @@ export default function ApiKeys() {
           </div>
         )}
 
-        {/* Create button */}
-        <div className="mb-6">
+        {/* Create + filters */}
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <Button
             variant="primary"
             onClick={() => setShowCreateModal(true)}
           >
             Create API Key
           </Button>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <input
+              type="text"
+              value={scopeFilter}
+              onChange={(e) => setScopeFilter(e.target.value)}
+              placeholder="Filter by scope (e.g. read:transactions)"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 md:w-64"
+            />
+            <select
+              value={workspaceFilter}
+              onChange={(e) => setWorkspaceFilter(e.target.value as typeof workspaceFilter)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 md:w-48"
+            >
+              <option value="all">All tokens</option>
+              <option value="bound">Workspace-bound</option>
+              <option value="unbound">Not bound</option>
+            </select>
+          </div>
         </div>
 
         {/* Token list */}
-        {tokens.length === 0 ? (
+        {filteredTokens.length === 0 ? (
           <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
             <svg
               className="mx-auto h-12 w-12 text-gray-400"
@@ -217,6 +250,9 @@ export default function ApiKeys() {
                     Scopes
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                    Workspace
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                     Created
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
@@ -231,7 +267,7 @@ export default function ApiKeys() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
-                {tokens.map((token) => {
+                {filteredTokens.map((token) => {
                   const usageIndicator = getUsageIndicator(token.lastUsedAt);
                   return (
                     <tr key={token.id}>
@@ -252,6 +288,17 @@ export default function ApiKeys() {
                             </span>
                           ))}
                         </div>
+                      </td>
+                      <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+                        {token.workspaceId ? (
+                          <span className="rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800">
+                            Workspace {token.workspaceId.slice(0, 8)}…
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                            Not bound
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
                         {formatDate(token.createdAt)}

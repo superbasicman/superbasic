@@ -50,6 +50,26 @@ describe('GET /v1/auth/session', () => {
     const response = await makeRequest(app, 'GET', '/v1/auth/session');
     expect(response.status).toBe(401);
   });
+
+  it('revokes all sessions for the user', async () => {
+    const { user } = await createTestUser();
+    const { token: accessToken, session } = await createAccessToken(user.id);
+    const otherSession = await createSessionRecord(user.id);
+
+    const response = await makeRequest(app, 'POST', '/v1/auth/sessions/revoke-all', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    expect(response.status).toBe(204);
+
+    const sessions = await prisma().session.findMany({
+      where: { userId: user.id },
+    });
+    const revokedIds = sessions.filter((s) => s.revokedAt !== null).map((s) => s.id);
+    expect(revokedIds).toEqual(expect.arrayContaining([session.id, otherSession.id]));
+  });
 });
 
 describe('GET /v1/auth/sessions', () => {

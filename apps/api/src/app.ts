@@ -15,6 +15,7 @@ import { authTokenValidator, exchangeAuthTokens } from './routes/v1/auth/token.j
 import { refreshTokenValidator, refreshTokens } from './routes/v1/auth/refresh.js';
 import { logout } from './routes/v1/auth/logout.js';
 import { deleteSession, listSessions } from './routes/v1/auth/sessions.js';
+import { bulkRevokeSessions, bulkRevokeTokens } from './routes/v1/auth/bulk-revoke.js';
 import { oauthRoutes } from './routes/v1/oauth/index.js';
 
 const app = new Hono<AppBindings>();
@@ -39,6 +40,8 @@ const authRoutes = new Hono<AppBindings>();
 authRoutes.get('/session', getCurrentSession);
 authRoutes.get('/sessions', listSessions);
 authRoutes.delete('/sessions/:id', deleteSession);
+authRoutes.post('/sessions/revoke-all', bulkRevokeSessions);
+authRoutes.post('/tokens/revoke-all', bulkRevokeTokens);
 authRoutes.get('/jwks.json', getJwks);
 authRoutes.use('/token', authRateLimitMiddleware);
 authRoutes.use('/refresh', authRateLimitMiddleware);

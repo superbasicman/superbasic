@@ -15,6 +15,7 @@ export interface CreateTokenData {
   keyHash: TokenHashEnvelope;
   last4: string;
   scopes: string[];
+  workspaceId?: string | null;
   expiresAt?: Date | null;
 }
 
@@ -52,6 +53,7 @@ export class TokenRepository {
         keyHash: data.keyHash,
         last4: data.last4,
         scopes: data.scopes,
+        workspaceId: data.workspaceId ?? null,
         expiresAt: data.expiresAt ?? null,
       },
     });
