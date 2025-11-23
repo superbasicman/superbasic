@@ -237,6 +237,7 @@ export async function patMiddleware(c: Context, next: Next) {
         userId: apiKey.userId,
         profileId: apiKey.profileId,
         workspaceId: apiKey.workspaceId ?? null,
+        mfaLevel: "none",
       });
     } catch (contextError) {
       console.error("[patMiddleware] Failed to set Postgres context", contextError);

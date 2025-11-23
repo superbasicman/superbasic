@@ -154,6 +154,8 @@ export async function refreshTokens(c: Context<AppBindings>) {
     userId: tokenRecord.userId,
     sessionId: session.id,
     clientType: session.clientType,
+    mfaLevel: session.mfaLevel,
+    reauthenticatedAt: Math.floor(now.getTime() / 1000),
   });
 
   setRefreshTokenCookie(c, rotated.refreshToken, rotated.token.expiresAt);

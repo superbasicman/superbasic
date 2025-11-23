@@ -6,11 +6,13 @@ export type PostgresAppContext = {
   userId: string | null;
   profileId: string | null;
   workspaceId: string | null;
+  mfaLevel: 'none' | 'mfa' | 'phishing_resistant' | null;
 };
 
 const UUID_REGEX = /^[0-9a-f-]{36}$/i;
+const MFA_LEVELS = new Set(['none', 'mfa', 'phishing_resistant']);
 
-function buildSetStatement(guc: string, value: string | null): string | null {
+function buildUuidSetStatement(guc: string, value: string | null): string | null {
   if (!value) {
     return `RESET ${guc};`;
   }
@@ -27,12 +29,25 @@ export async function setPostgresContext(
   context: PostgresAppContext
 ): Promise<void> {
   const statements = [
-    buildSetStatement('app.user_id', context.userId),
-    buildSetStatement('app.profile_id', context.profileId),
-    buildSetStatement('app.workspace_id', context.workspaceId),
+    buildUuidSetStatement('app.user_id', context.userId),
+    buildUuidSetStatement('app.profile_id', context.profileId),
+    buildUuidSetStatement('app.workspace_id', context.workspaceId),
+    buildMfaLevelStatement('app.mfa_level', context.mfaLevel),
   ].filter((statement): statement is string => Boolean(statement));
 
   for (const statement of statements) {
     await client.$executeRawUnsafe(statement);
   }
+}
+
+function buildMfaLevelStatement(guc: string, value: PostgresAppContext['mfaLevel']): string | null {
+  if (!value) {
+    return `RESET ${guc};`;
+  }
+
+  if (!MFA_LEVELS.has(value)) {
+    throw new Error(`Invalid MFA level provided for ${guc}`);
+  }
+
+  return `SET ${guc} = '${value}';`;
 }

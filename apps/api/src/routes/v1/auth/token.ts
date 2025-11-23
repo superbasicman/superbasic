@@ -80,6 +80,8 @@ export async function exchangeAuthTokens(c: Context<AppBindings>) {
       userId: sessionHandle.userId,
       sessionId: sessionHandle.sessionId,
       clientType: sessionHandle.clientType,
+      mfaLevel: sessionHandle.mfaLevel,
+      reauthenticatedAt: Math.floor(Date.now() / 1000),
     });
 
     const refreshResult = await refreshTokenService.issueRefreshToken({

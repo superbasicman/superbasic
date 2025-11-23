@@ -28,6 +28,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
         userId: null,
         profileId: null,
         workspaceId: null,
+        mfaLevel: null,
       });
     } catch (contextError) {
       console.error('[auth-context] Failed to reset Postgres context for PAT request', contextError);
@@ -88,6 +89,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
           userId: authContext.userId,
           profileId: authContext.profileId,
           workspaceId: authContext.activeWorkspaceId,
+          mfaLevel: authContext.mfaLevel,
         });
       } catch (contextError) {
         console.error('[auth-context] Failed to set Postgres context', contextError);
@@ -98,6 +100,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
           userId: null,
           profileId: null,
           workspaceId: null,
+          mfaLevel: null,
         });
       } catch (contextError) {
         console.error('[auth-context] Failed to reset Postgres context for unauthenticated request', contextError);
@@ -112,6 +115,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
         userId: null,
         profileId: null,
         workspaceId: null,
+        mfaLevel: null,
       });
     } catch (contextError) {
       console.error('[auth-context] Failed to reset Postgres context after auth error', contextError);

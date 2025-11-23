@@ -1,7 +1,7 @@
 import { createPrivateKey, createPublicKey, randomUUID } from 'node:crypto';
 import { type JWK, type JWTPayload, type KeyLike, SignJWT, exportJWK } from 'jose';
 import type { AuthCoreEnvironment, VerificationKeyConfig } from './config.js';
-import type { AccessTokenClaims, ClientType } from './types.js';
+import type { AccessTokenClaims, ClientType, MfaLevel } from './types.js';
 
 export type SigningKey = {
   kid: string;
@@ -105,6 +105,8 @@ export type SignAccessTokenParams = {
   workspaceId?: string | null;
   actorSub?: string | null;
   clientType?: ClientType;
+  mfaLevel?: MfaLevel;
+  reauthenticatedAt?: number;
   expiresInSeconds?: number;
   jti?: string;
 };
@@ -128,6 +130,8 @@ export async function signAccessToken(
     token_use: 'access',
     jti,
     client_type: params.clientType ?? 'web',
+    mfa_level: params.mfaLevel ?? 'none',
+    reauth_at: params.reauthenticatedAt ?? issuedAt,
   };
 
   const token = await new SignJWT(payload)

@@ -148,6 +148,12 @@ export class AuthCoreService implements AuthService {
       typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null;
     const workspaceHint =
       typeof payload.wid === 'string' && payload.wid.length > 0 ? payload.wid : null;
+    const recentlyAuthenticatedAt =
+      typeof payload.reauth_at === 'number' && payload.reauth_at > 0
+        ? new Date(payload.reauth_at * 1000)
+        : payload.iat
+          ? new Date(payload.iat * 1000)
+          : null;
 
     return this.buildAuthContext({
       userId: payload.sub,
@@ -157,6 +163,7 @@ export class AuthCoreService implements AuthService {
       workspacePathParam: input.workspacePathParam ?? null,
       ...(input.requestId ? { requestId: input.requestId } : {}),
       ...(payload.client_type ? { clientTypeClaim: payload.client_type } : {}),
+      recentlyAuthenticatedAt,
     });
   }
 
@@ -231,6 +238,7 @@ export class AuthCoreService implements AuthService {
       createdAt: created.createdAt,
       expiresAt: created.expiresAt,
       absoluteExpiresAt: created.absoluteExpiresAt,
+      mfaLevel: created.mfaLevel,
     };
   }
 
@@ -276,6 +284,7 @@ export class AuthCoreService implements AuthService {
     workspacePathParam?: string | null;
     requestId?: string;
     clientTypeClaim?: string | ClientType;
+    recentlyAuthenticatedAt?: Date | null;
   }): Promise<AuthContext> {
     const user = await this.prisma.user.findUnique({
       where: { id: options.userId },
@@ -333,6 +342,7 @@ export class AuthCoreService implements AuthService {
     }
 
     const clientType = normalizeClientType(session?.clientType ?? options.clientTypeClaim);
+    const mfaLevel = session?.mfaLevel ?? 'none';
 
     const workspaceResolution = await this.resolveWorkspaceContext({
       profileId,
@@ -345,6 +355,7 @@ export class AuthCoreService implements AuthService {
       userId: user.id,
       profileId,
       workspaceId: workspaceResolution.workspaceId,
+      mfaLevel,
     });
 
     const authContext: AuthContext = {
@@ -355,7 +366,8 @@ export class AuthCoreService implements AuthService {
       scopes: workspaceResolution.scopes,
       roles: workspaceResolution.roles,
       profileId,
-      mfaLevel: session?.mfaLevel ?? 'none',
+      mfaLevel,
+      recentlyAuthenticatedAt: options.recentlyAuthenticatedAt ?? null,
     };
 
     if (options.requestId) {

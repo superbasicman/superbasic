@@ -56,7 +56,8 @@ export type AuthContext = {
   roles: WorkspaceRole[];
   profileId: string | null;
   requestId?: string;
-  mfaLevel?: MfaLevel;
+  mfaLevel: MfaLevel;
+  recentlyAuthenticatedAt?: Date | null;
 };
 
 export type VerifyRequestInput = {
@@ -80,6 +81,7 @@ export type SessionHandle = {
   createdAt: Date;
   expiresAt: Date;
   absoluteExpiresAt?: Date | null;
+  mfaLevel: MfaLevel;
 };
 
 export type CreateSessionInput = {
@@ -171,4 +173,6 @@ export type AccessTokenClaims = {
   iat: number;
   exp: number;
   client_type?: ClientType;
+  mfa_level?: MfaLevel;
+  reauth_at?: number;
 };

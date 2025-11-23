@@ -1,18 +1,21 @@
-s# Phase 9 – Advanced MFA, Step-Up Auth, Enterprise SSO
+# Phase 9 – Advanced MFA, Step-Up Auth, Enterprise SSO
 
 Context to review:
 - `docs/auth-migration/auth-migrate-phases.md` (Phase 9 section)
+- `docs/auth-migration/end-auth-goal.md`
+- `agent/agents.md`
 - IdP capabilities for MFA (TOTP, WebAuthn/passkeys, SMS/email) and SSO (SAML/OIDC) in current stack
 - Existing auth/session services for `AuthContext.mfaLevel` + recent-auth checks
 
-- [ ] 1. MFA foundations (in progress)
+- [x] 1. MFA foundations (in progress)
   - Add IdP-backed MFA options (TOTP and WebAuthn/passkeys; SMS/email if required) and enrollment/recovery UX.
   - Persist `session.mfaLevel` and `AuthContext.mfaLevel`, propagate through middleware, tokens, and RLS checks.
   - Sanity check: MFA enrollment flows are auditable; recovery codes/backup methods are issued and can be rotated/revoked.
   - Note: MFA is enforced at the IdP; auth-core records assurance level and must not rely on client-asserted claims.
+  - Note: When persisting `AuthContext.mfaLevel`, also set `app.mfa_level` (and related GUCs) per request/session so RLS can enforce assurance levels.
   - Deliverables: enrollment/verification flows for TOTP + WebAuthn, backup codes (hashed, shown once, regenerate/revoke), per-factor revoke/reset, audit events for enroll/verify/challenge/recovery (success/failure), and session/token stamping of `mfaLevel` on issuance/refresh.
 
-- [ ] 2. Step-up / re-auth flows
+- [x] 2. Step-up / re-auth flows
   - Implement step-up for sensitive actions (e.g., bank linking, credential changes, member management) with short-lived higher-assurance tokens or recent-auth flags.
   - Add service-level guards that enforce `mfaLevel` and `recentlyAuthenticatedAt` thresholds; expose UI prompts to trigger step-up.
   - Sanity check: protected actions fail without recent strong auth; success updates audit logs with action + assurance level.

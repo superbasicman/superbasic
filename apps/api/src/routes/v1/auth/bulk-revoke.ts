@@ -4,12 +4,19 @@ import type { AppBindings } from '../../../types/context.js';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import { tokenService } from '../../../services/index.js';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
+import { requireRecentAuth } from '@repo/auth-core';
 
 export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const auth = c.get('auth');
 
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  try {
+    requireRecentAuth(auth, { withinSeconds: 15 * 60 });
+  } catch (error) {
+    return c.json({ error: 'forbidden', message: 'Recent authentication required' }, 403);
   }
 
   const { userId } = auth;
@@ -48,6 +55,12 @@ export async function bulkRevokeTokens(c: Context<AppBindings>) {
 
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  try {
+    requireRecentAuth(auth, { withinSeconds: 15 * 60 });
+  } catch (error) {
+    return c.json({ error: 'forbidden', message: 'Recent authentication required' }, 403);
   }
 
   const requestId = c.get('requestId');

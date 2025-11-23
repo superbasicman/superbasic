@@ -3,6 +3,7 @@ import { prisma } from '@repo/database';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import type { AppBindings } from '../../../types/context.js';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
+import { requireRecentAuth } from '@repo/auth-core';
 
 export async function listSessions(c: Context<AppBindings>) {
   const auth = c.get('auth');
@@ -50,6 +51,12 @@ export async function deleteSession(c: Context<AppBindings>) {
 
   if (!auth) {
     return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  try {
+    requireRecentAuth(auth, { withinSeconds: 15 * 60 });
+  } catch (error) {
+    return c.json({ error: 'forbidden', message: 'Recent authentication required' }, 403);
   }
 
   const sessionId = c.req.param('id');

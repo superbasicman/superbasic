@@ -96,11 +96,13 @@ describe('AuthCoreService.verifyRequest', () => {
       scopes: ['read:profile', 'write:profile'],
       roles: [],
       requestId: 'req-1',
+      mfaLevel: 'none',
     });
     expect(setContextMock).toHaveBeenCalledWith(prismaStub, {
       userId: 'user-123',
       profileId: 'profile-123',
       workspaceId: null,
+      mfaLevel: 'none',
     });
   });
 
