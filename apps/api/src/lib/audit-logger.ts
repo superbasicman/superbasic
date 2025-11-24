@@ -55,6 +55,34 @@ async function handleAuthEvent(event: AuthEvent) {
       logger.info(logEntry, 'User logged out');
       break;
 
+    case 'user.mfa_enrolled':
+      logger.info(logEntry, 'MFA enrollment event');
+      break;
+
+    case 'user.mfa_challenged':
+      logger.info(logEntry, 'MFA challenge succeeded');
+      break;
+
+    case 'user.mfa_challenge_failed':
+      logger.warn(logEntry, 'MFA challenge failed');
+      break;
+
+    case 'user.step_up':
+      logger.info(logEntry, 'Step-up requirement satisfied');
+      break;
+
+    case 'user.step_up_failed':
+      logger.warn(logEntry, 'Step-up requirement failed');
+      break;
+
+    case 'user.sso.login':
+      logger.info(logEntry, 'SSO login');
+      break;
+
+    case 'user.sso.logout':
+      logger.info(logEntry, 'SSO logout/back-channel');
+      break;
+
     case 'session.revoked':
       logger.info(logEntry, 'Session revoked');
       break;

@@ -9,6 +9,13 @@ export type AuthEventType =
   | "user.login.failed"
   | "user.status_changed"
   | "user.logout"
+  | "user.mfa_enrolled"
+  | "user.mfa_challenged"
+  | "user.mfa_challenge_failed"
+  | "user.step_up"
+  | "user.step_up_failed"
+  | "user.sso.login"
+  | "user.sso.logout"
   | "session.revoked"
   | "refresh.reuse_detected"
   | "refresh.rotated"
@@ -30,6 +37,43 @@ export interface AuthEvent {
   ip?: string;
   timestamp: Date;
   metadata?: Record<string, unknown>;
+}
+
+export interface MfaEvent extends Omit<AuthEvent, "type"> {
+  type: "user.mfa_enrolled" | "user.mfa_challenged" | "user.mfa_challenge_failed";
+  metadata: {
+    mfaLevel?: "mfa" | "phishing_resistant";
+    factorType?: "totp" | "webauthn" | "sms" | "email";
+    success?: boolean;
+    sessionId?: string | null;
+    requestId?: string | null;
+    timestamp: string;
+  };
+}
+
+export interface StepUpEvent extends Omit<AuthEvent, "type"> {
+  type: "user.step_up" | "user.step_up_failed";
+  metadata: {
+    action: string;
+    minMfaLevel?: "none" | "mfa" | "phishing_resistant";
+    satisfied: boolean;
+    sessionId?: string | null;
+    requestId?: string | null;
+    timestamp: string;
+  };
+}
+
+export interface SsoEvent extends Omit<AuthEvent, "type"> {
+  type: "user.sso.login" | "user.sso.logout";
+  metadata: {
+    provider: string;
+    providerUserId?: string;
+    workspaceId?: string | null;
+    mode?: "invite_only" | "auto_provision" | null;
+    sessionId?: string | null;
+    requestId?: string | null;
+    timestamp: string;
+  };
 }
 
 /**

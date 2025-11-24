@@ -36,9 +36,9 @@ describe('requireRecentAuth', () => {
 
   it('throws AuthorizationError when MFA level is too low', () => {
     const auth = buildAuthContext({ mfaLevel: 'none' });
-    expect(() =>
-      requireRecentAuth(auth, { minMfaLevel: 'mfa', withinSeconds: 600 })
-    ).toThrow(AuthorizationError);
+    expect(() => requireRecentAuth(auth, { minMfaLevel: 'mfa', withinSeconds: 600 })).toThrow(
+      AuthorizationError
+    );
   });
 
   it('throws AuthorizationError when outside the recent window', () => {

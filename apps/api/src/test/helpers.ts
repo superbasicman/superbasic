@@ -247,31 +247,26 @@ export async function createTestUser(
   const hashedPassword = await hashPassword(credentials.password);
   const normalizedEmail = credentials.email.toLowerCase();
 
-  // Create user and profile in a transaction (matching register endpoint behavior)
-  const result = await prisma.$transaction(async (tx: any) => {
-    const newUser = await tx.user.create({
-      data: {
-        email: credentials.email,
-        emailLower: normalizedEmail,
-        password: hashedPassword,
-        name: credentials.name || null,
-      },
-    });
+  // Create user and profile sequentially (avoid long-running interactive transactions in tests)
+  const newUser = await prisma.user.create({
+    data: {
+      email: credentials.email,
+      emailLower: normalizedEmail,
+      password: hashedPassword,
+      name: credentials.name || null,
+    },
+  });
 
-    // Create profile with default settings
-    const newProfile = await tx.profile.create({
-      data: {
-        userId: newUser.id,
-        timezone: 'UTC',
-        currency: 'USD',
-      },
-    });
-
-    return { user: newUser, profile: newProfile };
+  const newProfile = await prisma.profile.create({
+    data: {
+      userId: newUser.id,
+      timezone: 'UTC',
+      currency: 'USD',
+    },
   });
 
   return {
-    user: { ...result.user, profile: result.profile },
+    user: { ...newUser, profile: newProfile },
     credentials, // Return plaintext password for testing login
   };
 }

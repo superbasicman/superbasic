@@ -17,6 +17,7 @@ import { logout } from './routes/v1/auth/logout.js';
 import { deleteSession, listSessions } from './routes/v1/auth/sessions.js';
 import { bulkRevokeSessions, bulkRevokeTokens } from './routes/v1/auth/bulk-revoke.js';
 import { oauthRoutes } from './routes/v1/oauth/index.js';
+import { handleSsoLogout, ssoLogoutValidator } from './routes/v1/auth/sso-logout.js';
 
 const app = new Hono<AppBindings>();
 
@@ -46,9 +47,11 @@ authRoutes.get('/jwks.json', getJwks);
 authRoutes.use('/token', authRateLimitMiddleware);
 authRoutes.use('/refresh', authRateLimitMiddleware);
 authRoutes.use('/logout', authRateLimitMiddleware);
+authRoutes.use('/sso/logout', authRateLimitMiddleware);
 authRoutes.post('/token', authTokenValidator, exchangeAuthTokens);
 authRoutes.post('/refresh', refreshTokenValidator, refreshTokens);
 authRoutes.post('/logout', logout);
+authRoutes.post('/sso/logout', ssoLogoutValidator, handleSsoLogout);
 // Mount Auth.js handler (handles remaining /v1/auth/*)
 authRoutes.route('/', authApp);
 

@@ -643,9 +643,18 @@ Add higher-assurance features on top of the stable core.
 - Enterprise SSO / SAML / OIDC:
   - Additional `IdentityProvider` implementations:
     - `provider = 'saml:<id>'`, `provider = 'auth0:<connection>'`, etc.
-  - Back-channel logout handling:
-    - Translate IdP logout messages into:
-      - Session and token revocation for affected users.
+- Back-channel logout handling:
+  - Translate IdP logout messages into:
+    - Session and token revocation for affected users.
+  - Workspace binding + domain rules:
+    - Workspace-level bindings for SAML/OIDC connections with optional email-domain allowlists and default workspace roles (invite-only vs auto-provision).
+    - Helpers now exist in `auth-core` to normalize SSO providers, resolve workspace targets, and compute logout revocation plans from back-channel events.
+  - Login/linking rules:
+    - `resolveSsoLoginUser` helper links by provider or verified email (when allowed) and falls back to account creation.
+  - API endpoint:
+    - `/v1/auth/sso/logout` accepts provider/user hints, plans revocation with `planBackChannelLogout`, and revokes matching sessions.
+  - Audit/logging:
+    - Auth event types now include MFA enrollment/challenge, step-up success/failure, and SSO login/logout. Audit logger captures actor, assurance source, requestId, and reason.
 
 **Out of scope**
 

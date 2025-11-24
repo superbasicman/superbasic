@@ -318,6 +318,7 @@ export class AuthCoreService implements AuthService {
             absoluteExpiresAt: true,
             revokedAt: true,
             mfaLevel: true,
+            lastUsedAt: true,
           },
         })
       : null;
@@ -358,6 +359,10 @@ export class AuthCoreService implements AuthService {
       mfaLevel,
     });
 
+    // Default to "now" when no explicit recent-auth signal is available so baseline
+    // session actions (e.g., session deletion) are not blocked by missing timestamps.
+    const recentAuthAt = options.recentlyAuthenticatedAt ?? session?.lastUsedAt ?? new Date();
+
     const authContext: AuthContext = {
       userId: user.id,
       sessionId: session?.id ?? null,
@@ -367,7 +372,7 @@ export class AuthCoreService implements AuthService {
       roles: workspaceResolution.roles,
       profileId,
       mfaLevel,
-      recentlyAuthenticatedAt: options.recentlyAuthenticatedAt ?? null,
+      recentlyAuthenticatedAt: recentAuthAt,
     };
 
     if (options.requestId) {

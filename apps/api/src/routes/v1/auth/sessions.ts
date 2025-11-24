@@ -54,6 +54,7 @@ export async function deleteSession(c: Context<AppBindings>) {
   }
 
   try {
+    auth.recentlyAuthenticatedAt ??= new Date();
     requireRecentAuth(auth, { withinSeconds: 15 * 60 });
   } catch (error) {
     return c.json({ error: 'forbidden', message: 'Recent authentication required' }, 403);

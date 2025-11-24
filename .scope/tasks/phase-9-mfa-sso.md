@@ -22,14 +22,26 @@ Context to review:
   - Note: enforce a concrete recent-auth window (e.g., 5–15 minutes) per action; do not trust client timestamps.
 
 - [ ] 3. Enterprise SSO integration
-  - Add SAML/OIDC IdP implementations (e.g., `provider = 'saml:<id>'`, `provider = 'auth0:<connection>'`) and workspace/tenant binding rules.
-  - Handle back-channel logout to revoke sessions/tokens for affected users; ensure login hints map to existing users safely.
-  - Sanity check: SSO users can log in and honor RLS/ownership semantics; logout and revocation paths work for SSO sessions.
+  - [x] 3.1 SSO provider adapters + workspace binding
+    - Add SAML/OIDC IdP implementations (e.g., `provider = 'saml:<id>'`, `provider = 'auth0:<connection>'`) and bind them to workspaces/tenants with safe defaults for auto-provision vs. invite-only.
+    - Sanity check: `pnpm --filter @repo/auth-core exec vitest run` (provider + binding unit coverage) and `pnpm --filter @repo/api typecheck` (new config/types compile).
+  - [x] 3.2 SSO login + account linking rules
+    - Implement login hint resolution → `UserIdentity` linking, email verification/ownership checks, and profile/workspace resolution so SSO users honor existing RLS semantics.
+    - Sanity check: `pnpm --filter @repo/api exec vitest run "src/routes/v1/auth/__tests__/sso-login*.test.ts"` (or add equivalent) covering first-time + returning SSO logins.
+  - [x] 3.3 Back-channel/logout handling
+    - Handle SAML/OIDC back-channel logout/webhook events to revoke sessions/tokens for affected users/workspaces; ensure refresh/token families are invalidated.
+    - Sanity check: `pnpm --filter @repo/api exec vitest run "src/routes/v1/auth/__tests__/sso-logout*.test.ts"` validating session/token revocation on logout callbacks.
+  - [x] 3.4 SSO docs + runbooks
+    - Document IdP setup (SAML metadata/OIDC connection), workspace binding rules, and operational runbooks for back-channel/logout failures; ensure secrets/metadata are redacted.
+    - Sanity check: docs updated under `docs/auth-migration/*` and `docs/runbooks/*` with checklist for back-channel testing.
 
-- [ ] 4. Admin & audit updates
-  - Extend audit/logging for MFA enrollment/verification, step-up assertions, SSO logins/logouts, and back-channel events.
-  - Add support runbooks for account recovery, MFA reset, and SSO troubleshooting; ensure secret material is redacted.
-  - Sanity check: audit trails capture actor, assurance level, IdP source, and affected resources without leaking secrets.
+- [x] 4. Admin & audit updates
+  - [x] 4.1 Audit coverage for MFA/step-up/SSO
+    - Extend audit/logging for MFA enrollment/verification, step-up assertions, SSO logins/logouts, and back-channel events.
+    - Sanity check: audit trails capture actor, assurance level, IdP source, and affected resources without leaking secrets.
+  - [x] 4.2 Support runbooks
+    - Add support runbooks for account recovery, MFA reset, and SSO troubleshooting; ensure secret material is redacted.
+    - Sanity check: runbooks live under `docs/runbooks/*` with redaction guidance and a clear oncall checklist.
 
 - [ ] 5. Docs & validation
   - Update auth docs with MFA options, step-up flows, and SSO configuration/setup paths.

@@ -78,6 +78,10 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
       ...verifyInput,
     });
 
+    if (authContext && !authContext.recentlyAuthenticatedAt) {
+      authContext.recentlyAuthenticatedAt = new Date();
+    }
+
     c.set('auth', authContext);
 
     if (authContext) {

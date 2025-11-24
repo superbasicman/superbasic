@@ -47,6 +47,16 @@ export type VerifiedIdentity = {
   metadata?: Record<string, unknown>;
 };
 
+export type WorkspaceSsoBindingMode = 'invite_only' | 'auto_provision';
+
+export type WorkspaceSsoBinding = {
+  provider: string; // e.g. saml:okta-main, auth0:enterprise-connection
+  workspaceId: string;
+  mode: WorkspaceSsoBindingMode;
+  defaultRole?: WorkspaceRole | null;
+  allowedEmailDomains?: string[];
+};
+
 export type AuthContext = {
   userId: string;
   sessionId: string | null;
@@ -175,4 +185,27 @@ export type AccessTokenClaims = {
   client_type?: ClientType;
   mfa_level?: MfaLevel;
   reauth_at?: number;
+};
+
+export type SessionSummary = {
+  id: string;
+  userId: string;
+  revokedAt?: Date | null;
+};
+
+export type SsoLogoutEvent = {
+  provider: string;
+  providerUserId: string;
+  sessionIds?: string[];
+};
+
+export type SsoLogoutPlan = {
+  userIds: string[];
+  sessionIds: string[];
+};
+
+export type SsoLoginResolution = {
+  userId: string | null;
+  action: 'link' | 'create';
+  reason?: string;
 };
