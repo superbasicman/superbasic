@@ -25,17 +25,17 @@ export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const userAgent = c.req.header('user-agent') ?? null;
   const requestId = c.get('requestId') ?? null;
 
-  const sessions = await prisma.session.findMany({
-    where: {
-      userId,
-      revokedAt: null,
-    },
-    select: { id: true },
-  });
+  await prisma.$transaction(async (tx) => {
+    const sessions = await tx.session.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
 
-  await Promise.all(
-    sessions.map((session) =>
-      revokeSessionForUser({
+    for (const session of sessions) {
+      await revokeSessionForUser({
         sessionId: session.id,
         userId,
         revokedBy: userId,
@@ -43,9 +43,10 @@ export async function bulkRevokeSessions(c: Context<AppBindings>) {
         ipAddress,
         userAgent,
         requestId,
-      })
-    )
-  );
+        client: tx,
+      });
+    }
+  });
 
   clearRefreshTokenCookie(c);
   return c.body(null, 204);

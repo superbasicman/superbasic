@@ -18,10 +18,13 @@ type ValidatedRequest = {
 
 export const ssoLogoutValidator = zValidator('json', SsoLogoutSchema, (result, c) => {
   if (!result.success) {
+    const issues =
+      'error' in result && result.error ? result.error.issues : [{ message: 'Invalid payload' }];
     return c.json(
       {
         error: 'invalid_request',
-        issues: result.error.issues,
+        message: 'Request payload is invalid',
+        issues,
       },
       400
     );

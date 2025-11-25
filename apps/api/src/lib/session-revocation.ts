@@ -1,5 +1,6 @@
 import { authEvents } from '@repo/auth';
 import { prisma } from '@repo/database';
+import type { Prisma, PrismaClient, PrismaClientOrTransaction } from '@repo/database';
 
 type RevokeSessionOptions = {
   sessionId: string;
@@ -9,6 +10,7 @@ type RevokeSessionOptions = {
   requestId?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
+  client?: PrismaClientOrTransaction;
 };
 
 type RevokedSessionInfo = {
@@ -25,8 +27,14 @@ export type RevokeSessionResult =
       session: RevokedSessionInfo;
     };
 
+function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClient {
+  return typeof (client as PrismaClient).$transaction === 'function';
+}
+
 export async function revokeSessionForUser(options: RevokeSessionOptions): Promise<RevokeSessionResult> {
-  const session = await prisma.session.findFirst({
+  const client = options.client ?? prisma;
+
+  const session = await client.session.findFirst({
     where: {
       id: options.sessionId,
       userId: options.userId,
@@ -49,7 +57,17 @@ export async function revokeSessionForUser(options: RevokeSessionOptions): Promi
 
   const now = new Date();
 
-  await prisma.$transaction(async (tx) => {
+  const runInTransaction = async (
+    action: (tx: Prisma.TransactionClient) => Promise<void>
+  ) => {
+    if (isPrismaClient(client)) {
+      return client.$transaction((tx) => action(tx as Prisma.TransactionClient));
+    }
+    // Already inside a transaction
+    return action(client as Prisma.TransactionClient);
+  };
+
+  await runInTransaction(async (tx) => {
     if (!session.revokedAt) {
       await tx.session.update({
         where: { id: session.id },
