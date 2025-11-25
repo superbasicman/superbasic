@@ -3,6 +3,8 @@ import {
   SESSION_MAX_AGE_SECONDS,
   createOpaqueToken,
   createTokenHashEnvelope,
+  parseOpaqueToken,
+  verifyTokenSecret,
 } from '@repo/auth';
 import { Prisma, type PrismaClient, prisma, setPostgresContext } from '@repo/database';
 import { jwtVerify } from 'jose';
@@ -133,6 +135,15 @@ export class AuthCoreService implements AuthService {
       return null;
     }
 
+    const opaque = parseOpaqueToken(token);
+    if (opaque) {
+      return this.verifyPersonalAccessToken({
+        tokenSecret: opaque.tokenSecret,
+        tokenId: opaque.tokenId,
+        request: input,
+      });
+    }
+
     const verification = await this.verifyJwt(token);
     const payload = verification.payload as AccessTokenClaims;
 
@@ -246,12 +257,80 @@ export class AuthCoreService implements AuthService {
     throw new Error('AuthCoreService.revokeSession is not implemented yet.');
   }
 
-  async issuePersonalAccessToken(_input: IssuePersonalAccessTokenInput): Promise<IssuedToken> {
-    throw new Error('AuthCoreService.issuePersonalAccessToken is not implemented yet.');
+  async issuePersonalAccessToken(input: IssuePersonalAccessTokenInput): Promise<IssuedToken> {
+    if (input.expiresAt && !isValidDate(input.expiresAt)) {
+      throw new Error('expiresAt must be a valid Date instance');
+    }
+
+    const opaque = createOpaqueToken();
+    const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
+
+    const created = await this.prisma.token.create({
+      data: {
+        id: opaque.tokenId,
+        userId: input.userId,
+        sessionId: null,
+        workspaceId: input.workspaceId ?? null,
+        type: 'personal_access',
+        tokenHash,
+        scopes: input.scopes,
+        name: input.name,
+        familyId: null,
+        metadata: Prisma.DbNull,
+        lastUsedAt: null,
+        expiresAt: input.expiresAt ?? null,
+        revokedAt: null,
+      },
+    });
+
+    return {
+      tokenId: created.id,
+      secret: opaque.value,
+      type: created.type,
+      scopes: created.scopes as PermissionScope[],
+      name: created.name ?? '',
+      workspaceId: created.workspaceId,
+      expiresAt: created.expiresAt,
+    };
   }
 
-  async revokeToken(_input: RevokeTokenInput): Promise<void> {
-    throw new Error('AuthCoreService.revokeToken is not implemented yet.');
+  async revokeToken(input: RevokeTokenInput): Promise<void> {
+    const token = await this.prisma.token.findUnique({
+      where: { id: input.tokenId },
+      select: {
+        id: true,
+        revokedAt: true,
+        metadata: true,
+      },
+    });
+
+    if (!token) {
+      throw new UnauthorizedError('Token not found');
+    }
+
+    if (token.revokedAt) {
+      return;
+    }
+
+    const now = new Date();
+    const update: Prisma.TokenUpdateInput = {
+      revokedAt: now,
+    };
+
+    const metadata = buildRevocationMetadata(token.metadata, {
+      revokedAt: now.toISOString(),
+      reason: input.reason,
+      revokedBy: input.revokedBy,
+    });
+
+    if (metadata) {
+      update.metadata = toJsonInput(metadata);
+    }
+
+    await this.prisma.token.update({
+      where: { id: input.tokenId },
+      data: update,
+    });
   }
 
   getJwks() {
@@ -378,6 +457,96 @@ export class AuthCoreService implements AuthService {
     if (options.requestId) {
       authContext.requestId = options.requestId;
     }
+
+    return authContext;
+  }
+
+  private async verifyPersonalAccessToken(options: {
+    tokenId: string;
+    tokenSecret: string;
+    request: VerifyRequestInput;
+  }): Promise<AuthContext> {
+    const token = await this.prisma.token.findUnique({
+      where: { id: options.tokenId },
+      select: {
+        id: true,
+        userId: true,
+        type: true,
+        tokenHash: true,
+        scopes: true,
+        name: true,
+        workspaceId: true,
+        expiresAt: true,
+        revokedAt: true,
+        user: {
+          select: {
+            id: true,
+            status: true,
+            profile: {
+              select: { id: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!token || token.type !== 'personal_access') {
+      throw new UnauthorizedError('Invalid personal access token');
+    }
+
+    if (!verifyTokenSecret(options.tokenSecret, token.tokenHash)) {
+      throw new UnauthorizedError('Invalid personal access token');
+    }
+
+    if (token.revokedAt) {
+      throw new UnauthorizedError('Token has been revoked');
+    }
+
+    if (token.expiresAt && token.expiresAt < new Date()) {
+      throw new UnauthorizedError('Token has expired');
+    }
+
+    if (token.user.status !== 'active') {
+      throw new InactiveUserError();
+    }
+
+    const profileId = token.user.profile?.id ?? null;
+    const forcedWorkspaceId = token.workspaceId ?? null;
+    const workspaceHeader = forcedWorkspaceId ?? options.request.workspaceHeader ?? null;
+    const workspacePathParam = forcedWorkspaceId
+      ? null
+      : (options.request.workspacePathParam ?? null);
+    const workspaceResolution = await this.resolveWorkspaceContext({
+      profileId,
+      workspaceHint: forcedWorkspaceId,
+      workspaceHeader,
+      workspacePathParam,
+    });
+    const scopes = intersectScopes(
+      workspaceResolution.scopes,
+      (token.scopes ?? []) as PermissionScope[]
+    );
+    const authContext: AuthContext = {
+      userId: token.userId,
+      sessionId: null,
+      clientType: 'cli',
+      activeWorkspaceId: workspaceResolution.workspaceId,
+      scopes,
+      roles: workspaceResolution.roles,
+      profileId,
+      mfaLevel: 'none',
+    };
+
+    if (options.request.requestId) {
+      authContext.requestId = options.request.requestId;
+    }
+
+    await this.setContext(this.prisma, {
+      userId: token.userId,
+      profileId,
+      workspaceId: workspaceResolution.workspaceId,
+      mfaLevel: 'none',
+    });
 
     return authContext;
   }
@@ -647,4 +816,57 @@ export async function createAuthService(
 export async function generateAccessToken(params: SignAccessTokenParams) {
   const resources = await getDefaultSigningResources();
   return signAccessToken(resources.keyStore, resources.config, params);
+}
+
+function isValidDate(value: unknown): value is Date {
+  return value instanceof Date && !Number.isNaN(value.valueOf());
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function buildRevocationMetadata(
+  currentMetadata: unknown,
+  revocation: { revokedAt: string; reason?: string | undefined; revokedBy?: string | undefined }
+): Record<string, unknown> | null {
+  const base = isPlainObject(currentMetadata) ? { ...currentMetadata } : {};
+  const revocationValue =
+    'revocation' in base && isPlainObject((base as Record<string, unknown>).revocation)
+      ? ((base as Record<string, unknown>).revocation as Record<string, unknown>)
+      : null;
+  const existingRevocation = revocationValue ? { ...revocationValue } : {};
+
+  const mergedRevocation: Record<string, unknown> = {
+    ...existingRevocation,
+    revokedAt: revocation.revokedAt,
+  };
+
+  if (revocation.reason) {
+    mergedRevocation.reason = revocation.reason;
+  }
+  if (revocation.revokedBy) {
+    mergedRevocation.revokedBy = revocation.revokedBy;
+  }
+
+  return {
+    ...base,
+    revocation: mergedRevocation,
+  };
+}
+
+function intersectScopes(
+  allowedScopes: PermissionScope[],
+  tokenScopes: PermissionScope[]
+): PermissionScope[] {
+  const allowed = new Set(allowedScopes);
+  const granted = new Set<PermissionScope>();
+
+  for (const scope of tokenScopes) {
+    if (allowed.has(scope)) {
+      granted.add(scope);
+    }
+  }
+
+  return [...granted];
 }

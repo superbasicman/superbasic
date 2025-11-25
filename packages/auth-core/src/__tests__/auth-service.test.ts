@@ -1,10 +1,12 @@
 import { generateKeyPairSync } from 'node:crypto';
-import type { PrismaClient } from '@repo/database';
+import * as authLib from '@repo/auth';
+import type { PrismaClient, Token as PrismaToken } from '@repo/database';
 import { SignJWT, exportJWK } from 'jose';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthorizationError, InactiveUserError } from '../errors.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuthorizationError, InactiveUserError, UnauthorizedError } from '../errors.js';
 import { AuthCoreService } from '../service.js';
 import { type SigningKey, SigningKeyStore, signAccessToken } from '../signing.js';
+import type { TokenHashEnvelope } from '../types.js';
 
 const ISSUER = 'http://localhost:3000';
 const AUDIENCE = `${ISSUER}/v1`;
@@ -349,5 +351,424 @@ describe('AuthCoreService.verifyRequest', () => {
         authorizationHeader: `Bearer ${tokenResult.token}`,
       })
     ).rejects.toBeInstanceOf(InactiveUserError);
+  });
+});
+
+describe('AuthCoreService PAT issuance and revocation', () => {
+  const ISSUER = 'http://localhost:3000';
+  const AUDIENCE = `${ISSUER}/v1`;
+  let keyStore: SigningKeyStore;
+  let prismaStub: {
+    token: {
+      create: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
+    };
+  };
+
+  beforeEach(async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    keyStore = new SigningKeyStore(
+      [
+        {
+          kid: 'test-key',
+          alg: 'EdDSA',
+          privateKey,
+          publicKey,
+          jwk: await exportJWK(publicKey),
+        },
+      ],
+      'test-key'
+    );
+
+    prismaStub = {
+      token: {
+        create: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
+      },
+    };
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('issues a personal access token with hashed secret and expiry', async () => {
+    const hashEnvelope = {
+      algo: 'hmac-sha256',
+      keyId: 'v1',
+      hash: 'hashed-secret',
+      issuedAt: '2025-01-01T00:00:00.000Z',
+    } satisfies TokenHashEnvelope;
+
+    vi.spyOn(authLib, 'createOpaqueToken').mockReturnValue({
+      tokenId: 'pat_token',
+      tokenSecret: 'secret-abc',
+      value: 'pat_token.secret-abc',
+    });
+    vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue(hashEnvelope);
+
+    const expiresAt = new Date('2025-04-01T00:00:00.000Z');
+    prismaStub.token.create.mockResolvedValue({
+      id: 'pat_token',
+      userId: 'user-123',
+      sessionId: null,
+      workspaceId: 'workspace-1',
+      type: 'personal_access',
+      tokenHash: hashEnvelope,
+      scopes: ['read:transactions'],
+      name: 'CLI token',
+      familyId: null,
+      metadata: null,
+      lastUsedAt: null,
+      expiresAt,
+      revokedAt: null,
+      createdAt: new Date('2025-03-01T00:00:00.000Z'),
+      updatedAt: new Date('2025-03-01T00:00:00.000Z'),
+    } satisfies PrismaToken);
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+    });
+
+    const issued = await service.issuePersonalAccessToken({
+      userId: 'user-123',
+      workspaceId: 'workspace-1',
+      scopes: ['read:transactions'],
+      name: 'CLI token',
+      expiresAt,
+    });
+
+    expect(prismaStub.token.create).toHaveBeenCalledWith({
+      data: {
+        id: 'pat_token',
+        userId: 'user-123',
+        sessionId: null,
+        workspaceId: 'workspace-1',
+        type: 'personal_access',
+        tokenHash: hashEnvelope,
+        scopes: ['read:transactions'],
+        name: 'CLI token',
+        familyId: null,
+        metadata: null,
+        lastUsedAt: null,
+        expiresAt,
+        revokedAt: null,
+      },
+    });
+
+    expect(issued).toEqual({
+      tokenId: 'pat_token',
+      secret: 'pat_token.secret-abc',
+      type: 'personal_access',
+      scopes: ['read:transactions'],
+      name: 'CLI token',
+      workspaceId: 'workspace-1',
+      expiresAt,
+    });
+  });
+
+  it('rejects invalid expiry', async () => {
+    vi.spyOn(authLib, 'createOpaqueToken').mockReturnValue({
+      tokenId: 'pat_token',
+      tokenSecret: 'secret-abc',
+      value: 'pat_token.secret-abc',
+    });
+    vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue({
+      algo: 'hmac-sha256',
+      keyId: 'v1',
+      hash: 'hashed',
+      issuedAt: '2025-01-01T00:00:00.000Z',
+    } satisfies TokenHashEnvelope);
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+    });
+
+    await expect(
+      service.issuePersonalAccessToken({
+        userId: 'user-123',
+        scopes: ['read:profile'],
+        name: 'Bad expiry',
+        expiresAt: new Date('invalid'),
+      })
+    ).rejects.toThrow('expiresAt must be a valid Date instance');
+    expect(prismaStub.token.create).not.toHaveBeenCalled();
+  });
+
+  it('revokes a token and records revocation metadata', async () => {
+    const now = new Date('2025-05-01T00:00:00.000Z');
+    vi.useFakeTimers({ now });
+
+    prismaStub.token.findUnique.mockResolvedValue({
+      id: 'tok_pat',
+      revokedAt: null,
+      metadata: { note: 'keep' },
+    });
+
+    prismaStub.token.update.mockResolvedValue({});
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+    });
+
+    await service.revokeToken({
+      tokenId: 'tok_pat',
+      reason: 'compromised',
+      revokedBy: 'admin-1',
+    });
+
+    expect(prismaStub.token.update).toHaveBeenCalledTimes(1);
+    const updateArg = prismaStub.token.update.mock.calls[0]?.[0];
+    const revokedAt = updateArg?.data.revokedAt;
+
+    expect(updateArg).toMatchObject({
+      where: { id: 'tok_pat' },
+    });
+    expect(revokedAt).toBeInstanceOf(Date);
+    expect(updateArg.data.metadata).toEqual({
+      note: 'keep',
+      revocation: {
+        revokedAt: (revokedAt as Date).toISOString(),
+        reason: 'compromised',
+        revokedBy: 'admin-1',
+      },
+    });
+  });
+
+  it('is idempotent when token already revoked', async () => {
+    prismaStub.token.findUnique.mockResolvedValue({
+      id: 'tok_pat',
+      revokedAt: new Date('2025-04-01T00:00:00.000Z'),
+      metadata: null,
+    });
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+    });
+
+    await service.revokeToken({ tokenId: 'tok_pat' });
+    expect(prismaStub.token.update).not.toHaveBeenCalled();
+  });
+
+  it('throws when token is missing', async () => {
+    prismaStub.token.findUnique.mockResolvedValue(null);
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+    });
+
+    await expect(service.revokeToken({ tokenId: 'missing' })).rejects.toBeInstanceOf(
+      UnauthorizedError
+    );
+  });
+});
+
+describe('AuthCoreService.verifyRequest with PATs', () => {
+  const ISSUER = 'http://localhost:3000';
+  const AUDIENCE = `${ISSUER}/v1`;
+  const PAT_ID = '11111111-1111-4111-8111-111111111111';
+  const WORKSPACE_ID = '22222222-2222-4222-8222-222222222222';
+
+  let keyStore: SigningKeyStore;
+  let prismaStub: {
+    token: {
+      findUnique: ReturnType<typeof vi.fn>;
+    };
+    workspaceMember: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
+  };
+  let setContextMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    keyStore = new SigningKeyStore(
+      [
+        {
+          kid: 'test-key',
+          alg: 'EdDSA',
+          privateKey,
+          publicKey,
+          jwk: await exportJWK(publicKey),
+        },
+      ],
+      'test-key'
+    );
+
+    prismaStub = {
+      token: {
+        findUnique: vi.fn(),
+      },
+      workspaceMember: {
+        findFirst: vi.fn(),
+      },
+    };
+    setContextMock = vi.fn().mockResolvedValue(undefined);
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns AuthContext for a valid PAT and intersects scopes with workspace role', async () => {
+    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+
+    prismaStub.token.findUnique.mockResolvedValue({
+      id: PAT_ID,
+      userId: 'user-pat',
+      type: 'personal_access',
+      tokenHash: {},
+      scopes: ['read:transactions', 'write:accounts'],
+      name: 'cli',
+      workspaceId: WORKSPACE_ID,
+      expiresAt: new Date(Date.now() + 60_000),
+      revokedAt: null,
+      user: {
+        id: 'user-pat',
+        status: 'active',
+        profile: { id: 'profile-1' },
+      },
+    });
+
+    prismaStub.workspaceMember.findFirst.mockImplementation(
+      async (args: { where?: { workspaceId?: string } }) => {
+        if (args.where?.workspaceId === WORKSPACE_ID) {
+          return { workspaceId: WORKSPACE_ID, role: 'owner' };
+        }
+        return null;
+      }
+    );
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+      setContext: setContextMock,
+    });
+
+    const auth = await service.verifyRequest({
+      authorizationHeader: `Bearer ${PAT_ID}.secret-abc`,
+      requestId: 'req-123',
+    });
+
+    expect(auth).not.toBeNull();
+    expect(auth?.sessionId).toBeNull();
+    expect(auth?.userId).toBe('user-pat');
+    expect(auth?.activeWorkspaceId).toBe(WORKSPACE_ID);
+    expect(auth?.clientType).toBe('cli');
+    expect(auth?.roles).toEqual(['owner']);
+    expect(auth?.scopes).toEqual(expect.arrayContaining(['read:transactions', 'write:accounts']));
+    expect(auth?.requestId).toBe('req-123');
+    expect(setContextMock).toHaveBeenCalledWith(
+      prismaStub,
+      expect.objectContaining({
+        userId: 'user-pat',
+        profileId: 'profile-1',
+        workspaceId: WORKSPACE_ID,
+      })
+    );
+  });
+
+  it('throws when PAT is revoked', async () => {
+    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+
+    prismaStub.token.findUnique.mockResolvedValue({
+      id: PAT_ID,
+      userId: 'user-pat',
+      type: 'personal_access',
+      tokenHash: {},
+      scopes: [],
+      name: 'cli',
+      workspaceId: null,
+      expiresAt: null,
+      revokedAt: new Date(),
+      user: {
+        id: 'user-pat',
+        status: 'active',
+        profile: { id: 'profile-1' },
+      },
+    });
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+      setContext: setContextMock,
+    });
+
+    await expect(
+      service.verifyRequest({
+        authorizationHeader: `Bearer ${PAT_ID}.secret-abc`,
+      })
+    ).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('intersects PAT scopes with workspace membership scopes', async () => {
+    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+
+    prismaStub.token.findUnique.mockResolvedValue({
+      id: PAT_ID,
+      userId: 'user-pat',
+      type: 'personal_access',
+      tokenHash: {},
+      scopes: ['read:profile', 'write:accounts'],
+      name: 'cli',
+      workspaceId: WORKSPACE_ID,
+      expiresAt: null,
+      revokedAt: null,
+      user: {
+        id: 'user-pat',
+        status: 'active',
+        profile: { id: 'profile-1' },
+      },
+    });
+
+    prismaStub.workspaceMember.findFirst.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      role: 'viewer',
+    });
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+      setContext: setContextMock,
+    });
+
+    const auth = await service.verifyRequest({
+      authorizationHeader: `Bearer ${PAT_ID}.secret-abc`,
+    });
+
+    expect(auth?.scopes).toEqual(['read:profile']);
   });
 });
