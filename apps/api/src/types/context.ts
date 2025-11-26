@@ -11,8 +11,10 @@ export type ContextVariables = {
   jti?: string;
   profileId?: string | null;
   authType?: "session" | "pat";
+  workspaceId?: string | null;
   tokenId?: string;
   tokenScopes?: string[];
+  tokenScopesRaw?: string[];
   auth: CoreAuthContext | null;
 };
 

@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Prisma } from '@repo/database';
 
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
@@ -16,7 +17,7 @@ import {
   createTestUser,
   createAccessToken,
 } from '../../test/helpers.js';
-import { generateToken, hashToken } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 
 // Use the full app which includes all routes (login, me, etc.)
 const testApp = app;
@@ -24,34 +25,47 @@ const testApp = app;
 // Helper to create API token directly in database
 async function createApiToken(
   userId: string,
-  profileId: string,
+  _profileId: string,
   options: {
     name: string;
     scopes: string[];
     expiresInDays?: number;
+    workspaceId?: string | null;
   }
 ) {
   const prisma = getTestPrisma();
-  const token = generateToken();
-  const last4 = token.slice(-4);
-  const keyHash = hashToken(token);
+  const fallback =
+    process.env.TOKEN_HASH_FALLBACK_SECRET ||
+    process.env.AUTH_SECRET ||
+    'test_token_hash_secret_for_vitest';
+  process.env.TOKEN_HASH_KEYS = JSON.stringify({ v1: fallback });
+  process.env.TOKEN_HASH_ACTIVE_KEY_ID = 'v1';
+
+  const opaque = createOpaqueToken();
+  const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + (options.expiresInDays || 90));
 
-  const apiKey = await prisma.apiKey.create({
+  const apiKey = await prisma.token.create({
     data: {
+      id: opaque.tokenId,
       userId,
-      profileId,
-      name: options.name,
-      keyHash,
-      last4,
+      sessionId: null,
+      workspaceId: options.workspaceId ?? null,
+      type: 'personal_access',
+      tokenHash,
       scopes: options.scopes,
+      name: options.name,
+      familyId: null,
+      metadata: Prisma.DbNull,
+      lastUsedAt: null,
       expiresAt,
+      revokedAt: null,
     },
   });
 
-  return { apiKey, token };
+  return { apiKey, token: opaque.value };
 }
 
 describe('Scope Enforcement Middleware', () => {
@@ -268,6 +282,8 @@ describe('Scope Enforcement Middleware', () => {
         name: 'Wrong Scope Token',
         scopes: ['read:transactions', 'write:transactions'],
       });
+
+      console.log('test_token:', token)
 
       // Make request with Bearer token
       const response = await makeRequest(testApp, 'PATCH', '/v1/me', {

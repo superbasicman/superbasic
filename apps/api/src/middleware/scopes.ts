@@ -24,6 +24,10 @@ export function requireScope(requiredScope: PermissionScope) {
   return async (c: Context<AppBindings>, next: Next) => {
     const auth = c.get("auth");
     const authType = c.get("authType");
+    const tokenScopes = ((c.get("tokenScopes") as string[]) || []).map((scope) => scope.toString());
+    const tokenScopesRaw = ((c.get("tokenScopesRaw") as string[]) || []).map((scope) =>
+      scope.toString()
+    );
 
     // Session auth has full access (legacy behavior; scopes enforced for PATs only)
     if (authType === "session") {
@@ -32,6 +36,42 @@ export function requireScope(requiredScope: PermissionScope) {
     }
 
     try {
+      const isPat = authType === "pat" || auth?.clientType === "cli";
+
+      if (isPat) {
+        console.warn("[requireScope][pat] evaluation", {
+          requiredScope,
+          authScopes: auth?.scopes,
+          tokenScopesRaw,
+          tokenScopes,
+          authType,
+        });
+        const scoped = auth
+          ? auth.scopes.includes("admin") || auth.scopes.includes(requiredScope)
+          : tokenScopesRaw.includes("admin") || tokenScopesRaw.includes(requiredScope);
+        // Debug log for PAT scope evaluation
+        if (!scoped) {
+          console.warn("[requireScope][pat] insufficient scope", {
+            requiredScope,
+            authScopes: auth?.scopes,
+            tokenScopesRaw,
+            tokenScopes,
+            authType,
+          });
+        }
+        if (!scoped) {
+          return c.json(
+            {
+              error: "Insufficient permissions",
+              required: requiredScope,
+            },
+            403
+          );
+        }
+        await next();
+        return;
+      }
+
       if (auth) {
         if (auth.scopes.includes("admin")) {
           await next();
@@ -39,9 +79,6 @@ export function requireScope(requiredScope: PermissionScope) {
         }
         authz.requireScope(auth, requiredScope);
       } else {
-        const tokenScopes = ((c.get("tokenScopes") as string[]) || []).map((scope) =>
-          scope.toString()
-        );
         if (tokenScopes.includes("admin")) {
           await next();
           return;

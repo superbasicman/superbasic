@@ -1,59 +1,17 @@
-/**
- * Personal Access Token (PAT) authentication middleware
- * Validates Bearer tokens from Authorization header and attaches user context to requests
- */
-
 import type { Context, Next } from "hono";
-import {
-  extractTokenFromHeader,
-  isValidTokenFormat,
-  hashToken,
-  verifyToken,
-  authEvents,
-  type TokenHashEnvelope,
-} from "@repo/auth";
-import { prisma, setPostgresContext } from "@repo/database";
-import type { ApiKey } from "@repo/database";
+import { parseOpaqueToken } from "@repo/auth";
+import { authService } from "../lib/auth-service.js";
+import { prisma } from "@repo/database";
 import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit/index.js";
 
-type ApiKeyWithRelations = ApiKey & {
-  user: {
-    id: string;
-    email: string | null;
-  };
-  profile: {
-    id: string;
-  } | null;
-};
-
-/**
- * PAT authentication middleware that validates Bearer tokens
- *
- * Extracts token from Authorization header, validates format, hashes and looks up in database,
- * checks revocation and expiration status, and attaches user context to the request.
- *
- * Returns 401 Unauthorized for:
- * - Missing or invalid Authorization header
- * - Invalid token format
- * - Token not found in database
- * - Revoked token
- * - Expired token
- *
- * Emits audit events for all authentication failures and successful usage.
- */
 export async function patMiddleware(c: Context, next: Next) {
-  // Get request ID for log correlation
   const requestId = c.get("requestId") || "unknown";
-
-  // Extract IP address for rate limiting
   const ip =
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     c.req.header("x-real-ip") ||
     "unknown";
 
   try {
-    // Check if IP has exceeded failed auth rate limit (100 per hour)
-    // Wrap in try/catch to prevent 500s if rate limit storage fails
     try {
       const isRateLimited = await checkFailedAuthRateLimit(ip);
       if (isRateLimited) {
@@ -67,206 +25,64 @@ export async function patMiddleware(c: Context, next: Next) {
       }
     } catch (rateLimitError) {
       console.error("Rate limit check failed:", rateLimitError);
-      // Continue if rate limit check fails (fail open)
     }
 
-    // Extract Bearer token from Authorization header
-    const token = extractTokenFromHeader(c.req.header("Authorization"));
-
-    if (!token) {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader) {
       await trackFailedAuth(ip);
       return c.json({ error: "Missing or invalid Authorization header" }, 401);
     }
 
-    // Validate token format before database lookup (prevents injection)
-    if (!isValidTokenFormat(token)) {
-      // Track failed auth attempt
-      await trackFailedAuth(ip);
-
-      // Emit audit event for invalid format
-      authEvents.emit({
-        type: "token.auth_failed",
-        metadata: {
-          reason: "invalid_format",
-          tokenPrefix: token.substring(0, 8), // Only log prefix for security
-          ip,
-          userAgent: c.req.header("user-agent") || "unknown",
-          requestId,
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      return c.json({ error: "Invalid token" }, 401);
-    }
-
-    // Hash token and lookup in database
-    const hashedToken = hashToken(token);
-
-    const apiKey = (await prisma.apiKey.findFirst({
-      where: {
-        keyHash: {
-          path: ["hash"],
-          equals: hashedToken.hash,
-        },
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
-        profile: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    })) as ApiKeyWithRelations | null;
-
-    if (!apiKey || !verifyToken(token, apiKey.keyHash as TokenHashEnvelope)) {
-      // Track failed auth attempt
-      await trackFailedAuth(ip);
-
-      // Emit audit event for token not found
-      authEvents.emit({
-        type: "token.auth_failed",
-        metadata: {
-          reason: "not_found",
-          tokenPrefix: token.substring(0, 8),
-          ip,
-          userAgent: c.req.header("user-agent") || "unknown",
-          requestId,
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      return c.json({ error: "Invalid token" }, 401);
-    }
-
-    // Check revocation status
-    if (apiKey.revokedAt) {
-      // Track failed auth attempt
-      await trackFailedAuth(ip);
-
-      // Emit audit event for revoked token
-      authEvents.emit({
-        type: "token.auth_failed",
-        userId: apiKey.userId,
-        metadata: {
-          reason: "revoked",
-          tokenId: apiKey.id,
-          revokedAt: apiKey.revokedAt.toISOString(),
-          ip,
-          userAgent: c.req.header("user-agent") || "unknown",
-          requestId,
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      return c.json({ error: "Token revoked" }, 401);
-    }
-
-    // Check expiration status
-    if (apiKey.expiresAt && apiKey.expiresAt < new Date()) {
-      // Track failed auth attempt
-      await trackFailedAuth(ip);
-
-      // Emit audit event for expired token
-      authEvents.emit({
-        type: "token.auth_failed",
-        userId: apiKey.userId,
-        metadata: {
-          reason: "expired",
-          tokenId: apiKey.id,
-          expiresAt: apiKey.expiresAt.toISOString(),
-          ip,
-          userAgent: c.req.header("user-agent") || "unknown",
-          requestId,
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      return c.json({ error: "Token expired" }, 401);
-    }
-
-    // Update last used timestamp (fire and forget - don't block request)
-    prisma.apiKey
-      .update({
-        where: { id: apiKey.id },
-        data: { lastUsedAt: new Date() },
-      })
-      .catch((err: unknown) => {
-        if (isPrismaNotFoundError(err)) {
-          return;
-        }
-        console.error("Failed to update token lastUsedAt:", err);
-      });
-
-    // Attach user context and token metadata to request
-    // Following user/profile reference pattern: userId for auth, profileId for business logic
-    const scopes = Array.isArray(apiKey.scopes)
-      ? (apiKey.scopes as unknown[]).map((scope) => scope?.toString() ?? '')
-      : [];
-
-    c.set("userId", apiKey.userId);
-    c.set("userEmail", apiKey.user.email ?? "");
-    c.set("profileId", apiKey.profileId);
-    c.set("authType", "pat");
-    c.set("tokenId", apiKey.id);
-    c.set("tokenScopes", scopes);
-
-    // Create AuthContext bridge for compatibility with new authz system
-    // TODO: Remove this bridge when PATs are fully migrated to auth-core in Phase 5
-    const authContext: import("@repo/auth-core").AuthContext = {
-      userId: apiKey.userId,
-      sessionId: null,
-      clientType: "cli",
-      activeWorkspaceId: apiKey.workspaceId ?? null,
-      scopes: scopes as import("@repo/auth-core").PermissionScope[],
-      roles: [],
-      profileId: apiKey.profileId,
+    const auth = await authService.verifyRequest({
+      authorizationHeader: authHeader,
+      workspaceHeader: c.req.header("x-workspace-id") ?? null,
+      workspacePathParam: c.req.param?.("workspaceId") ?? null,
       requestId,
-      mfaLevel: "none",
-    };
-    c.set("auth", authContext);
-    c.set("workspaceId", apiKey.workspaceId ?? null);
+    });
 
-    try {
-      await setPostgresContext(prisma, {
-        userId: apiKey.userId,
-        profileId: apiKey.profileId,
-        workspaceId: apiKey.workspaceId ?? null,
-        mfaLevel: "none",
-      });
-    } catch (contextError) {
-      console.error("[patMiddleware] Failed to set Postgres context", contextError);
+    if (!auth) {
+      await trackFailedAuth(ip);
+      return c.json({ error: "Unauthorized" }, 401);
     }
+
+    const parsedToken = parseOpaqueToken(authHeader.split(" ")[1] ?? "");
+    const tokenId = parsedToken?.tokenId ?? null;
+    let tokenScopesRaw: string[] = [];
+
+    if (tokenId) {
+      const tokenRecord = await prisma.token.findUnique({
+        where: { id: tokenId },
+        select: { scopes: true },
+      });
+      if (tokenRecord) {
+        tokenScopesRaw = (tokenRecord.scopes as unknown[])?.map((s) => s?.toString() ?? "");
+      }
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: auth.userId },
+      select: { email: true },
+    });
+
+    const patScopes = tokenScopesRaw.length ? tokenScopesRaw : auth.scopes;
+    const authWithPatScopes = {
+      ...auth,
+      scopes: patScopes as typeof auth.scopes,
+    };
+
+    c.set("auth", authWithPatScopes);
+    c.set("userId", auth.userId);
+    c.set("userEmail", user?.email ?? "");
+    c.set("profileId", auth.profileId ?? undefined);
+    c.set("workspaceId", auth.activeWorkspaceId);
+    c.set("authType", "pat");
+    c.set("tokenId", tokenId ?? undefined);
+    c.set("tokenScopes", patScopes);
+    c.set("tokenScopesRaw", tokenScopesRaw);
 
     await next();
-
-    // Emit audit event for successful token usage after request completes
-    try {
-      authEvents.emit({
-        type: "token.used",
-        userId: apiKey.userId,
-        metadata: {
-          tokenId: apiKey.id,
-          endpoint: c.req.path,
-          method: c.req.method,
-          status: c.res?.status ?? 200,
-          ip,
-          userAgent: c.req.header("user-agent") || "unknown",
-          requestId,
-          timestamp: new Date().toISOString(),
-        },
-      });
-    } catch (emitError) {
-      console.error("Failed to emit token.used event:", emitError);
-    }
   } catch (error) {
     console.error("PAT middleware error:", error);
-    // Track failed auth attempt on unexpected errors
     try {
       await trackFailedAuth(ip);
     } catch (e) {
@@ -274,13 +90,4 @@ export async function patMiddleware(c: Context, next: Next) {
     }
     return c.json({ error: "Unauthorized" }, 401);
   }
-}
-
-function isPrismaNotFoundError(error: unknown): error is { code: string } {
-  return Boolean(
-    error &&
-    typeof error === "object" &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2025"
-  );
 }

@@ -5,7 +5,8 @@ vi.unmock('@repo/database');
 import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import { createTestUser, createAccessToken, makeAuthenticatedRequest, makeRequest } from '../../../test/helpers.js';
-import { generateToken, hashToken } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { Prisma } from '@repo/database';
 
 describe('GET /v1/me', () => {
   beforeEach(async () => {
@@ -114,23 +115,29 @@ describe('GET /v1/me', () => {
       },
     });
 
-    const pat = generateToken();
-    const tokenHash = hashToken(pat);
+    const patOpaque = createOpaqueToken();
+    const tokenHash = createTokenHashEnvelope(patOpaque.tokenSecret);
 
-    await prisma.apiKey.create({
+    await prisma.token.create({
       data: {
+        id: patOpaque.tokenId,
         userId: user.id,
-        profileId: profile.id,
         workspaceId: workspace.id,
         name: 'Test PAT',
-        keyHash: tokenHash,
-        last4: pat.slice(-4),
+        tokenHash,
         scopes: ['read:profile'],
+        sessionId: null,
+        type: 'personal_access',
+        familyId: null,
+        metadata: Prisma.DbNull,
+        lastUsedAt: null,
+        expiresAt: null,
+        revokedAt: null,
       },
     });
 
     const response = await makeRequest(app, 'GET', '/v1/me', {
-      headers: { Authorization: `Bearer ${pat}` },
+      headers: { Authorization: `Bearer ${patOpaque.value}` },
     });
 
     expect(response.status).toBe(200);

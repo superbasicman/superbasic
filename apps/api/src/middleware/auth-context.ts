@@ -1,4 +1,5 @@
 import type { Context, Next } from 'hono';
+import { parseOpaqueToken } from '@repo/auth';
 import type { VerifyRequestInput } from '@repo/auth-core';
 import type { AppBindings } from '../types/context.js';
 import { authService } from '../lib/auth-service.js';
@@ -85,9 +86,20 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
     c.set('auth', authContext);
 
     if (authContext) {
+      const isPat = !authContext.sessionId && authContext.clientType === 'cli';
+      const tokenInfo =
+        isPat && authorizationHeader ? parseOpaqueToken(extractBearer(authorizationHeader) ?? '') : null;
+
       c.set('userId', authContext.userId);
       c.set('profileId', authContext.profileId ?? null);
-      c.set('authType', 'session');
+      c.set('authType', isPat ? 'pat' : 'session');
+      if (isPat) {
+        c.set('tokenScopes', authContext.scopes);
+        c.set('tokenScopesRaw', authContext.scopes);
+        if (tokenInfo) {
+          c.set('tokenId', tokenInfo.tokenId);
+        }
+      }
       try {
         await setPostgresContext(prisma, {
           userId: authContext.userId,
