@@ -179,7 +179,7 @@ async function main() {
   log('╚════════════════════════════════════════════╝', colors.bright);
   
   if (fullCheck) {
-    log('\nMode: Full Check (lint + typecheck + test + build)', colors.yellow);
+  log('\nMode: Full Check (lint + typecheck + test + build)', colors.yellow);
   } else {
     log('\nMode: Quick Check (lint + typecheck)', colors.yellow);
     log('Tip: Use --full flag for complete validation', colors.yellow);
@@ -200,6 +200,11 @@ async function main() {
   let allPassed = true;
   let failedCheck: { command: string; description: string } | null = null;
   let failedOutput = '';
+
+  // Best-effort: if this is a full check, try to ensure a local Postgres is available (no-op in CI)
+  if (fullCheck) {
+    await runCommand('pnpm run db:ensure-local', 'Ensuring local Postgres (optional)');
+  }
 
   // Pre-flight DB connectivity before kicking off tests to fail fast with a clear message
   const dbCheck = await checkDatabaseConnectivity();

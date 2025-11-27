@@ -88,6 +88,7 @@ if (shouldMockDatabase) {
       // Use the REAL PrismaClient constructor for integration tests
       // Integration tests create new instances with configuration
       PrismaClient: actual.PrismaClient,
+      Prisma: actual.Prisma,
       setPostgresContext: actual.setPostgresContext,
     };
   });

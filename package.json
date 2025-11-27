@@ -35,7 +35,11 @@
     "db:studio": "turbo run studio --filter=@repo/database",
     "test:core:devdb": "node tooling/scripts/run-core-tests-devdb.mjs",
     "db:reset-and-test": "node tooling/scripts/reset-devdb-and-test.mjs",
-    "postinstall": "pnpm --filter @repo/database run generate",
+    "db:ensure-local": "tsx tooling/scripts/ensure-local-postgres.ts",
+    "start-db": "tsx tooling/scripts/ensure-local-postgres.ts",
+    "stop-db": "tsx tooling/scripts/stop-local-postgres.ts",
+    "db:migrate:local": "cd packages/database && DATABASE_URL=postgresql://superbasic:superbasic@localhost:5432/superbasic_test pnpm exec prisma migrate dev --skip-generate",
+    "postinstall": "pnpm --filter @repo/database run generate && pnpm run db:ensure-local",
     "curl-test": "bash tooling/scripts/curl-test.sh"
   },
   "devDependencies": {
@@ -44,6 +48,7 @@
     "@types/node": "^20.17.0",
     "resend": "^6.2.2",
     "tsup": "^8.3.0",
+    "tsx": "^4.19.2",
     "turbo": "^2.6.1",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0"
