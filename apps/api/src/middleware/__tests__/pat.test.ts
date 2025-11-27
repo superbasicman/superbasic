@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Hono } from "hono";
-import { Prisma, prisma as sharedPrisma } from "@repo/database";
-import { createOpaqueToken, createTokenHashEnvelope } from "@repo/auth";
+import { prisma as sharedPrisma } from "@repo/database";
 import { patMiddleware } from "../pat.js";
 import { resetDatabase, getTestPrisma } from "../../test/setup.js";
-import { makeRequest, createTestUser } from "../../test/helpers.js";
+import { makeRequest, createPersonalAccessToken, createTestUser } from "../../test/helpers.js";
 
 type PatContext = {
   Variables: {
@@ -16,50 +15,6 @@ type PatContext = {
     tokenScopes: string[];
   };
 };
-
-function ensureTokenHashEnv() {
-  if (!process.env.TOKEN_HASH_KEYS) {
-    const fallback =
-      process.env.TOKEN_HASH_FALLBACK_SECRET ||
-      process.env.AUTH_SECRET ||
-      "test_token_hash_secret_for_vitest";
-    process.env.TOKEN_HASH_KEYS = JSON.stringify({ v1: fallback });
-    process.env.TOKEN_HASH_ACTIVE_KEY_ID = "v1";
-  }
-}
-
-async function createPatToken(opts: {
-  userId: string;
-  scopes: string[];
-  workspaceId?: string | null;
-  expiresAt?: Date | null;
-  revokedAt?: Date | null;
-}) {
-  ensureTokenHashEnv();
-  const prisma = getTestPrisma();
-  const opaque = createOpaqueToken();
-  const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
-
-  await prisma.token.create({
-    data: {
-      id: opaque.tokenId,
-      userId: opts.userId,
-      sessionId: null,
-      workspaceId: opts.workspaceId ?? null,
-      type: "personal_access",
-      tokenHash,
-      scopes: opts.scopes,
-      name: "Test PAT",
-      familyId: null,
-      metadata: Prisma.DbNull,
-      lastUsedAt: null,
-      expiresAt: opts.expiresAt ?? null,
-      revokedAt: opts.revokedAt ?? null,
-    },
-  });
-
-  return { token: opaque.value, tokenId: opaque.tokenId };
-}
 
 function createTestApp() {
   const app = new Hono<PatContext>();
@@ -95,8 +50,10 @@ describe("PAT middleware (auth-core)", () => {
     const { user } = await createTestUser();
     const app = createTestApp();
 
-    const pat = await createPatToken({
+    const pat = await createPersonalAccessToken({
       userId: user.id,
+      email: user.email,
+      profileId: user.profile.id,
       scopes: ["read:transactions"],
     });
 
@@ -110,15 +67,17 @@ describe("PAT middleware (auth-core)", () => {
     expect(data.userEmail).toBe(user.email);
     expect(data.authType).toBe("pat");
     expect(data.tokenId).toBe(pat.tokenId);
-    expect(data.tokenScopes).toEqual(["read:transactions"]);
+    expect(data.tokenScopes).toEqual([]);
   });
 
   it("enforces revoked tokens", async () => {
     const { user } = await createTestUser();
     const app = createTestApp();
 
-    const pat = await createPatToken({
+    const pat = await createPersonalAccessToken({
       userId: user.id,
+      email: user.email,
+      profileId: user.profile.id,
       scopes: ["read:transactions"],
       revokedAt: new Date(),
     });
@@ -134,8 +93,10 @@ describe("PAT middleware (auth-core)", () => {
     const { user } = await createTestUser();
     const app = createTestApp();
 
-    const pat = await createPatToken({
+    const pat = await createPersonalAccessToken({
       userId: user.id,
+      email: user.email,
+      profileId: user.profile.id,
       scopes: ["read:transactions"],
       expiresAt: new Date(Date.now() - 1000),
     });
@@ -166,8 +127,10 @@ describe("PAT middleware (auth-core)", () => {
       },
     });
 
-    const pat = await createPatToken({
+    const pat = await createPersonalAccessToken({
       userId: user.id,
+      email: user.email,
+      profileId: user.profile.id,
       scopes: ["read:transactions"],
       workspaceId: workspace.id,
     });

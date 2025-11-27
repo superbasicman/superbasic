@@ -522,10 +522,11 @@ export class AuthCoreService implements AuthService {
       workspaceHeader,
       workspacePathParam,
     });
-    const scopes = intersectScopes(
-      workspaceResolution.scopes,
-      (token.scopes ?? []) as PermissionScope[]
-    );
+    const requestedScopes = (token.scopes ?? []) as PermissionScope[];
+    let scopes = intersectScopes(workspaceResolution.scopes, requestedScopes);
+    if (requestedScopes.includes('admin') && !scopes.includes('admin')) {
+      scopes = [...scopes, 'admin'];
+    }
     const authContext: AuthContext = {
       userId: token.userId,
       sessionId: null,

@@ -4,7 +4,6 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Prisma } from '@repo/database';
 
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
@@ -16,56 +15,50 @@ import {
   makeAuthenticatedRequest,
   createTestUser,
   createAccessToken,
+  createPersonalAccessToken,
 } from '../../test/helpers.js';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 
 // Use the full app which includes all routes (login, me, etc.)
 const testApp = app;
 
 // Helper to create API token directly in database
+type CreateApiTokenOptions = {
+  name: string;
+  scopes: string[];
+  expiresInDays?: number;
+  workspaceId?: string | null;
+};
+
 async function createApiToken(
   userId: string,
   _profileId: string,
-  options: {
-    name: string;
-    scopes: string[];
-    expiresInDays?: number;
-    workspaceId?: string | null;
-  }
+  emailOrOptions?: string | CreateApiTokenOptions,
+  maybeOptions?: CreateApiTokenOptions
 ) {
-  const prisma = getTestPrisma();
-  const fallback =
-    process.env.TOKEN_HASH_FALLBACK_SECRET ||
-    process.env.AUTH_SECRET ||
-    'test_token_hash_secret_for_vitest';
-  process.env.TOKEN_HASH_KEYS = JSON.stringify({ v1: fallback });
-  process.env.TOKEN_HASH_ACTIVE_KEY_ID = 'v1';
-
-  const opaque = createOpaqueToken();
-  const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
+  const email = typeof emailOrOptions === 'string' ? emailOrOptions : undefined;
+  const defaults: CreateApiTokenOptions = {
+    name: 'PAT',
+    scopes: [],
+    workspaceId: null,
+  };
+  const provided =
+    typeof emailOrOptions === 'object' && emailOrOptions !== null ? emailOrOptions : maybeOptions;
+  const options: CreateApiTokenOptions = { ...defaults, ...(provided ?? {}) };
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + (options.expiresInDays || 90));
 
-  const apiKey = await prisma.token.create({
-    data: {
-      id: opaque.tokenId,
-      userId,
-      sessionId: null,
-      workspaceId: options.workspaceId ?? null,
-      type: 'personal_access',
-      tokenHash,
-      scopes: options.scopes,
-      name: options.name,
-      familyId: null,
-      metadata: Prisma.DbNull,
-      lastUsedAt: null,
-      expiresAt,
-      revokedAt: null,
-    },
+  const apiKey = await createPersonalAccessToken({
+    userId,
+    email: email ?? `test-${userId}@example.com`,
+    profileId: _profileId,
+    scopes: options.scopes,
+    workspaceId: options.workspaceId ?? null,
+    expiresAt,
+    name: options.name,
   });
 
-  return { apiKey, token: opaque.value };
+  return { apiKey: { id: apiKey.tokenId }, token: apiKey.token };
 }
 
 describe('Scope Enforcement Middleware', () => {
@@ -98,14 +91,14 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should allow PAT with read:profile scope to access GET /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
+  const prisma = getTestPrisma();
 
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
+  const profile = await prisma.profile.findUnique({
+    where: { userId: user.id },
+  });
 
       // Create token with read:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Read Profile Token',
         scopes: ['read:profile'],
       });
@@ -132,7 +125,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token without read:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Write Only Token',
         scopes: ['write:transactions'],
       });
@@ -160,10 +153,10 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token with admin scope (grants all permissions)
-      const { token } = await createApiToken(user.id, profile!.id, {
-        name: 'Admin Token',
-        scopes: ['admin'],
-      });
+  const { token } = await createApiToken(user.id, profile!.id, user.email, {
+    name: 'Admin Token',
+    scopes: ['admin'],
+  });
 
       // Make request with Bearer token
       const response = await makeRequest(testApp, 'GET', '/v1/me', {
@@ -217,7 +210,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token with write:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Write Profile Token',
         scopes: ['write:profile'],
       });
@@ -247,7 +240,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token with only read:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Read Only Token',
         scopes: ['read:profile'],
       });
@@ -278,7 +271,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token without write:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Wrong Scope Token',
         scopes: ['read:transactions', 'write:transactions'],
       });
@@ -313,7 +306,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token with multiple scopes
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Multi-Scope Token',
         scopes: ['read:profile', 'write:profile', 'read:transactions'],
       });
@@ -349,7 +342,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token with multiple scopes but not read:profile
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Wrong Scopes Token',
         scopes: ['read:transactions', 'write:transactions', 'read:budgets'],
       });
@@ -379,7 +372,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token without required scope
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Limited Token',
         scopes: ['read:transactions'],
       });
@@ -439,7 +432,7 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create read-only token
-      const { token } = await createApiToken(user.id, profile!.id, {
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
         name: 'Read Only Token',
         scopes: ['read:profile'],
       });

@@ -11,7 +11,9 @@ import {
   SESSION_MAX_AGE_SECONDS,
   SESSION_ABSOLUTE_MAX_AGE_SECONDS,
 } from '@repo/auth';
+import type { PermissionScope } from '@repo/auth-core';
 import { generateAccessToken } from '@repo/auth-core';
+import { authService } from '../lib/auth-service.js';
 import { getTestPrisma } from './setup.js';
 
 /**
@@ -366,4 +368,117 @@ export async function createAccessToken(
   });
 
   return { token, session };
+}
+
+export async function createPersonalAccessToken(options: {
+  userId: string;
+  email?: string;
+  profileId?: string | null;
+  scopes: string[];
+  workspaceId?: string | null;
+  expiresAt?: Date | null;
+  revokedAt?: Date | null;
+  name?: string;
+}) {
+  ensureTokenHashKeys();
+
+  // When tests use VITEST_MOCK_DATABASE, authService runs against the mocked
+  // @repo/database prisma instance, not the real test Prisma used in setup.
+  // Ensure the user/profile/workspace exist in that prisma so auth-core can resolve context.
+  try {
+    const { prisma: authPrisma } = await import('@repo/database');
+    const existingUser = await authPrisma.user.findUnique({ where: { id: options.userId } });
+    const email = options.email ?? `pat-mock-${options.userId}@example.com`;
+    if (!existingUser) {
+      await authPrisma.user.create({
+        data: {
+          id: options.userId,
+          email,
+          emailLower: email.toLowerCase(),
+          status: 'active',
+        },
+      });
+    }
+    const profileId = options.profileId ?? null;
+    if (profileId) {
+      const existingProfile = await authPrisma.profile.findUnique({ where: { id: profileId } });
+      if (!existingProfile) {
+        await authPrisma.profile.create({
+          data: {
+            id: profileId,
+            userId: options.userId,
+            timezone: 'UTC',
+            currency: 'USD',
+          },
+        });
+      }
+    }
+    if (options.workspaceId) {
+      const workspaceExists = await (authPrisma as any)?.workspace?.findUnique?.({
+        where: { id: options.workspaceId },
+      });
+      if (!workspaceExists) {
+        const ownerProfileId =
+          profileId ??
+          (
+            await authPrisma.profile.create({
+              data: {
+                userId: options.userId,
+                timezone: 'UTC',
+                currency: 'USD',
+              },
+            })
+          ).id;
+        await (authPrisma as any).workspace.create({
+          data: {
+            id: options.workspaceId,
+            name: 'Workspace Token',
+            ownerProfileId,
+          },
+        });
+        await authPrisma.workspaceMember.create({
+          data: {
+            workspaceId: options.workspaceId,
+            memberProfileId: ownerProfileId,
+            role: 'owner',
+          },
+        });
+      } else if (profileId) {
+        await authPrisma.workspaceMember.create({
+          data: {
+            workspaceId: options.workspaceId,
+            memberProfileId: profileId,
+            role: 'owner',
+          },
+        });
+      }
+    }
+  } catch {
+    // best-effort: if mocked prisma not available, continue and let auth-core use the real DB
+  }
+
+  const issued = await authService.issuePersonalAccessToken({
+    userId: options.userId,
+    scopes: options.scopes as PermissionScope[],
+    workspaceId: options.workspaceId ?? null,
+    name: options.name ?? 'Test PAT',
+    expiresAt: options.expiresAt ?? null,
+  });
+
+  if (options.revokedAt) {
+    const updateData = { where: { id: issued.tokenId }, data: { revokedAt: options.revokedAt } };
+    try {
+      const prisma = getTestPrisma();
+      await prisma.token.update(updateData);
+    } catch {
+      try {
+        const { prisma } = await import('@repo/database');
+        await prisma.token.update(updateData as any);
+      } catch {
+        // If neither real nor mocked Prisma is available, skip the revocation stamp
+      }
+    }
+  }
+
+  return { token: issued.secret, tokenId: issued.tokenId };
 }

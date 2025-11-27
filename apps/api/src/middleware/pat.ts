@@ -1,5 +1,6 @@
 import type { Context, Next } from "hono";
 import { parseOpaqueToken } from "@repo/auth";
+import type { PermissionScope } from "@repo/auth-core";
 import { authService } from "../lib/auth-service.js";
 import { prisma } from "@repo/database";
 import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit/index.js";
@@ -47,28 +48,20 @@ export async function patMiddleware(c: Context, next: Next) {
 
     const parsedToken = parseOpaqueToken(authHeader.split(" ")[1] ?? "");
     const tokenId = parsedToken?.tokenId ?? null;
-    let tokenScopesRaw: string[] = [];
-
-    if (tokenId) {
-      const tokenRecord = await prisma.token.findUnique({
-        where: { id: tokenId },
-        select: { scopes: true },
-      });
-      if (tokenRecord) {
-        tokenScopesRaw = (tokenRecord.scopes as unknown[])?.map((s) => s?.toString() ?? "");
-      }
-    }
+    const tokenRecord = tokenId
+      ? await prisma.token.findUnique({
+          where: { id: tokenId },
+          select: { scopes: true },
+        })
+      : null;
+    const tokenScopesRaw =
+      (tokenRecord?.scopes as unknown[])?.map((s) => s?.toString() ?? "") ?? [];
+    const authWithPatScopes = { ...auth, scopes: auth.scopes as PermissionScope[] };
 
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
       select: { email: true },
     });
-
-    const patScopes = tokenScopesRaw.length ? tokenScopesRaw : auth.scopes;
-    const authWithPatScopes = {
-      ...auth,
-      scopes: patScopes as typeof auth.scopes,
-    };
 
     c.set("auth", authWithPatScopes);
     c.set("userId", auth.userId);
@@ -77,8 +70,8 @@ export async function patMiddleware(c: Context, next: Next) {
     c.set("workspaceId", auth.activeWorkspaceId);
     c.set("authType", "pat");
     c.set("tokenId", tokenId ?? undefined);
-    c.set("tokenScopes", patScopes);
-    c.set("tokenScopesRaw", tokenScopesRaw);
+    c.set("tokenScopes", authWithPatScopes.scopes);
+    c.set("tokenScopesRaw", tokenScopesRaw.length ? tokenScopesRaw : authWithPatScopes.scopes);
 
     await next();
   } catch (error) {

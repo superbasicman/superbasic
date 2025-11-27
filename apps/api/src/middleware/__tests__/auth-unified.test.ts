@@ -11,8 +11,8 @@ import {
   makeAuthenticatedRequest,
   createTestUser,
   createAccessToken,
+  createPersonalAccessToken,
 } from "../../test/helpers.js";
-import { generateToken, hashToken } from "@repo/auth";
 import type { AppBindings } from "../../types/context.js";
 
 type UnifiedContext = AppBindings;
@@ -43,31 +43,20 @@ describe("Unified Authentication Middleware", () => {
   it("authenticates PAT Bearer tokens when present", async () => {
     const { user } = await createTestUser();
     const app = createTestApp();
-    const profile = await prisma.profile.findUnique({ where: { userId: user.id } });
 
-    const token = generateToken();
-    const keyHash = hashToken(token);
-    const last4 = token.slice(-4);
-
-    const apiKey = await prisma.apiKey.create({
-      data: {
-        userId: user.id,
-        profileId: profile!.id,
-        name: "CLI",
-        keyHash,
-        last4,
-        scopes: ["read:profile"],
-      },
+    const pat = await createPersonalAccessToken({
+      userId: user.id,
+      scopes: ["read:profile"],
     });
 
     const response = await makeRequest(app, "GET", "/protected", {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${pat.token}` },
     });
 
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data.authType).toBe("pat");
-    expect(data.tokenId).toBe(apiKey.id);
+    expect(data.tokenId).toBe(pat.tokenId);
     expect(data.tokenScopes).toEqual(["read:profile"]);
   });
 
@@ -96,20 +85,13 @@ describe("Unified Authentication Middleware", () => {
     const profile = await prisma.profile.findUnique({ where: { userId: user.id } });
     const app = createTestApp();
 
-    const patToken = generateToken();
-    await prisma.apiKey.create({
-      data: {
-        userId: user.id,
-        profileId: profile!.id,
-        name: "Reader",
-        keyHash: hashToken(patToken),
-        last4: patToken.slice(-4),
-        scopes: ["read:profile"],
-      },
+    const patToken = await createPersonalAccessToken({
+      userId: user.id,
+      scopes: ["read:profile"],
     });
 
     const patResponse = await makeRequest(app, "GET", "/protected", {
-      headers: { Authorization: `Bearer ${patToken}` },
+      headers: { Authorization: `Bearer ${patToken.token}` },
     });
     const patData = await patResponse.json();
     expect(patData.userId).toBe(user.id);
