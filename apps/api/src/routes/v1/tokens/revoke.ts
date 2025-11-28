@@ -8,9 +8,9 @@
 
 import { Hono } from "hono";
 import { authMiddleware } from "../../../middleware/auth.js";
-import { TokenNotFoundError } from "@repo/core";
-import { tokenService } from "../../../services/index.js";
 import { requireScope } from "../../../middleware/scopes.js";
+import { TokenNotFoundError } from "@repo/core";
+import { revokePersonalAccessToken } from "../../../lib/pat-tokens.js";
 
 type Variables = {
   userId: string;
@@ -35,8 +35,8 @@ revokeTokenRoute.delete("/:id", authMiddleware, requireScope("write:accounts"), 
   }
 
   try {
-    await tokenService.revokeToken({
-      id: tokenId,
+    await revokePersonalAccessToken({
+      tokenId,
       userId,
       requestContext: {
         ip:

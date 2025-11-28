@@ -14,8 +14,8 @@ import {
   TokenNotFoundError,
 } from "@repo/core";
 import { authMiddleware } from "../../../middleware/auth.js";
-import { tokenService } from "../../../services/index.js";
 import { requireScope } from "../../../middleware/scopes.js";
+import { renamePersonalAccessToken } from "../../../lib/pat-tokens.js";
 
 type Variables = {
   userId: string;
@@ -51,9 +51,8 @@ updateTokenRoute.patch(
     }
 
     try {
-      // Delegate business logic to service layer
-      const token = await tokenService.updateToken({
-        id: tokenId,
+      const token = await renamePersonalAccessToken({
+        tokenId,
         userId,
         name,
         requestContext: {

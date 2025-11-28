@@ -12,8 +12,9 @@ import { CreateTokenRequestSchema } from "@repo/types";
 import { DuplicateTokenNameError, InvalidScopesError, InvalidExpirationError } from "@repo/core";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit/index.js";
-import { tokenService } from "../../../services/index.js";
 import { requireScope } from "../../../middleware/scopes.js";
+import type { PermissionScope } from "@repo/auth-core";
+import { issuePersonalAccessToken } from "../../../lib/pat-tokens.js";
 
 type Variables = {
   userId: string;
@@ -37,7 +38,8 @@ createTokenRoute.post(
     const userId = c.get("userId") as string;
     const profileId = c.get("profileId") as string | undefined;
     const requestId = c.get("requestId") || "unknown";
-    const { name, scopes, expiresInDays } = c.req.valid("json");
+    const { name, scopes: rawScopes, expiresInDays } = c.req.valid("json");
+    const scopes = rawScopes as PermissionScope[];
 
     if (!profileId) {
       return c.json(
@@ -49,28 +51,22 @@ createTokenRoute.post(
     }
 
     try {
-      // Call service layer - business logic lives there
-      const result = await tokenService.createToken({
+      const requestContext = {
+        ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
+        userAgent: c.req.header("user-agent") || "unknown",
+        requestId,
+      };
+
+      const result = await issuePersonalAccessToken({
         userId,
         profileId,
         name,
         scopes,
         expiresInDays,
-        requestContext: {
-          ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
-          userAgent: c.req.header("user-agent") || "unknown",
-          requestId,
-        },
+        requestContext,
       });
 
-      // Format HTTP response
-      return c.json(
-        {
-          token: result.token, // Plaintext - user must save this
-          ...result.apiKey,
-        },
-        201
-      );
+      return c.json(result, 201);
     } catch (error) {
       // Handle domain errors → HTTP status codes
       if (error instanceof DuplicateTokenNameError) {

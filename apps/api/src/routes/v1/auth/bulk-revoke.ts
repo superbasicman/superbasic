@@ -2,9 +2,9 @@ import type { Context } from 'hono';
 import { prisma } from '@repo/database';
 import type { AppBindings } from '../../../types/context.js';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
-import { tokenService } from '../../../services/index.js';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import { requireRecentAuth } from '@repo/auth-core';
+import { revokePersonalAccessToken } from '../../../lib/pat-tokens.js';
 
 export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const auth = c.get('auth');
@@ -86,17 +86,18 @@ export async function bulkRevokeTokens(c: Context<AppBindings>) {
     requestContext.requestId = requestId;
   }
 
-  const tokens = await prisma.apiKey.findMany({
+  const tokens = await prisma.token.findMany({
     where: {
       userId: auth.userId,
+      type: 'personal_access',
       revokedAt: null,
     },
     select: { id: true },
   });
 
   for (const token of tokens) {
-    await tokenService.revokeToken({
-      id: token.id,
+    await revokePersonalAccessToken({
+      tokenId: token.id,
       userId: auth.userId,
       requestContext,
     });

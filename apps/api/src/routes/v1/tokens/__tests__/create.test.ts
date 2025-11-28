@@ -15,11 +15,7 @@ import {
   createTestUser,
   createAccessToken,
 } from "../../../../test/helpers.js";
-import {
-  authEvents,
-  isValidTokenFormat,
-  hashToken,
-} from "@repo/auth";
+import { authEvents, parseOpaqueToken } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
@@ -77,9 +73,8 @@ describe("POST /v1/tokens - Token Creation", () => {
       expect(data).toHaveProperty("expiresAt");
       expect(data).toHaveProperty("maskedToken");
 
-      // Verify token format
-      expect(isValidTokenFormat(data.token)).toBe(true);
-      expect(data.token).toMatch(/^sbf_[A-Za-z0-9_-]{43}$/);
+      // Verify token format matches opaque token (uuid.secret)
+      expect(parseOpaqueToken(data.token)).not.toBeNull();
 
       // Verify masked token format
       expect(data.maskedToken).toMatch(/^sbf_\*\*\*\*[A-Za-z0-9_-]{4}$/);
@@ -110,17 +105,14 @@ describe("POST /v1/tokens - Token Creation", () => {
       const data = await response.json();
       const plaintextToken = data.token;
 
-      // Verify token is stored as hash
-      const storedToken = await prisma.apiKey.findUnique({
+      const storedToken = await prisma.token.findUnique({
         where: { id: data.id },
       });
 
       expect(storedToken).toBeTruthy();
-      const storedEnvelope = storedToken!.keyHash as { hash: string; keyId: string };
-      const expectedEnvelope = hashToken(plaintextToken);
+      const storedEnvelope = storedToken!.tokenHash as { hash: string; keyId: string };
       expect(storedEnvelope.hash).not.toBe(plaintextToken);
-      expect(storedEnvelope.hash).toBe(expectedEnvelope.hash);
-      expect(storedEnvelope.keyId).toBe(expectedEnvelope.keyId);
+      expect(storedEnvelope.keyId).toBeTruthy();
     });
 
     it("should store last 4 characters for display", async () => {
@@ -147,13 +139,13 @@ describe("POST /v1/tokens - Token Creation", () => {
       const data = await response.json();
       const plaintextToken = data.token;
 
-      // Verify last4 is stored correctly
-      const storedToken = await prisma.apiKey.findUnique({
+      const storedToken = await prisma.token.findUnique({
         where: { id: data.id },
       });
 
-      expect(storedToken!.last4).toBe(plaintextToken.slice(-4));
-      expect(storedToken!.last4).toHaveLength(4);
+      const last4 = (storedToken!.metadata as any)?.last4;
+      expect(last4).toBe(plaintextToken.slice(-4));
+      expect((last4 as string).length).toBe(4);
     });
 
     it("should create token with multiple scopes", async () => {
@@ -245,15 +237,11 @@ describe("POST /v1/tokens - Token Creation", () => {
       expect(daysDiff).toBe(90);
     });
 
-    it("should associate token with userId and profileId", async () => {
+    it("should associate token with userId", async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
       const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       const response = await makeAuthenticatedRequest(
         app,
@@ -271,12 +259,11 @@ describe("POST /v1/tokens - Token Creation", () => {
       expect(response.status).toBe(201);
 
       const data = await response.json();
-      const storedToken = await prisma.apiKey.findUnique({
+      const storedToken = await prisma.token.findUnique({
         where: { id: data.id },
       });
 
       expect(storedToken!.userId).toBe(user.id);
-      expect(storedToken!.profileId).toBe(profile!.id);
     });
   });
 

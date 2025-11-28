@@ -9,7 +9,7 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../../../middleware/auth.js";
 import { requireScope } from "../../../middleware/scopes.js";
-import { tokenService } from "../../../services/index.js";
+import { listPersonalAccessTokens } from "../../../lib/pat-tokens.js";
 
 type Variables = {
   userId: string;
@@ -20,8 +20,7 @@ const listTokensRoute = new Hono<{ Variables: Variables }>();
 listTokensRoute.get("/", authMiddleware, requireScope("read:accounts"), async (c) => {
   const userId = c.get("userId") as string;
 
-  // Delegate to service layer for business logic and data access
-  const tokens = await tokenService.listTokens({ userId });
+  const tokens = await listPersonalAccessTokens(userId);
 
   return c.json({ tokens });
 });

@@ -15,7 +15,7 @@ import {
   createTestUser,
   createAccessToken,
 } from "../../../../test/helpers.js";
-import { generateToken, hashToken } from "@repo/auth";
+import { generateToken, createTokenHashEnvelope } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
@@ -33,7 +33,6 @@ function createTestApp() {
 // Helper to create API token directly in database
 async function createApiToken(
   userId: string,
-  profileId: string,
   options: {
     name: string;
     scopes: string[];
@@ -45,26 +44,27 @@ async function createApiToken(
   const prisma = getTestPrisma();
   const token = generateToken();
   const last4 = token.slice(-4);
-  const keyHash = hashToken(token);
+  const tokenHash = createTokenHashEnvelope(token);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + (options.expiresInDays || 90));
 
-  const apiKey = await prisma.apiKey.create({
+  const created = await prisma.token.create({
     data: {
       userId,
-      profileId,
+      sessionId: null,
       name: options.name,
-      keyHash,
-      last4,
+      tokenHash,
       scopes: options.scopes,
       expiresAt,
       lastUsedAt: options.lastUsedAt || null,
       revokedAt: options.revokedAt || null,
+      type: 'personal_access',
+      metadata: { last4 },
     },
   });
 
-  return { apiKey, token };
+  return { tokenRecord: created, token };
 }
 
 describe("GET /v1/tokens - Token Listing", () => {
@@ -96,14 +96,9 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create a token
-      const { apiKey } = await createApiToken(user.id, profile!.id, {
+      const { tokenRecord } = await createApiToken(user.id, {
         name: "Test Token",
         scopes: ["read:transactions"],
       });
@@ -121,7 +116,7 @@ describe("GET /v1/tokens - Token Listing", () => {
       expect(data.tokens).toHaveLength(1);
 
       const token = data.tokens[0];
-      expect(token).toHaveProperty("id", apiKey.id);
+      expect(token).toHaveProperty("id", tokenRecord.id);
       expect(token).toHaveProperty("name", "Test Token");
       expect(token).toHaveProperty("scopes");
       expect(token.scopes).toEqual(["read:transactions"]);
@@ -137,16 +132,10 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create a token
-      const { apiKey, token: plaintextToken } = await createApiToken(
+      const { tokenRecord, token: plaintextToken } = await createApiToken(
         user.id,
-        profile!.id,
         {
           name: "Test Token",
           scopes: ["read:transactions"],
@@ -167,7 +156,8 @@ describe("GET /v1/tokens - Token Listing", () => {
 
       // Verify masked token format
       expect(returnedToken.maskedToken).toMatch(/^sbf_\*\*\*\*[A-Za-z0-9_-]{4}$/);
-      expect(returnedToken.maskedToken).toBe(`sbf_****${apiKey.last4}`);
+      const last4 = (tokenRecord.metadata as any)?.last4;
+      expect(returnedToken.maskedToken).toBe(`sbf_****${last4}`);
       expect(returnedToken.maskedToken.slice(-4)).toBe(plaintextToken.slice(-4));
     });
 
@@ -175,16 +165,11 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       const lastUsedAt = new Date("2025-01-15T10:30:00Z");
 
       // Create a token with lastUsedAt
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Used Token",
         scopes: ["read:transactions"],
         lastUsedAt,
@@ -209,24 +194,18 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
       // Create multiple tokens
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Token 1",
         scopes: ["read:transactions"],
       });
 
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Token 2",
         scopes: ["write:transactions"],
       });
 
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Token 3",
         scopes: ["read:budgets", "write:budgets"],
       });
@@ -255,28 +234,23 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create tokens with slight delays to ensure different timestamps
-      const { apiKey: token1 } = await createApiToken(user.id, profile!.id, {
+      const { tokenRecord: token1 } = await createApiToken(user.id, {
         name: "First Token",
         scopes: ["read:transactions"],
       });
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const { apiKey: token2 } = await createApiToken(user.id, profile!.id, {
+      const { tokenRecord: token2 } = await createApiToken(user.id, {
         name: "Second Token",
         scopes: ["read:transactions"],
       });
 
       await new Promise((resolve) => setTimeout(resolve, 10));
 
-      const { apiKey: token3 } = await createApiToken(user.id, profile!.id, {
+      const { tokenRecord: token3 } = await createApiToken(user.id, {
         name: "Third Token",
         scopes: ["read:transactions"],
       });
@@ -310,20 +284,15 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create active token
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Active Token",
         scopes: ["read:transactions"],
       });
 
       // Create revoked token
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Revoked Token",
         scopes: ["read:transactions"],
         revokedAt: new Date(),
@@ -347,20 +316,15 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create only revoked tokens
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Revoked Token 1",
         scopes: ["read:transactions"],
         revokedAt: new Date(),
       });
 
-      await createApiToken(user.id, profile!.id, {
+      await createApiToken(user.id, {
         name: "Revoked Token 2",
         scopes: ["read:transactions"],
         revokedAt: new Date(),
@@ -385,23 +349,13 @@ describe("GET /v1/tokens - Token Listing", () => {
       const { user: user1 } = await createTestUser();
       const { user: user2 } = await createTestUser();
       const app = createTestApp();
-      const prisma = getTestPrisma();
-
-      const profile1 = await prisma.profile.findUnique({
-        where: { userId: user1.id },
-      });
-
-      const profile2 = await prisma.profile.findUnique({
-        where: { userId: user2.id },
-      });
-
       // Create tokens for both users
-      await createApiToken(user1.id, profile1!.id, {
+      await createApiToken(user1.id, {
         name: "User 1 Token",
         scopes: ["read:transactions"],
       });
 
-      await createApiToken(user2.id, profile2!.id, {
+      await createApiToken(user2.id, {
         name: "User 2 Token",
         scopes: ["read:transactions"],
       });
