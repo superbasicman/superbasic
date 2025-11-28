@@ -43,83 +43,19 @@ Goals:
 **Class-based service (default)**
 
 ```typescript
-// packages/core/src/tokens/token-service.ts
-
-export class TokenService {
+export class ExampleService {
   constructor(
-    private tokenRepo: TokenRepository,
+    private exampleRepo: ExampleRepository,
     private auditLogger: AuditLogger
   ) {}
 
-  /**
-   * Business rules:
-   * - Token names must be unique per user
-   * - Scopes must be valid
-   * - Expiration must be between 1–365 days
-   */
-  async createToken(params: CreateTokenParams): Promise<CreateTokenResult> {
-    this.validateTokenParams(params);
-
-    const isDuplicate = await this.tokenRepo.existsByUserAndName(
-      params.userId,
-      params.name
-    );
-    if (isDuplicate) {
-      throw new DuplicateTokenNameError(params.name);
-    }
-
-    const token = generateToken();
-    const keyHash = hashToken(token);
-    const last4 = token.slice(-4);
-    const expiresAt = this.calculateExpiration(params.expiresInDays);
-
-    const apiKey = await this.tokenRepo.create({
-      userId: params.userId,
-      profileId: params.profileId,
-      name: params.name,
-      keyHash,
-      last4,
-      scopes: params.scopes,
-      expiresAt,
-    });
-
-    await this.auditLogger.logTokenCreated({
-      tokenId: apiKey.id,
-      userId: params.userId,
-      tokenName: params.name,
-      scopes: params.scopes,
-    });
-
-    return {
-      token, // plaintext, shown once
-      apiKey: this.mapToTokenResponse(apiKey),
-    };
-  }
-
-  private validateTokenParams(params: CreateTokenParams): void {
-    if (!validateScopes(params.scopes)) {
-      throw new InvalidScopesError(params.scopes);
-    }
-    if (params.expiresInDays < 1 || params.expiresInDays > 365) {
-      throw new InvalidExpirationError(params.expiresInDays);
-    }
-  }
-
-  private calculateExpiration(days: number): Date {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date;
-  }
-
-  private mapToTokenResponse(apiKey: ApiKey): TokenResponse {
-    return {
-      id: apiKey.id,
-      name: apiKey.name,
-      scopes: apiKey.scopes as string[],
-      createdAt: apiKey.createdAt.toISOString(),
-      expiresAt: apiKey.expiresAt?.toISOString() ?? null,
-      maskedToken: `sbf_****${apiKey.last4}`,
-    };
+  async doWork(params: DoWorkParams): Promise<DoWorkResult> {
+    // validate params
+    // orchestrate repos
+    // emit domain events
+    const record = await this.exampleRepo.create(params);
+    await this.auditLogger.logExampleCreated({ id: record.id });
+    return mapToDto(record);
   }
 }
 ```
@@ -127,37 +63,28 @@ export class TokenService {
 **Functional style (optional for simple cases)**
 
 ```typescript
-// packages/core/src/tokens/token-operations.ts
-
-export async function createToken(
-  params: CreateTokenParams,
-  deps: { tokenRepo: TokenRepository; auditLogger: AuditLogger }
-): Promise<CreateTokenResult> {
-  // Same rules and flow as TokenService#createToken
+export async function doWork(
+  params: DoWorkParams,
+  deps: { exampleRepo: ExampleRepository; auditLogger: AuditLogger }
+): Promise<DoWorkResult> {
+  // Same rules and flow as the class method
 }
 ```
 
 **HTTP layer maps domain errors → HTTP responses**
 
 ```typescript
-// apps/api/src/routes/v1/tokens/create.ts
-
-createTokenRoute.post("/", async (c) => {
-  const userId = c.get("userId");
-  const profileId = c.get("profileId");
+createRoute.post("/", async (c) => {
   const body = c.req.valid("json");
 
   try {
-    const result = await tokenService.createToken({ userId, profileId, ...body });
+    const result = await exampleService.doWork(body);
     return c.json(result, 201);
   } catch (error) {
-    if (error instanceof DuplicateTokenNameError) {
+    if (error instanceof DomainConflictError) {
       return c.json({ error: error.message }, 409);
     }
-    if (error instanceof InvalidScopesError) {
-      return c.json({ error: error.message }, 400);
-    }
-    throw error; // global error handler
+    throw error;
   }
 });
 ```
@@ -198,39 +125,6 @@ export class InvalidScopesError extends TokenError {
 ## 4. Repository Pattern (Data Access)
 
 Repositories are thin Prisma wrappers. They return **Prisma entities**, not DTOs.
-
-```typescript
-// packages/core/src/tokens/token-repository.ts
-
-export class TokenRepository {
-  constructor(private prisma: PrismaClient) {}
-
-  async existsByUserAndName(userId: string, name: string): Promise<boolean> {
-    const count = await this.prisma.apiKey.count({
-      where: { userId, name, revokedAt: null },
-    });
-    return count > 0;
-  }
-
-  async create(data: CreateTokenData): Promise<ApiKey> {
-    return this.prisma.apiKey.create({
-      data: {
-        userId: data.userId,
-        profileId: data.profileId,
-        name: data.name,
-        keyHash: data.keyHash,
-        last4: data.last4,
-        scopes: data.scopes,
-        expiresAt: data.expiresAt,
-      },
-    });
-  }
-
-  async findById(id: string): Promise<ApiKey | null> {
-    return this.prisma.apiKey.findUnique({ where: { id } });
-  }
-}
-```
 
 **Guidelines**
 
@@ -285,46 +179,7 @@ export class ConnectionService {
 
 Wire **real** dependencies at the app edge, grouped per domain.
 
-```typescript
-// apps/api/src/services/tokens.ts
-
-import { prisma } from "@repo/database";
-import { TokenRepository, TokenService } from "@repo/core";
-import { auditLogger } from "@repo/observability";
-
-export const tokenRepository = new TokenRepository(prisma);
-export const tokenService = new TokenService(tokenRepository, auditLogger);
-```
-
-```typescript
-// apps/api/src/services/index.ts
-
-export * from "./tokens";
-// export * from "./connections";
-// etc.
-```
-
-Route usage:
-
-```typescript
-// apps/api/src/routes/v1/connections/create.ts
-
-import { connectionService } from "../../../services/index.js";
-
-createConnectionRoute.post("/", async (c) => {
-  const userId = c.get("userId");
-  const profileId = c.get("profileId");
-  const body = c.req.valid("json");
-
-  const result = await connectionService.createConnection({
-    userId,
-    profileId,
-    ...body,
-  });
-
-  return c.json(result, 201);
-});
-```
+PAT routes now use auth-core directly; avoid wiring legacy `TokenService`/`TokenRepository` in `apps/api`. Keep DI wiring focused on active domains (e.g., connections, budgets, etc.) and instantiate services at the app edge as needed.
 
 ---
 

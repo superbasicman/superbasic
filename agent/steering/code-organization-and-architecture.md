@@ -137,101 +137,19 @@ createTokenRoute.post("/", async (c) => {
 
 ## Service Layer Pattern (Business Logic)
 
-**Services implement business operations as pure functions or classes:**
+**Services implement business operations as pure functions or classes (generic example):**
 
 ```typescript
-// packages/core/src/tokens/token-service.ts
-
-/**
- * Token management service
- * Implements business logic for API token operations
- */
-export class TokenService {
+export class ExampleService {
   constructor(
-    private tokenRepo: TokenRepository,
+    private repo: ExampleRepository,
     private auditLogger: AuditLogger
   ) {}
 
-  /**
-   * Create a new API token
-   * Business rules:
-   * - Token names must be unique per user
-   * - Scopes must be valid
-   * - Expiration must be between 1–365 days
-   */
-  async createToken(params: CreateTokenParams): Promise<CreateTokenResult> {
-    // Validate business rules
-    this.validateTokenParams(params);
-
-    // Check for duplicate name
-    const isDuplicate = await this.tokenRepo.existsByUserAndName(
-      params.userId,
-      params.name
-    );
-
-    if (isDuplicate) {
-      throw new DuplicateTokenNameError(params.name);
-    }
-
-    // Generate token and hash
-    const token = generateToken();
-    const keyHash = hashToken(token);
-    const last4 = token.slice(-4);
-
-    // Calculate expiration
-    const expiresAt = this.calculateExpiration(params.expiresInDays);
-
-    // Create token record
-    const apiKey = await this.tokenRepo.create({
-      userId: params.userId,
-      profileId: params.profileId,
-      name: params.name,
-      keyHash,
-      last4,
-      scopes: params.scopes,
-      expiresAt,
-    });
-
-    // Emit audit event
-    await this.auditLogger.logTokenCreated({
-      tokenId: apiKey.id,
-      userId: params.userId,
-      tokenName: params.name,
-      scopes: params.scopes,
-    });
-
-    // Return result with plaintext token (shown once)
-    return {
-      token, // Plaintext
-      apiKey: this.mapToTokenResponse(apiKey),
-    };
-  }
-
-  private validateTokenParams(params: CreateTokenParams): void {
-    if (!validateScopes(params.scopes)) {
-      throw new InvalidScopesError(params.scopes);
-    }
-
-    if (params.expiresInDays < 1 || params.expiresInDays > 365) {
-      throw new InvalidExpirationError(params.expiresInDays);
-    }
-  }
-
-  private calculateExpiration(days: number): Date {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date;
-  }
-
-  private mapToTokenResponse(apiKey: ApiKey): TokenResponse {
-    return {
-      id: apiKey.id,
-      name: apiKey.name,
-      scopes: apiKey.scopes as string[],
-      createdAt: apiKey.createdAt.toISOString(),
-      expiresAt: apiKey.expiresAt?.toISOString() ?? null,
-      maskedToken: `sbf_****${apiKey.last4}`,
-    };
+  async createExample(params: CreateExampleParams): Promise<ExampleResult> {
+    const record = await this.repo.create(params);
+    await this.auditLogger.logExampleCreated({ id: record.id });
+    return mapToDto(record);
   }
 }
 ```
@@ -255,76 +173,15 @@ export async function createToken(
 **Repositories handle ONLY database operations:**
 
 ```typescript
-// packages/core/src/tokens/token-repository.ts
-
-/**
- * Token data access layer
- * Pure Prisma operations with no business logic
- */
-export class TokenRepository {
+export class ExampleRepository {
   constructor(private prisma: PrismaClient) {}
 
-  /**
-   * Check if a token with the given name exists for a user
-   */
-  async existsByUserAndName(userId: string, name: string): Promise<boolean> {
-    const count = await this.prisma.apiKey.count({
-      where: {
-        userId,
-        name,
-        revokedAt: null, // Only check active tokens
-      },
-    });
-    return count > 0;
+  async create(data: CreateExampleData): Promise<ExampleRecord> {
+    return this.prisma.example.create({ data });
   }
 
-  /**
-   * Create a new token record
-   */
-  async create(data: CreateTokenData): Promise<ApiKey> {
-    return this.prisma.apiKey.create({
-      data: {
-        userId: data.userId,
-        profileId: data.profileId,
-        name: data.name,
-        keyHash: data.keyHash,
-        last4: data.last4,
-        scopes: data.scopes,
-        expiresAt: data.expiresAt,
-      },
-    });
-  }
-
-  /**
-   * Find token by ID
-   */
-  async findById(id: string): Promise<ApiKey | null> {
-    return this.prisma.apiKey.findUnique({
-      where: { id },
-    });
-  }
-
-  /**
-   * Find all active tokens for a user
-   */
-  async findActiveByUserId(userId: string): Promise<ApiKey[]> {
-    return this.prisma.apiKey.findMany({
-      where: {
-        userId,
-        revokedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-  }
-
-  /**
-   * Soft delete token by setting revokedAt timestamp
-   */
-  async revoke(id: string): Promise<void> {
-    await this.prisma.apiKey.update({
-      where: { id },
-      data: { revokedAt: new Date() },
-    });
+  async findById(id: string): Promise<ExampleRecord | null> {
+    return this.prisma.example.findUnique({ where: { id } });
   }
 }
 ```
@@ -334,33 +191,12 @@ export class TokenRepository {
 **Create custom error classes for business rule violations:**
 
 ```typescript
-// packages/core/src/tokens/token-errors.ts
+export class DomainError extends Error {}
 
-export class TokenError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TokenError";
-  }
-}
-
-export class DuplicateTokenNameError extends TokenError {
+export class DuplicateNameError extends DomainError {
   constructor(name: string) {
-    super(`Token name "${name}" already exists`);
-    this.name = "DuplicateTokenNameError";
-  }
-}
-
-export class InvalidScopesError extends TokenError {
-  constructor(scopes: string[]) {
-    super(`Invalid scopes: ${scopes.join(", ")}`);
-    this.name = "InvalidScopesError";
-  }
-}
-
-export class TokenNotFoundError extends TokenError {
-  constructor(id: string) {
-    super(`Token not found: ${id}`);
-    this.name = "TokenNotFoundError";
+    super(`Name "${name}" already exists`);
+    this.name = "DuplicateNameError";
   }
 }
 ```
