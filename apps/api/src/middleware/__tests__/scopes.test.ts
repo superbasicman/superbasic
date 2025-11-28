@@ -20,6 +20,25 @@ import {
 
 // Use the full app which includes all routes (login, me, etc.)
 const testApp = app;
+const debugPat = Boolean(process.env.VITEST_DEBUG_PAT);
+
+async function logPatResponseDebug(label: string, response: Response) {
+  if (!debugPat) return;
+
+  try {
+    const body = await response.clone().json();
+    console.error(`[pat-scope-test][${label}]`, {
+      status: response.status,
+      body,
+    });
+  } catch {
+    const text = await response.clone().text();
+    console.error(`[pat-scope-test][${label}]`, {
+      status: response.status,
+      text,
+    });
+  }
+}
 
 // Helper to create API token directly in database
 type CreateApiTokenOptions = {
@@ -165,6 +184,7 @@ describe('Scope Enforcement Middleware', () => {
         },
       });
 
+      await logPatResponseDebug('admin-get-me', response);
       expect(response.status).toBe(200);
 
       const data = await response.json();

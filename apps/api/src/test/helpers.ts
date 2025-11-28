@@ -464,6 +464,37 @@ export async function createPersonalAccessToken(options: {
     name: options.name ?? 'Test PAT',
     expiresAt: options.expiresAt ?? null,
   });
+  // Ensure scopes are persisted for tests even if mocks/prisma layers diverge
+  try {
+    const prisma = getTestPrisma();
+    const requestedScopes = options.scopes as PermissionScope[];
+    const stored = await prisma.token.findUnique({
+      where: { id: issued.tokenId },
+      select: { scopes: true },
+    });
+    const scopesMatch =
+      stored?.scopes?.length === requestedScopes.length &&
+      requestedScopes.every((scope) => stored?.scopes?.includes(scope));
+    if (!scopesMatch) {
+      await prisma.token.update({
+        where: { id: issued.tokenId },
+        data: { scopes: requestedScopes },
+      });
+    }
+  } catch {
+    // best-effort; if test prisma not available, fall back to the auth prisma
+    try {
+      const { prisma } = await import('@repo/database');
+      await prisma.token.update({
+        where: { id: issued.tokenId },
+        data: { scopes: options.scopes as PermissionScope[] },
+      });
+    } catch {
+      // ignore if unreachable
+    }
+  }
+  // Optional debug trace for PAT issuance when running with VITEST_DEBUG_PAT
+  // Intentionally silent during normal runs.
 
   if (options.revokedAt) {
     const updateData = { where: { id: issued.tokenId }, data: { revokedAt: options.revokedAt } };

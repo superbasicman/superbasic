@@ -24,6 +24,7 @@ export function requireScope(requiredScope: PermissionScope) {
   return async (c: Context<AppBindings>, next: Next) => {
     const auth = c.get("auth");
     const authType = c.get("authType");
+    const tokenId = c.get("tokenId") as string | undefined;
     const tokenScopes = ((c.get("tokenScopes") as string[]) || []).map((scope) => scope.toString());
     const tokenScopesRaw = ((c.get("tokenScopesRaw") as string[]) || []).map((scope) =>
       scope.toString()
@@ -45,10 +46,10 @@ export function requireScope(requiredScope: PermissionScope) {
           tokenScopesRaw,
           tokenScopes,
           authType,
+          tokenId,
         });
-        const scoped = auth
-          ? auth.scopes.includes("admin") || auth.scopes.includes(requiredScope)
-          : tokenScopesRaw.includes("admin") || tokenScopesRaw.includes(requiredScope);
+        const scopeSource = auth?.scopes ?? [];
+        const scoped = scopeSource.includes("admin") || scopeSource.includes(requiredScope);
         // Debug log for PAT scope evaluation
         if (!scoped) {
           console.warn("[requireScope][pat] insufficient scope", {
@@ -57,6 +58,7 @@ export function requireScope(requiredScope: PermissionScope) {
             tokenScopesRaw,
             tokenScopes,
             authType,
+            tokenId: c.get("tokenId"),
           });
         }
         if (!scoped) {

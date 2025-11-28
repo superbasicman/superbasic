@@ -67,7 +67,7 @@ describe("PAT middleware (auth-core)", () => {
     expect(data.userEmail).toBe(user.email);
     expect(data.authType).toBe("pat");
     expect(data.tokenId).toBe(pat.tokenId);
-    expect(data.tokenScopes).toEqual([]);
+    expect(data.tokenScopes).toEqual(["read:transactions"]);
   });
 
   it("enforces revoked tokens", async () => {

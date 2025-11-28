@@ -56,7 +56,11 @@ export async function patMiddleware(c: Context, next: Next) {
       : null;
     const tokenScopesRaw =
       (tokenRecord?.scopes as unknown[])?.map((s) => s?.toString() ?? "") ?? [];
-    const authWithPatScopes = { ...auth, scopes: auth.scopes as PermissionScope[] };
+    const effectiveScopes =
+      (tokenRecord?.scopes?.length
+        ? (tokenRecord.scopes as PermissionScope[])
+        : (auth.scopes as PermissionScope[] | undefined)) ?? [];
+    const authWithPatScopes = { ...auth, scopes: effectiveScopes };
 
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },

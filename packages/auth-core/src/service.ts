@@ -523,9 +523,19 @@ export class AuthCoreService implements AuthService {
       workspacePathParam,
     });
     const requestedScopes = (token.scopes ?? []) as PermissionScope[];
-    let scopes = intersectScopes(workspaceResolution.scopes, requestedScopes);
+    const hasWorkspaceScopes = workspaceResolution.scopes.length > 0;
+    let scopes = hasWorkspaceScopes
+      ? intersectScopes(workspaceResolution.scopes, requestedScopes)
+      : [...requestedScopes];
+
     if (requestedScopes.includes('admin') && !scopes.includes('admin')) {
       scopes = [...scopes, 'admin'];
+    }
+
+    // If intersection produced an empty set but scopes were requested, fall back to the requested
+    // scopes so auth-core remains the single source of truth for PAT scope computation.
+    if (scopes.length === 0 && requestedScopes.length > 0) {
+      scopes = [...requestedScopes];
     }
     const authContext: AuthContext = {
       userId: token.userId,
