@@ -6,6 +6,7 @@ import { stdin as input, stdout as output } from "node:process";
 import dotenv from "dotenv";
 
 const repoRoot = process.cwd();
+const databaseDir = resolve(repoRoot, "packages/database");
 const isProd = process.argv.includes("--prod");
 const envFile = isProd ? "packages/database/.env.prod" : "packages/database/.env.local";
 
@@ -23,6 +24,9 @@ if (!existsSync(resolve(repoRoot, envFile))) {
 
 loadEnv(envFile, true);
 loadEnv("packages/database/.env.test");
+// Pull in API env so token hashing secrets and other shared vars are available for tests
+loadEnv("apps/api/.env.local");
+loadEnv("apps/api/.env.test", true);
 
 const databaseUrl = process.env.DATABASE_URL;
 
@@ -61,11 +65,12 @@ async function dropPublicSchema() {
   return new Promise((resolve, reject) => {
     const child = spawn(
       "pnpm",
-      ["dlx", "prisma", "db", "execute", "--url", databaseUrl, "--stdin"],
+      ["prisma", "db", "execute", "--schema", "schema.prisma", "--stdin"],
       {
         stdio: ["pipe", "inherit", "inherit"],
-        cwd: repoRoot,
-        env: process.env,
+        cwd: databaseDir,
+        // Prisma 7+ reads DATABASE_URL from env; pass explicitly to avoid config lookup
+        env: { ...process.env, DATABASE_URL: databaseUrl },
       }
     );
 

@@ -9,6 +9,9 @@ import Credentials from "@auth/core/providers/credentials";
 import Google from "@auth/core/providers/google";
 import Nodemailer from "@auth/core/providers/nodemailer";
 import { PrismaAdapter } from "@auth/prisma-adapter";
+import { SignJWT, importPKCS8, jwtVerify } from "jose";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { prisma } from "@repo/database";
 import { encode as defaultJwtEncode, decode as defaultJwtDecode } from "@auth/core/jwt";
 import { verifyPassword } from "./password.js";
@@ -47,6 +50,9 @@ const DISALLOWED_SECRETS = new Set([
   "your-super-secret-auth-key-min-32-chars-change-in-production",
 ]);
 
+const DEFAULT_ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
+const DEFAULT_JWT_CLOCK_TOLERANCE_SECONDS = 60;
+
 function ensureAuthSecret(rawSecret: string | undefined): string {
   if (!rawSecret) {
     throw new Error(
@@ -80,6 +86,111 @@ function ensureAuthSecret(rawSecret: string | undefined): string {
 const AUTH_SECRET = ensureAuthSecret(process.env.AUTH_SECRET);
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const SESSION_COOKIE_NAME = "authjs.session-token";
+
+type AuthJwtConfig = {
+  issuer: string;
+  audience: string;
+  algorithm: "EdDSA" | "RS256";
+  keyId: string;
+  privateKeyPem: string;
+  clockToleranceSeconds: number;
+};
+
+function decodeKeyMaterial(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("-----BEGIN")) {
+    return trimmed;
+  }
+
+  return Buffer.from(trimmed, "base64").toString("utf8");
+}
+
+function readPrivateKeyPem(env: NodeJS.ProcessEnv): string {
+  if (env.AUTH_JWT_PRIVATE_KEY_FILE) {
+    const path = resolve(env.AUTH_JWT_PRIVATE_KEY_FILE);
+    return readFileSync(path, "utf8");
+  }
+
+  const raw = env.AUTH_JWT_PRIVATE_KEY;
+  if (!raw) {
+    throw new Error(
+      "AUTH_JWT_PRIVATE_KEY or AUTH_JWT_PRIVATE_KEY_FILE must be set to sign access tokens."
+    );
+  }
+
+  return decodeKeyMaterial(raw);
+}
+
+function loadAuthJwtConfig(env: NodeJS.ProcessEnv = process.env): AuthJwtConfig {
+  const issuer = env.AUTH_JWT_ISSUER ?? env.AUTH_URL ?? "http://localhost:3000";
+  const audience = env.AUTH_JWT_AUDIENCE ?? `${issuer}/v1`;
+  const algorithm = (env.AUTH_JWT_ALGORITHM ?? "EdDSA") as "EdDSA" | "RS256";
+  const keyId = env.AUTH_JWT_KEY_ID ?? "dev-access-key";
+
+  if (algorithm !== "EdDSA" && algorithm !== "RS256") {
+    throw new Error(`Unsupported AUTH_JWT_ALGORITHM value: ${algorithm}`);
+  }
+
+  return {
+    issuer,
+    audience,
+    algorithm,
+    keyId,
+    privateKeyPem: readPrivateKeyPem(env),
+    clockToleranceSeconds:
+      Number.parseInt(env.AUTH_JWT_CLOCK_TOLERANCE_SECONDS ?? "", 10) ||
+      DEFAULT_JWT_CLOCK_TOLERANCE_SECONDS,
+  };
+}
+
+const AUTH_JWT_CONFIG = loadAuthJwtConfig();
+let signingKeyPromise: Promise<import("jose").KeyLike> | null = null;
+
+async function getSigningKey() {
+  if (!signingKeyPromise) {
+    signingKeyPromise = importPKCS8(
+      AUTH_JWT_CONFIG.privateKeyPem,
+      AUTH_JWT_CONFIG.algorithm === "EdDSA" ? "Ed25519" : "RS256"
+    );
+  }
+  return signingKeyPromise;
+}
+
+async function signAccessToken(params: { userId: string; sessionId: string }) {
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const exp = issuedAt + DEFAULT_ACCESS_TOKEN_TTL_SECONDS;
+  const payload = {
+    sub: params.userId,
+    sid: params.sessionId,
+    token_use: "access",
+    jti: randomUUID(),
+    client_type: "web",
+    reauth_at: issuedAt,
+  };
+
+  const signingKey = await getSigningKey();
+
+  return await new SignJWT(payload)
+    .setProtectedHeader({
+      alg: AUTH_JWT_CONFIG.algorithm,
+      kid: AUTH_JWT_CONFIG.keyId,
+      typ: "JWT",
+    })
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(exp)
+    .setIssuer(AUTH_JWT_CONFIG.issuer)
+    .setAudience(AUTH_JWT_CONFIG.audience)
+    .sign(signingKey);
+}
+
+async function verifyAccessToken(raw: string) {
+  const signingKey = await getSigningKey();
+  return jwtVerify(raw, signingKey, {
+    issuer: AUTH_JWT_CONFIG.issuer,
+    audience: AUTH_JWT_CONFIG.audience,
+    clockTolerance: AUTH_JWT_CONFIG.clockToleranceSeconds,
+  });
+}
 
 type RequestMetadata = {
   ip: string;
@@ -138,7 +249,7 @@ async function persistSessionToken(userId: string, expires: Date) {
     now.getTime() + SESSION_ABSOLUTE_MAX_AGE_SECONDS * 1000
   );
   const opaque = createOpaqueToken();
-  await prisma.session.create({
+  const created = await prisma.session.create({
     data: {
       userId,
       tokenId: opaque.tokenId,
@@ -150,7 +261,11 @@ async function persistSessionToken(userId: string, expires: Date) {
       absoluteExpiresAt,
     },
   });
-  return opaque.value;
+  return {
+    sessionId: created.id,
+    opaqueToken: opaque.value,
+    absoluteExpiresAt,
+  };
 }
 
 
@@ -522,44 +637,81 @@ export const authConfig: AuthConfig = {
   jwt: {
     async encode(params) {
       const token = params.token as Record<string, unknown> | null | undefined;
-      const sessionTokenValue = token?.sessionTokenValue;
-      if (typeof sessionTokenValue === "string") {
-        return sessionTokenValue;
+      const accessToken = token?.accessToken;
+      if (typeof accessToken === "string") {
+        return accessToken;
       }
       return defaultJwtEncode(params);
     },
     async decode(params) {
       const raw = params.token;
       if (typeof raw === "string") {
-        const parsed = parseOpaqueToken(raw);
-        if (parsed) {
-          const record = await prisma.session.findUnique({
-            where: { tokenId: parsed.tokenId },
-            include: {
-              user: {
-                select: { id: true, email: true },
+        try {
+          const verification = await verifyAccessToken(raw);
+          const payload = verification.payload as Record<string, unknown>;
+
+          if (payload.token_use !== "access") {
+            return null;
+          }
+
+          const userId = typeof payload.sub === "string" ? payload.sub : null;
+          const sessionId = typeof payload.sid === "string" ? payload.sid : null;
+
+          if (!userId) {
+            return null;
+          }
+
+          let email: string | null = null;
+
+          if (sessionId) {
+            const session = await prisma.session.findUnique({
+              where: { id: sessionId },
+              include: {
+                user: {
+                  select: { id: true, email: true, status: true },
+                },
               },
-            },
-          });
-          if (!record) {
-            return null;
+            });
+
+            if (!session || session.userId !== userId) {
+              return null;
+            }
+
+            const now = new Date();
+            if (session.revokedAt || session.expiresAt < now) {
+              return null;
+            }
+
+            if (session.absoluteExpiresAt && session.absoluteExpiresAt < now) {
+              return null;
+            }
+
+            if (session.user.status !== "active") {
+              return null;
+            }
+
+            email = session.user.email;
+          } else {
+            const user = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { email: true, status: true },
+            });
+            if (!user || user.status !== "active") {
+              return null;
+            }
+            email = user.email;
           }
-          const isValid = verifyTokenSecret(
-            parsed.tokenSecret,
-            record.sessionTokenHash as TokenHashEnvelope
-          );
-          if (!isValid || record.expiresAt < new Date()) {
-            await prisma.session
-              .delete({ where: { id: record.id } })
-              .catch(() => {});
-            return null;
-          }
+
           return {
-            sub: record.userId,
-            email: record.user.email,
-            sessionTokenValue: raw,
-            id: record.userId,
+            sub: userId,
+            id: userId,
+            sid: sessionId ?? undefined,
+            email,
+            token_use: payload.token_use,
+            accessToken: raw,
           };
+        } catch {
+          return null;
         }
       }
       return defaultJwtDecode(params);
@@ -670,9 +822,14 @@ export const authConfig: AuthConfig = {
           return token;
         }
         const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
-        const sessionTokenValue = await persistSessionToken(user.id, expires);
+        const { sessionId } = await persistSessionToken(user.id, expires);
+        const accessToken = await signAccessToken({
+          userId: user.id,
+          sessionId,
+        });
         return {
-          sessionTokenValue,
+          accessToken,
+          sessionId,
           id: user.id,
           email: user.email ?? null,
         };
@@ -683,6 +840,8 @@ export const authConfig: AuthConfig = {
       if (token && session.user) {
         session.user.id = (token as any).id as string;
         session.user.email = ((token as any).email as string) ?? session.user.email;
+        (session as any).accessToken = (token as any).accessToken;
+        (session as any).sessionId = (token as any).sessionId;
       }
       return session;
     },

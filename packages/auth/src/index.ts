@@ -76,3 +76,7 @@ export type { SendMagicLinkEmailParams } from "./email.js";
 
 // Profile utilities
 export { ensureProfileExists } from "./profile.js";
+
+// Session typing & runtime validation
+export { AuthSessionSchema, parseAuthSession } from "./session-schema.js";
+export type { AuthSession } from "./session-schema.js";

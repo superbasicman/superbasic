@@ -20,12 +20,18 @@ export type VerificationKeyConfig = {
 
 function decodeKeyMaterial(raw: string): string {
   const trimmed = raw.trim();
-  if (trimmed.startsWith('-----BEGIN')) {
-    return trimmed;
+  const unwrapped =
+    (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+    (trimmed.startsWith('"') && trimmed.endsWith('"'))
+      ? trimmed.slice(1, -1)
+      : trimmed;
+
+  if (unwrapped.startsWith('-----BEGIN')) {
+    return unwrapped;
   }
 
   try {
-    return Buffer.from(trimmed, 'base64').toString('utf8');
+    return Buffer.from(unwrapped, 'base64').toString('utf8');
   } catch (error) {
     throw new Error('Invalid AUTH_JWT_PRIVATE_KEY value. Expected PEM or base64-encoded PEM.');
   }

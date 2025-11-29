@@ -275,8 +275,8 @@ describe('Auth.js Credentials Sign-In', () => {
   });
 
   describe('Session Creation', () => {
-    it('should create a session that can be exchanged for tokens', async () => {
-      const { user, credentials } = await createTestUser();
+    it('should redirect after login but token exchange is no longer supported (returns 410)', async () => {
+      const { credentials } = await createTestUser();
 
       const signInResponse = await signInWithCredentials(
         app,
@@ -289,7 +289,7 @@ describe('Auth.js Credentials Sign-In', () => {
       const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
       expect(sessionCookie).toBeTruthy();
 
-      // Exchange session for access token
+      // Legacy session-token exchange has been removed; ensure endpoint signals this.
       const tokenResponse = await makeRequest(app, 'POST', '/v1/auth/token', {
         cookies: {
           [COOKIE_NAME]: sessionCookie!,
@@ -299,22 +299,17 @@ describe('Auth.js Credentials Sign-In', () => {
         },
       });
 
-      expect(tokenResponse.status).toBe(200);
+      expect(tokenResponse.status).toBe(410);
       const tokenPayload = await tokenResponse.json();
-      expect(tokenPayload).toHaveProperty('accessToken');
+      expect(tokenPayload.error).toBe('unsupported_grant_type');
 
-      // Verify access token works for authenticated endpoint
+      // Subsequent calls without proper AuthCore tokens should remain unauthorized
       const meResponse = await makeRequest(app, 'GET', '/v1/me', {
         headers: {
-          Authorization: `Bearer ${tokenPayload.accessToken}`,
+          Authorization: `Bearer invalid`,
         },
       });
-
-      expect(meResponse.status).toBe(200);
-
-      const data = await meResponse.json();
-      expect(data.user.id).toBe(user.id);
-      expect(data.user.email).toBe(user.email);
+      expect(meResponse.status).toBe(401);
     }, 15000);
 
     it('should create profile for new user via signIn callback', async () => {

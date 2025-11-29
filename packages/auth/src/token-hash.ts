@@ -21,7 +21,15 @@ function parseTokenHashKeys(): TokenHashKeyConfig {
   const rawKeys = process.env.TOKEN_HASH_KEYS;
   if (rawKeys) {
     try {
-      const parsed = JSON.parse(rawKeys) as TokenHashKeyConfig;
+      // Support env values that may be wrapped in quotes and/or whitespace
+      const trimmed = rawKeys.trim();
+      const unwrapped =
+        (trimmed.startsWith("'") && trimmed.endsWith("'")) ||
+        (trimmed.startsWith('"') && trimmed.endsWith('"'))
+          ? trimmed.slice(1, -1)
+          : trimmed;
+
+      const parsed = JSON.parse(unwrapped) as TokenHashKeyConfig;
       if (typeof parsed !== "object" || parsed === null) {
         throw new Error("TOKEN_HASH_KEYS must be a JSON object of { keyId: secret }");
       }

@@ -1,39 +1,44 @@
-import { defineConfig } from 'vitest/config';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { defineConfig } from "vitest/config";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
 
-function loadEnvFile(relativePath: string) {
-  try {
-    const envPath = resolve(__dirname, relativePath);
-    const envContent = readFileSync(envPath, 'utf-8');
+function loadEnvFile(filePath: string) {
+  if (!existsSync(filePath)) return;
+  const envContent = readFileSync(filePath, "utf-8");
 
-    envContent.split('\n').forEach((line) => {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith('#')) return;
+  envContent.split("\n").forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
 
-      const match = trimmed.match(/^([^=]+)=(.*)$/);
-      if (match && match[1] && match[2] !== undefined) {
-        const key = match[1].trim();
-        const value = match[2].trim();
-        if (!process.env[key]) {
-          process.env[key] = value;
-        }
+    const match = trimmed.match(/^([^=]+)=(.*)$/);
+    if (match && match[1] && match[2] !== undefined) {
+      const key = match[1].trim();
+      const rawValue = match[2].trim();
+      const value =
+        (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+        (rawValue.startsWith("'") && rawValue.endsWith("'"))
+          ? rawValue.slice(1, -1)
+          : rawValue;
+      if (!process.env[key]) {
+        process.env[key] = value;
       }
-    });
-  } catch (error) {
-    // Silently ignore missing env files
-  }
+    }
+  });
 }
 
-// Prefer developer-local configuration when available
-loadEnvFile('../database/.env.local');
-// Fall back to shared test configuration (e.g. CI) if local file missing
-loadEnvFile('../database/.env.test');
+const workspaceRoot = resolve(__dirname, "..", "..");
+const candidateEnvFiles = [
+  resolve(workspaceRoot, ".env.local"),
+  resolve(workspaceRoot, ".env.test"),
+  resolve(workspaceRoot, "apps/api/.env.local"),
+  resolve(workspaceRoot, "apps/api/.env.test"),
+  resolve(workspaceRoot, "packages/database/.env.local"),
+  resolve(workspaceRoot, "packages/database/.env.test"),
+  resolve(__dirname, ".env.local"),
+  resolve(__dirname, ".env.test"),
+];
 
-// Provide a deterministic, high-entropy secret for tests when none set
-process.env.AUTH_SECRET ??= 'test_auth_secret_for_vitest_1234567890';
-process.env.TOKEN_HASH_KEYS ??= '{"v1":"test_token_hash_secret_for_vitest"}';
-process.env.TOKEN_HASH_ACTIVE_KEY_ID ??= 'v1';
+candidateEnvFiles.forEach(loadEnvFile);
 
 export default defineConfig({
   test: {

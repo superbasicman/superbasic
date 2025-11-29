@@ -240,6 +240,7 @@ async function main() {
 
   const existingTokenHashKeys = getExistingValue('TOKEN_HASH_KEYS', existingApiEnv);
   const existingTokenHashActiveKeyId = getExistingValue('TOKEN_HASH_ACTIVE_KEY_ID', existingApiEnv);
+  const existingTokenHashFallback = getExistingValue('TOKEN_HASH_FALLBACK_SECRET', existingApiEnv);
   const tokenHashChoice = await question(
     existingTokenHashKeys
       ? 'Generate new token hash keys? (y = generate, s = skip and reuse existing): '
@@ -249,6 +250,7 @@ async function main() {
   if (tokenHashChoice.toLowerCase() === 's') {
     config.TOKEN_HASH_KEYS = existingTokenHashKeys ?? '';
     config.TOKEN_HASH_ACTIVE_KEY_ID = existingTokenHashActiveKeyId ?? '';
+    config.TOKEN_HASH_FALLBACK_SECRET = existingTokenHashFallback ?? '';
     success(
       existingTokenHashKeys
         ? 'Reused existing token hash keys from apps/api/.env.local'
@@ -259,6 +261,7 @@ async function main() {
     const tokenHashKey = generateSecret();
     config.TOKEN_HASH_KEYS = JSON.stringify({ v1: tokenHashKey });
     config.TOKEN_HASH_ACTIVE_KEY_ID = 'v1';
+    config.TOKEN_HASH_FALLBACK_SECRET = generateSecret();
     success('Token hashing keys configured!');
   }
 
@@ -298,16 +301,23 @@ async function main() {
   );
 
   if (jwtChoice.toLowerCase() === 's') {
-    config.AUTH_JWT_ALGORITHM = existingAlgorithm;
-    config.AUTH_JWT_KEY_ID = existingKeyId;
-    config.AUTH_JWT_PRIVATE_KEY = existingPrivateKey ?? '';
-    config.AUTH_JWT_ISSUER = existingIssuer;
-    config.AUTH_JWT_AUDIENCE = existingAudience;
-    success(
-      existingPrivateKey
-        ? 'Reused existing JWT signing key from apps/api/.env.local'
-        : 'AUTH_JWT_PRIVATE_KEY left empty'
-    );
+    if (existingPrivateKey) {
+      config.AUTH_JWT_ALGORITHM = existingAlgorithm;
+      config.AUTH_JWT_KEY_ID = existingKeyId;
+      config.AUTH_JWT_PRIVATE_KEY = existingPrivateKey;
+      config.AUTH_JWT_ISSUER = existingIssuer;
+      config.AUTH_JWT_AUDIENCE = existingAudience;
+      success('Reused existing JWT signing key from apps/api/.env.local');
+    } else {
+      info('No existing signing key found; generating one to satisfy required configuration.');
+      const authPrivateKey = generateEd25519PrivateKeyBase64();
+      config.AUTH_JWT_ALGORITHM = 'EdDSA';
+      config.AUTH_JWT_KEY_ID = 'dev-access-key';
+      config.AUTH_JWT_PRIVATE_KEY = authPrivateKey;
+      config.AUTH_JWT_ISSUER = config.AUTH_URL;
+      config.AUTH_JWT_AUDIENCE = `${config.AUTH_URL}/v1`;
+      success('Generated JWT signing key (required).');
+    }
   } else {
     info('Generating an Ed25519 private key for signing access tokens...');
     const authPrivateKey = generateEd25519PrivateKeyBase64();
@@ -576,8 +586,9 @@ AUTH_SECRET=${config.AUTH_SECRET}
 AUTH_URL=${config.AUTH_URL}
 AUTH_TRUST_HOST=${config.AUTH_TRUST_HOST}
 WEB_APP_URL=${config.WEB_APP_URL}
-TOKEN_HASH_KEYS='${config.TOKEN_HASH_KEYS}'
+TOKEN_HASH_KEYS=${config.TOKEN_HASH_KEYS}
 TOKEN_HASH_ACTIVE_KEY_ID=${config.TOKEN_HASH_ACTIVE_KEY_ID}
+TOKEN_HASH_FALLBACK_SECRET=${config.TOKEN_HASH_FALLBACK_SECRET}
 AUTH_JWT_ALGORITHM=${config.AUTH_JWT_ALGORITHM}
 AUTH_JWT_KEY_ID=${config.AUTH_JWT_KEY_ID}
 AUTH_JWT_PRIVATE_KEY=${config.AUTH_JWT_PRIVATE_KEY}
@@ -631,8 +642,9 @@ AUTH_SECRET=${config.AUTH_SECRET}
 AUTH_URL=${config.AUTH_URL}
 AUTH_TRUST_HOST=${config.AUTH_TRUST_HOST}
 WEB_APP_URL=${config.WEB_APP_URL}
-TOKEN_HASH_KEYS='${config.TOKEN_HASH_KEYS}'
+TOKEN_HASH_KEYS=${config.TOKEN_HASH_KEYS}
 TOKEN_HASH_ACTIVE_KEY_ID=${config.TOKEN_HASH_ACTIVE_KEY_ID}
+TOKEN_HASH_FALLBACK_SECRET=${config.TOKEN_HASH_FALLBACK_SECRET}
 AUTH_JWT_ALGORITHM=${config.AUTH_JWT_ALGORITHM}
 AUTH_JWT_KEY_ID=${config.AUTH_JWT_KEY_ID}
 AUTH_JWT_PRIVATE_KEY=${config.AUTH_JWT_PRIVATE_KEY}

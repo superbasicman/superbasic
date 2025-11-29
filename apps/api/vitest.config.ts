@@ -1,15 +1,5 @@
 import { defineConfig } from 'vitest/config';
 
-process.env.TOKEN_HASH_KEYS ??= '{"v1":"test_token_hash_secret_for_vitest"}';
-process.env.TOKEN_HASH_ACTIVE_KEY_ID ??= 'v1';
-process.env.AUTH_SECRET ??=
-  'test_auth_secret_value_that_is_long_enough_12345678901234567890';
-process.env.AUTH_JWT_PRIVATE_KEY ??=
-  `-----BEGIN PRIVATE KEY-----
-MC4CAQAwBQYDK2VwBCIEIB0Kj7QDs1uGLV7msYDXS4wxLBzME2YkdE+5EYXPLkZX
------END PRIVATE KEY-----`;
-process.env.AUTH_JWT_KEY_ID ??= 'test-access-key';
-
 export default defineConfig({
   test: {
     globals: true,
