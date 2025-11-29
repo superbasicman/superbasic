@@ -14,8 +14,7 @@ import { encode as defaultJwtEncode, decode as defaultJwtDecode } from "@auth/co
 import { verifyPassword } from "./password.js";
 
 function logAuthDebug(event: string, data: Record<string, unknown>) {
-  const shouldLog =
-    process.env.AUTH_DEBUG === "1" || process.env.NODE_ENV !== "production";
+  const shouldLog = process.env.AUTH_DEBUG === "1" && process.env.NODE_ENV !== "production";
   if (!shouldLog) {
     return;
   }
