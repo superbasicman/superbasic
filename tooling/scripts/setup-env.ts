@@ -140,6 +140,7 @@ async function main() {
   const existingWebEnv = readEnvFile(resolve(process.cwd(), 'apps/web/.env.local'));
   const existingApiTestEnv = readEnvFile(resolve(process.cwd(), 'apps/api/.env.test'));
   const existingDbTestEnv = readEnvFile(resolve(process.cwd(), 'packages/database/.env.test'));
+  const existingProdDbEnv = getExistingValue('PRODUCTION_DATABASE_URL', existingDbEnv);
 
   const config: Record<string, string> = {};
 
@@ -187,6 +188,26 @@ async function main() {
 
     config.DATABASE_URL = databaseUrl;
     success('Database configured!');
+  }
+
+  info('Add your main/prod Neon branch connection string (used for production migrations).');
+  const prodDatabaseUrl = await question(
+    `Paste main/prod branch connection string${existingProdDbEnv ? " (or 's' to keep existing/skip)" : " (or 's' to skip)"}: `
+  );
+
+  if (prodDatabaseUrl.toLowerCase() === 's') {
+    config.PRODUCTION_DATABASE_URL = existingProdDbEnv ?? '';
+    success(
+      existingProdDbEnv
+        ? 'Using existing PRODUCTION_DATABASE_URL from packages/database/.env.local'
+        : 'PRODUCTION_DATABASE_URL left empty'
+    );
+  } else {
+    if (!prodDatabaseUrl.startsWith('postgresql://')) {
+      warning('Connection string should start with postgresql:// - continuing anyway...');
+    }
+    config.PRODUCTION_DATABASE_URL = prodDatabaseUrl;
+    success('Production database configured!');
   }
 
   // ============================================================
@@ -584,7 +605,9 @@ EMAIL_SERVER=${config.EMAIL_SERVER}
 
   // Write packages/database/.env.local
   const dbEnvPath = resolve(process.cwd(), 'packages/database/.env.local');
-  const dbEnvContent = `DATABASE_URL=${config.DATABASE_URL}\n`;
+  const dbEnvContent = `DATABASE_URL=${config.DATABASE_URL}
+PRODUCTION_DATABASE_URL=${config.PRODUCTION_DATABASE_URL ?? ''}
+`;
   writeFileSync(dbEnvPath, dbEnvContent);
   success('Created packages/database/.env.local');
 
@@ -664,6 +687,7 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
 
   const redisConfigured = Boolean(config.UPSTASH_REDIS_REST_URL || config.UPSTASH_REDIS_REST_TOKEN);
   const dbConfigured = Boolean(config.DATABASE_URL);
+  const prodDbConfigured = Boolean(config.PRODUCTION_DATABASE_URL);
   const authSecretConfigured = Boolean(config.AUTH_SECRET);
 
   log('═══════════════════════════════════════════════════════════');
@@ -672,6 +696,7 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
 
   console.log('\n📋 Configuration Summary:');
   console.log(`  ${dbConfigured ? '✅' : '⚠️ '} Database (Neon) ${dbConfigured ? 'configured' : 'missing'}`);
+  console.log(`  ${prodDbConfigured ? '✅' : '⏭️ '} Prod database ${prodDbConfigured ? 'configured' : 'skipped/empty'}`);
   console.log(`  ${authSecretConfigured ? '✅' : '⚠️ '} Auth secret ${authSecretConfigured ? 'set' : 'empty'}`);
   console.log(`  ${redisConfigured ? '✅' : '⏭️ '} Redis (Upstash) ${redisConfigured ? 'configured' : 'skipped/empty'}`);
   console.log(`  ${googleConfigured ? '✅' : '⏭️ '} Google OAuth ${googleConfigured ? 'configured' : 'skipped/empty'}`);

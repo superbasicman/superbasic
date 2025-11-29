@@ -17,6 +17,7 @@
   "scripts": {
     "generate": "dotenv -e .env.local -- prisma generate",
     "migrate": "dotenv -e .env.local -- prisma migrate dev",
+    "migrate:prod": "dotenv -e .env.local -- sh -c 'DATABASE_URL=${PRODUCTION_DATABASE_URL:-$DATABASE_URL} prisma migrate deploy'",
     "studio": "dotenv -e .env.local -- prisma studio",
     "build": "pnpm run generate && tsup --config tsup.config.ts"
   },

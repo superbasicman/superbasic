@@ -35,6 +35,10 @@
       "cache": false,
       "outputs": []
     },
+    "migrate:prod": {
+      "cache": false,
+      "outputs": []
+    },
     "studio": {
       "cache": false,
       "persistent": true
