@@ -6,37 +6,25 @@
 
 ```typescript
 // ✅ GOOD - Thin controller
-export const createTokenRoute = new Hono<AuthContext>();
+export const createExampleRoute = new Hono<AuthContext>();
 
-createTokenRoute.post(
+createExampleRoute.post(
   "/",
   authMiddleware,
   rateLimitMiddleware,
-  zValidator("json", CreateTokenSchema),
+  zValidator("json", CreateExampleSchema),
   async (c) => {
     const userId = c.get("userId");
-    const profileId = c.get("profileId");
     const data = c.req.valid("json");
 
     try {
-      // Call service layer - business logic lives there
-      const result = await tokenService.createToken({
-        userId,
-        profileId,
-        ...data,
-      });
-
-      // Format HTTP response
+      const result = await exampleService.createExample({ userId, ...data });
       return c.json(result, 201);
     } catch (error) {
-      // Handle domain errors → HTTP errors
-      if (error instanceof DuplicateTokenNameError) {
+      if (error instanceof DuplicateNameError) {
         return c.json({ error: error.message }, 409);
       }
-      if (error instanceof InvalidScopesError) {
-        return c.json({ error: error.message }, 400);
-      }
-      throw error; // Let global error handler catch unexpected errors
+      throw error;
     }
   }
 );
@@ -44,17 +32,17 @@ createTokenRoute.post(
 
 ```typescript
 // ❌ BAD - Fat controller with business logic and DB access
-createTokenRoute.post("/", async (c) => {
+createExampleRoute.post("/", async (c) => {
   const userId = c.get("userId");
-  const { name, scopes, expiresInDays } = await c.req.json();
+  const { name } = await c.req.json();
 
   // ❌ Validation in controller
-  if (!validateScopes(scopes)) {
-    return c.json({ error: "Invalid scopes" }, 400);
+  if (!name) {
+    return c.json({ error: "Invalid name" }, 400);
   }
 
   // ❌ Database access in controller
-  const existing = await prisma.apiKey.findUnique({
+  const existing = await prisma.example.findUnique({
     where: { userId_name: { userId, name } },
   });
 
@@ -63,17 +51,11 @@ createTokenRoute.post("/", async (c) => {
   }
 
   // ❌ Business logic in controller
-  const token = generateToken();
-  const keyHash = hashToken(token);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + expiresInDays);
-
-  // ❌ More database access
-  const apiKey = await prisma.apiKey.create({
-    data: { userId, name, keyHash, scopes, expiresAt },
+  const record = await prisma.example.create({
+    data: { userId, name },
   });
 
-  return c.json({ token, ...apiKey }, 201);
+  return c.json(record, 201);
 });
 ```
 

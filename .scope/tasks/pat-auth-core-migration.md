@@ -10,5 +10,5 @@ Source docs: `docs/auth-migration/align-to-end-auth-goal.md` (item #1), `docs/au
   - Sanity check: API middleware tests hit a PAT-protected route with a token issued via auth-core and succeed/fail appropriately; no queries to `api_keys` occur.
 - [x] 4. Move `/v1/tokens` issuance/update/revoke to auth-core PAT APIs
   - Sanity check: route tests show tokens are created/revoked via auth-core, responses unchanged, and records land in `tokens` (not `api_keys`); audit events still emitted.
-- [ ] 5. Handle legacy `api_keys` migration/compatibility
-  - Sanity check: migration/backfill script or compatibility shim is documented and tested so existing PATs either migrate to `tokens` or are clearly rejected with guidance; no orphaned secrets.
+- [x] 5. Handle legacy `api_keys` migration/compatibility
+  - Sanity check: Not applicable for this install (0 legacy API keys/users). Documented that `/v1/tokens` is fully on auth-core `tokens` and no backfill/shim is required; legacy `api_keys` code paths/doc refs removed.

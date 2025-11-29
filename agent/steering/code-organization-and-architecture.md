@@ -121,17 +121,11 @@ createTokenRoute.post("/", async (c) => {
   }
 
   // ❌ Business logic in controller
-  const token = generateToken();
-  const keyHash = hashToken(token);
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + expiresInDays);
-
-  // ❌ More database access
-  const apiKey = await prisma.apiKey.create({
-    data: { userId, name, keyHash, scopes, expiresAt },
+  const record = await prisma.example.create({
+    data: { userId, name },
   });
 
-  return c.json({ token, ...apiKey }, 201);
+  return c.json(record, 201);
 });
 ```
 
