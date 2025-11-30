@@ -59,20 +59,18 @@ describe('TokenService.issueRefreshToken', () => {
     mockHashFactory.mockClear();
   });
 
-  it('creates and returns a refresh token with generated familyId', async () => {
-    const familyIdFactory = vi.fn().mockReturnValue('family_generated');
+  it('creates and returns a refresh token with null familyId (until schema is adjusted)', async () => {
     const service = new TokenService({
       prisma: prismaStub,
       createOpaqueToken: mockTokenFactory,
       createTokenHashEnvelope: mockHashFactory,
-      familyIdFactory,
     });
 
     const expiresAt = new Date('2025-02-10T00:00:00.000Z');
     mockCreate.mockResolvedValue(
       buildToken({
         id: 'tok_abc',
-        familyId: 'family_generated',
+        familyId: null,
         expiresAt,
       })
     );
@@ -88,47 +86,16 @@ describe('TokenService.issueRefreshToken', () => {
         id: 'tok_abc',
         userId: 'user_123',
         sessionId: 'sess_123',
-        familyId: 'family_generated',
+        familyId: null,
         tokenHash: hashEnvelope,
         expiresAt,
       }),
     });
 
     expect(result.refreshToken).toBe('tok_abc.secret-abc');
-    expect(result.token.familyId).toBe('family_generated');
+    expect(result.token.familyId).toBeNull();
     expect(result.token.sessionId).toBe('sess_123');
     expect(result.token.expiresAt.toISOString()).toBe(expiresAt.toISOString());
-  });
-
-  it('reuses provided familyId', async () => {
-    const service = new TokenService({
-      prisma: prismaStub,
-      createOpaqueToken: mockTokenFactory,
-      createTokenHashEnvelope: mockHashFactory,
-      familyIdFactory: vi.fn().mockReturnValue('should_not_use'),
-    });
-
-    const expiresAt = new Date('2025-03-01T00:00:00.000Z');
-    mockCreate.mockResolvedValue(
-      buildToken({
-        id: 'tok_abc',
-        familyId: 'family_existing',
-        expiresAt,
-      })
-    );
-
-    await service.issueRefreshToken({
-      userId: 'user_123',
-      sessionId: 'sess_123',
-      expiresAt,
-      familyId: 'family_existing',
-    });
-
-    expect(mockCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        familyId: 'family_existing',
-      }),
-    });
   });
 
   it('throws when expiresAt is invalid', async () => {

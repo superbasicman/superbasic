@@ -20,12 +20,17 @@ import {
   buildVerificationKey,
   signAccessToken,
 } from './signing.js';
+import { TokenService } from './token-service.js';
 import type {
   AccessTokenClaims,
   AuthContext,
   ClientType,
   CreateSessionInput,
+  CreateSessionWithRefreshInput,
+  CreateSessionWithRefreshResult,
   IssuePersonalAccessTokenInput,
+  IssueRefreshTokenInput,
+  IssueRefreshTokenResult,
   IssuedToken,
   PermissionScope,
   RevokeSessionInput,
@@ -42,6 +47,7 @@ type AuthCoreServiceDependencies = {
   audience: string;
   clockToleranceSeconds: number;
   setContext?: typeof setPostgresContext;
+  tokenService?: TokenService;
 };
 
 function extractBearer(header?: string): string | null {
@@ -119,6 +125,7 @@ export class AuthCoreService implements AuthService {
   private readonly audience: string;
   private readonly clockToleranceSeconds: number;
   private readonly setContext: typeof setPostgresContext;
+  private readonly tokenService: TokenService;
 
   constructor(dependencies: AuthCoreServiceDependencies) {
     this.prisma = dependencies.prisma;
@@ -127,6 +134,7 @@ export class AuthCoreService implements AuthService {
     this.audience = dependencies.audience;
     this.clockToleranceSeconds = dependencies.clockToleranceSeconds;
     this.setContext = dependencies.setContext ?? setPostgresContext;
+    this.tokenService = dependencies.tokenService ?? new TokenService({ prisma: this.prisma });
   }
 
   async verifyRequest(input: VerifyRequestInput): Promise<AuthContext | null> {
@@ -331,6 +339,28 @@ export class AuthCoreService implements AuthService {
       where: { id: input.tokenId },
       data: update,
     });
+  }
+
+  async issueRefreshToken(input: IssueRefreshTokenInput): Promise<IssueRefreshTokenResult> {
+    return this.tokenService.issueRefreshToken(input);
+  }
+
+  async createSessionWithRefresh(
+    input: CreateSessionWithRefreshInput
+  ): Promise<CreateSessionWithRefreshResult> {
+    const session = await this.createSession(input);
+    const refresh = await this.issueRefreshToken({
+      userId: session.userId,
+      sessionId: session.sessionId,
+      expiresAt: session.expiresAt,
+      metadata: input.refreshMetadata ?? null,
+      familyId: input.refreshFamilyId ?? null,
+    });
+
+    return {
+      session,
+      refresh,
+    };
   }
 
   getJwks() {
@@ -792,6 +822,7 @@ export type CreateAuthServiceOptions = {
   prisma?: PrismaClient;
   config?: AuthCoreEnvironment;
   keyStore?: SigningKeyStore;
+  tokenService?: TokenService;
 };
 
 export async function createAuthService(
@@ -821,6 +852,7 @@ export async function createAuthService(
     issuer: resolvedConfig.issuer,
     audience: resolvedConfig.audience,
     clockToleranceSeconds: resolvedConfig.clockToleranceSeconds,
+    tokenService: options.tokenService ?? new TokenService({ prisma: options.prisma ?? prisma }),
   });
 }
 

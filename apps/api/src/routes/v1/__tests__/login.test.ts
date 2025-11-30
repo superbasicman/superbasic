@@ -2,7 +2,7 @@
  * Integration tests for Auth.js credentials sign-in
  * Tests user login via Auth.js, session creation, and audit events
  * 
- * Note: Migrated from custom /v1/login endpoint to Auth.js /v1/auth/callback/credentials
+ * Note: Migrated from custom /v1/login endpoint to Auth.js /v1/auth/callback/authjs:credentials
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -12,13 +12,7 @@ vi.unmock('@repo/database');
 
 import app from '../../../app.js';
 import { resetDatabase } from '../../../test/setup.js';
-import {
-  makeRequest,
-  createTestUser,
-  createTestUserCredentials,
-  extractCookie,
-  signInWithCredentials,
-} from '../../../test/helpers.js';
+import { createTestUser, createTestUserCredentials, extractCookie, signInWithCredentials } from '../../../test/helpers.js';
 
 // Auth.js uses this cookie name
 const COOKIE_NAME = 'authjs.session-token';
@@ -70,7 +64,7 @@ describe('Auth.js Credentials Sign-In', () => {
       // Verify cookie attributes from Set-Cookie header
       const setCookieHeaders = response.headers.getSetCookie?.() || [];
       const cookieHeader = setCookieHeaders.find((h) => h.includes(COOKIE_NAME));
-      
+
       expect(cookieHeader).toBeTruthy();
       expect(cookieHeader).toContain('HttpOnly');
       expect(cookieHeader).toContain('SameSite=Lax');
@@ -92,12 +86,12 @@ describe('Auth.js Credentials Sign-In', () => {
 
       const setCookieHeaders = response.headers.getSetCookie?.() || [];
       const cookieHeader = setCookieHeaders.find((h) => h.includes(COOKIE_NAME));
-      
+
       // Verify security attributes (Secure flag requires HTTPS in production)
       expect(cookieHeader).toContain('HttpOnly');
       expect(cookieHeader).toContain('SameSite=Lax');
       expect(cookieHeader).toContain('Path=/');
-      
+
       // Note: Secure flag is only set when using HTTPS protocol
       // In test environment with HTTP requests, Secure is not set
       // In production with HTTPS, Auth.js automatically sets Secure
@@ -275,43 +269,7 @@ describe('Auth.js Credentials Sign-In', () => {
   });
 
   describe('Session Creation', () => {
-    it('should redirect after login but token exchange is no longer supported (returns 410)', async () => {
-      const { credentials } = await createTestUser();
-
-      const signInResponse = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      expect(signInResponse.status).toBe(302);
-
-      const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
-
-      // Legacy session-token exchange has been removed; ensure endpoint signals this.
-      const tokenResponse = await makeRequest(app, 'POST', '/v1/auth/token', {
-        cookies: {
-          [COOKIE_NAME]: sessionCookie!,
-        },
-        body: {
-          clientType: 'web',
-        },
-      });
-
-      expect(tokenResponse.status).toBe(410);
-      const tokenPayload = await tokenResponse.json();
-      expect(tokenPayload.error).toBe('unsupported_grant_type');
-
-      // Subsequent calls without proper AuthCore tokens should remain unauthorized
-      const meResponse = await makeRequest(app, 'GET', '/v1/me', {
-        headers: {
-          Authorization: `Bearer invalid`,
-        },
-      });
-      expect(meResponse.status).toBe(401);
-    }, 15000);
-
+    // Legacy /v1/auth/token exchange removed for SPA; AuthCore tokens come from /v1/auth/login or provider callbacks.
     it('should create profile for new user via signIn callback', async () => {
       const { user, credentials } = await createTestUser();
 
@@ -324,7 +282,7 @@ describe('Auth.js Credentials Sign-In', () => {
       const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
 
       expect(sessionCookie).toBeTruthy();
-      
+
       // Verify profile was created in database (via signIn callback)
       // Note: Profile data is not in session by default, but should exist in DB
       const { getTestPrisma } = await import('../../../test/setup.js');
@@ -332,7 +290,7 @@ describe('Auth.js Credentials Sign-In', () => {
       const profile = await prisma.profile.findUnique({
         where: { userId: user.id },
       });
-      
+
       expect(profile).toBeTruthy();
       expect(profile?.timezone).toBe('UTC');
       expect(profile?.currency).toBe('USD');

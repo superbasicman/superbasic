@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
   test: {
@@ -29,7 +30,7 @@ export default defineConfig({
       if (log.includes('PrismaClientInitializationError')) {
         return false;
       }
-      
+
       // Suppress expected Auth.js errors during testing
       // These are intentional test cases (invalid credentials, missing fields, etc.)
       if (

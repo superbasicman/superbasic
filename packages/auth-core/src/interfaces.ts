@@ -1,7 +1,11 @@
 import type {
   AuthContext,
   CreateSessionInput,
+  CreateSessionWithRefreshInput,
+  CreateSessionWithRefreshResult,
   IssuePersonalAccessTokenInput,
+  IssueRefreshTokenInput,
+  IssueRefreshTokenResult,
   IssuedToken,
   OAuthInitiationResult,
   PermissionScope,
@@ -27,7 +31,11 @@ export interface IdentityProvider {
 export interface AuthService {
   verifyRequest(input: VerifyRequestInput): Promise<AuthContext | null>;
   createSession(input: CreateSessionInput): Promise<SessionHandle>;
+  createSessionWithRefresh(
+    input: CreateSessionWithRefreshInput
+  ): Promise<CreateSessionWithRefreshResult>;
   revokeSession(input: RevokeSessionInput): Promise<void>;
+  issueRefreshToken(input: IssueRefreshTokenInput): Promise<IssueRefreshTokenResult>;
   issuePersonalAccessToken(input: IssuePersonalAccessTokenInput): Promise<IssuedToken>;
   revokeToken(input: RevokeTokenInput): Promise<void>;
 }

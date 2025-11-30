@@ -9,7 +9,7 @@ import {
   createSessionRecord,
   makeRequest,
 } from '../../../test/helpers.js';
-import { refreshTokenService } from '../../../lib/refresh-token-service.js';
+import { authService } from '../../../lib/auth-service.js';
 import { REFRESH_TOKEN_COOKIE, REFRESH_CSRF_COOKIE } from '../auth/refresh-cookie.js';
 import { authEvents } from '@repo/auth';
 
@@ -25,7 +25,7 @@ describe('POST /v1/auth/refresh', () => {
     const session = await createSessionRecord(user.id);
 
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    const initial = await refreshTokenService.issueRefreshToken({
+    const initial = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt,
@@ -63,7 +63,7 @@ describe('POST /v1/auth/refresh', () => {
     const { user } = await createTestUser();
     const session = await createSessionRecord(user.id);
 
-    const initial = await refreshTokenService.issueRefreshToken({
+    const initial = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -94,7 +94,7 @@ describe('POST /v1/auth/refresh', () => {
     const { user } = await createTestUser();
     const session = await createSessionRecord(user.id);
 
-    const initial = await refreshTokenService.issueRefreshToken({
+    const initial = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt: new Date(Date.now() - 1000),
@@ -114,18 +114,21 @@ describe('POST /v1/auth/refresh', () => {
     const session = await createSessionRecord(user.id);
     const now = new Date();
 
-    const first = await refreshTokenService.issueRefreshToken({
+    // Seed a family and keep it stable across rotation attempts.
+    const first = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
     });
 
+    // Mark the first as reused/revoked.
     await prisma().token.update({
       where: { id: first.token.id },
       data: { revokedAt: now },
     });
 
-    await refreshTokenService.issueRefreshToken({
+    // Create another in the same family to simulate sibling active token.
+    const sibling = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
@@ -141,13 +144,15 @@ describe('POST /v1/auth/refresh', () => {
     expect(response.status).toBe(401);
     const updatedSession = await prisma().session.findUnique({ where: { id: session.id } });
     expect(updatedSession?.revokedAt).not.toBeNull();
+    const siblingRow = await prisma().token.findUnique({ where: { id: sibling.token.id } });
+    expect(siblingRow?.revokedAt).not.toBeNull();
   });
 
   it('uses refresh token cookie when body is missing', async () => {
     const { user } = await createTestUser();
     const session = await createSessionRecord(user.id);
 
-    const initial = await refreshTokenService.issueRefreshToken({
+    const initial = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),

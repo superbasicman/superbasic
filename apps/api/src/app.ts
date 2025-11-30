@@ -11,13 +11,13 @@ import type { AppBindings } from './types/context.js';
 import { attachAuthContext } from './middleware/auth-context.js';
 import { getCurrentSession } from './routes/v1/auth/session.js';
 import { getJwks } from './routes/v1/auth/jwks.js';
-import { authTokenValidator, exchangeAuthTokens } from './routes/v1/auth/token.js';
 import { refreshTokenValidator, refreshTokens } from './routes/v1/auth/refresh.js';
 import { logout } from './routes/v1/auth/logout.js';
 import { deleteSession, listSessions } from './routes/v1/auth/sessions.js';
 import { bulkRevokeSessions, bulkRevokeTokens } from './routes/v1/auth/bulk-revoke.js';
 import { oauthRoutes } from './routes/v1/oauth/index.js';
 import { handleSsoLogout, ssoLogoutValidator } from './routes/v1/auth/sso-logout.js';
+import { login, loginValidator } from './routes/v1/auth/login.js';
 
 const app = new Hono<AppBindings>();
 
@@ -44,11 +44,11 @@ authRoutes.delete('/sessions/:id', deleteSession);
 authRoutes.post('/sessions/revoke-all', bulkRevokeSessions);
 authRoutes.post('/tokens/revoke-all', bulkRevokeTokens);
 authRoutes.get('/jwks.json', getJwks);
-authRoutes.use('/token', authRateLimitMiddleware);
+authRoutes.use('/login', authRateLimitMiddleware);
 authRoutes.use('/refresh', authRateLimitMiddleware);
 authRoutes.use('/logout', authRateLimitMiddleware);
 authRoutes.use('/sso/logout', authRateLimitMiddleware);
-authRoutes.post('/token', authTokenValidator, exchangeAuthTokens);
+authRoutes.post('/login', loginValidator, login);
 authRoutes.post('/refresh', refreshTokenValidator, refreshTokens);
 authRoutes.post('/logout', logout);
 authRoutes.post('/sso/logout', ssoLogoutValidator, handleSsoLogout);

@@ -4,7 +4,6 @@ import { AuthorizationError, normalizeRedirectUri, requireOAuthClient, validateP
 import { parseOpaqueToken } from '@repo/auth';
 import { Hono } from 'hono';
 import { authService } from '../../../lib/auth-service.js';
-import { refreshTokenService } from '../../../lib/refresh-token-service.js';
 import { consumeAuthorizationCode } from '../../../lib/oauth-authorization-codes.js';
 import type { AppBindings } from '../../../types/context.js';
 import { generateAccessToken } from '@repo/auth-core';
@@ -65,7 +64,7 @@ tokenRoute.post(
       const userAgentHeader = c.req.header('user-agent');
       const clientType = client.clientId === 'mobile' ? 'mobile' : 'other';
 
-      const sessionHandle = await authService.createSession({
+      const { session: sessionHandle, refresh: refreshResult } = await authService.createSessionWithRefresh({
         userId: codeRecord.userId,
         identity: {
           provider: 'oauth:code',
@@ -76,6 +75,12 @@ tokenRoute.post(
         ...(ipAddress ? { ipAddress } : {}),
         ...(userAgentHeader ? { userAgent: userAgentHeader } : {}),
         mfaLevel: 'none',
+        refreshMetadata: {
+          clientType,
+          ipAddress: ipAddress ?? null,
+          userAgent: userAgentHeader ?? null,
+          source: 'oauth-token-endpoint',
+        },
       });
 
       const { token: accessToken, claims } = await generateAccessToken({
@@ -84,18 +89,6 @@ tokenRoute.post(
         clientType: sessionHandle.clientType,
         mfaLevel: sessionHandle.mfaLevel,
         reauthenticatedAt: Math.floor(Date.now() / 1000),
-      });
-
-      const refreshResult = await refreshTokenService.issueRefreshToken({
-        userId: sessionHandle.userId,
-        sessionId: sessionHandle.sessionId,
-        expiresAt: sessionHandle.expiresAt,
-        metadata: {
-          clientType: sessionHandle.clientType,
-          ipAddress: ipAddress ?? null,
-          userAgent: userAgentHeader ?? null,
-          source: 'oauth-token-endpoint',
-        },
       });
 
       return c.json({

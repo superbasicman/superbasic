@@ -7,17 +7,36 @@
 
 import { Hono } from "hono";
 import { Auth } from "@auth/core";
-import { authConfig } from "@repo/auth";
+import { AUTHJS_CREDENTIALS_PROVIDER_ID, authConfig } from "@repo/auth";
 import {
   credentialsRateLimitMiddleware,
   magicLinkRateLimitMiddleware,
 } from "./middleware/rate-limit/index.js";
 import { computeAllowedOrigins } from "./middleware/cors.js";
+import { prisma } from "@repo/database";
+import {
+  parseOpaqueToken,
+  type TokenHashEnvelope,
+  verifyTokenSecret,
+} from "@repo/auth";
+import { authService } from "./lib/auth-service.js";
+import { randomUUID } from "node:crypto";
+import { generateAccessToken } from "@repo/auth-core";
+import { SESSION_MAX_AGE_SECONDS } from "@repo/auth";
+import {
+  REFRESH_CSRF_COOKIE,
+  REFRESH_COOKIE_PATH,
+  REFRESH_TOKEN_COOKIE,
+  USE_HOST_PREFIX,
+} from "./lib/refresh-cookie-constants.js";
 
 const authApp = new Hono();
 
 // Apply credentials rate limiting (5 req/minute per IP) before Auth.js handler
-authApp.use("/callback/credentials", credentialsRateLimitMiddleware);
+authApp.use(
+  `/callback/${encodeURIComponent(AUTHJS_CREDENTIALS_PROVIDER_ID)}`,
+  credentialsRateLimitMiddleware
+);
 
 // Apply magic link rate limiting (3 req/hour per email) before Auth.js handler
 // Auth.js uses "nodemailer" as the provider ID for email authentication
@@ -64,6 +83,8 @@ authApp.all("/*", async (c) => {
       }
     }
 
+    await maybeIssueAuthCoreSession(request, headers);
+
     const response = new Response(authResponse.body, {
       status: authResponse.status,
       statusText: authResponse.statusText,
@@ -103,4 +124,226 @@ authApp.all("/*", async (c) => {
   }
 });
 
-export { authApp };
+export { authApp, maybeIssueAuthCoreSession };
+
+async function maybeIssueAuthCoreSession(request: Request, headers: Headers) {
+  // Only run for Auth.js callbacks/signin endpoints that set the session cookie.
+  if (!request.url.includes("/callback/") && !request.url.includes("/signin/nodemailer")) {
+    return null;
+  }
+
+  let sessionToken: string | null = null;
+
+  // Robustly extract cookie (handling multiple Set-Cookie headers)
+  if ('getSetCookie' in headers && typeof headers.getSetCookie === 'function') {
+    const cookies = headers.getSetCookie();
+    for (const cookie of cookies) {
+      const match = cookie.match(/authjs\.session-token=([^;]+)/);
+      if (match && match[1]) {
+        sessionToken = decodeURIComponent(match[1]);
+        break;
+      }
+    }
+  } else {
+    // Fallback for environments without getSetCookie
+    const setCookieHeader = headers.get("set-cookie");
+    if (setCookieHeader) {
+      const match = setCookieHeader.match(/authjs\.session-token=([^;]+)/);
+      if (match && match[1]) {
+        sessionToken = decodeURIComponent(match[1]);
+      }
+    }
+  }
+
+  if (!sessionToken) {
+    return null;
+  }
+
+  let sessionId: string | null = null;
+  let userId: string | null = null;
+  let expiresAt: Date | null = null;
+
+  // 1. Try to parse as opaque token (legacy/database strategy)
+  const parsed = parseOpaqueToken(sessionToken);
+  if (parsed) {
+    const sessionRecord = await prisma.session.findUnique({
+      where: { tokenId: parsed.tokenId },
+      include: {
+        user: true,
+      },
+    });
+
+    if (
+      sessionRecord &&
+      !sessionRecord.revokedAt &&
+      sessionRecord.expiresAt > new Date() &&
+      sessionRecord.user &&
+      sessionRecord.sessionTokenHash &&
+      verifyTokenSecret(parsed.tokenSecret, sessionRecord.sessionTokenHash as TokenHashEnvelope)
+    ) {
+      sessionId = sessionRecord.id;
+      userId = sessionRecord.userId;
+      expiresAt = sessionRecord.expiresAt;
+    }
+  }
+
+  // 2. Try to verify as JWT (AuthCore Access Token strategy)
+  if (!sessionId) {
+    try {
+      const authContext = await authService.verifyRequest({
+        authorizationHeader: `Bearer ${sessionToken}`,
+        method: request.method,
+        url: request.url,
+      });
+
+      if (authContext && authContext.sessionId) {
+        sessionId = authContext.sessionId;
+        userId = authContext.userId;
+        // We don't have the exact expiresAt from context, but we can look up the session if needed.
+        // For refresh token issuance, we need the session to exist.
+        // Let's verify the session exists in DB to get its expiry.
+        const session = await prisma.session.findUnique({
+          where: { id: sessionId },
+        });
+        if (session) {
+          expiresAt = session.expiresAt;
+        }
+      }
+    } catch (error) {
+      // Ignore JWT verification errors (it might be an invalid opaque token)
+    }
+  }
+
+  if (!sessionId || !userId || !expiresAt) {
+    return null;
+  }
+
+  const ipAddress = extractIpFromRequest(request) ?? undefined;
+  const userAgent = request.headers.get("user-agent") ?? undefined;
+
+  // Issue Refresh Token for the EXISTING session.
+  // We do not create a new session, as Auth.js (via persistSessionToken) or AuthCore already created one.
+  const refreshResult = await authService.issueRefreshToken({
+    userId,
+    sessionId,
+    expiresAt,
+    metadata: {
+      source: "authjs-callback",
+      clientType: "web",
+      ipAddress: ipAddress ?? null,
+      userAgent: userAgent ?? null,
+    },
+  });
+
+  // Set refresh + CSRF cookies to let SPA call /auth/refresh and fetch access token.
+  const csrfCookieValue = appendRefreshCookies(headers, refreshResult.refreshToken, refreshResult.token.expiresAt);
+
+  // Also issue an access token header to allow non-SPA clients to bootstrap quickly.
+  // If the sessionToken was already a JWT, this is redundant but harmless.
+  // If it was opaque, this provides the JWT.
+  const { token: accessToken, claims } = await generateAccessToken({
+    userId,
+    sessionId,
+    clientType: "web",
+    mfaLevel: "none", // Assuming none for now, could derive from session
+    reauthenticatedAt: Math.floor(Date.now() / 1000),
+  });
+  headers.set("X-Access-Token", accessToken);
+  headers.set("X-Access-Token-Expires-In", String(claims.exp - claims.iat));
+  if (csrfCookieValue) {
+    headers.set("X-Refresh-Csrf", csrfCookieValue);
+  }
+
+  return {
+    sessionId,
+    userId,
+  };
+}
+
+function appendRefreshCookies(headers: Headers, refreshToken: string, expiresAt: Date): string | null {
+  const csrfToken = randomUUID();
+  const refreshCookie = buildRefreshCookie(refreshToken, expiresAt);
+  const csrfCookie = buildCsrfCookie(csrfToken, expiresAt);
+  headers.append("Set-Cookie", refreshCookie);
+  headers.append("Set-Cookie", csrfCookie);
+  return csrfToken;
+}
+
+function buildRefreshCookie(value: string, expiresAt: Date): string {
+  const options = buildCookieOptions(expiresAt);
+  return serializeCookie(REFRESH_TOKEN_COOKIE, value, options);
+}
+
+function buildCsrfCookie(csrfToken: string, expiresAt: Date): string {
+  const options = buildCookieOptions(expiresAt);
+  // CSRF cookie must be readable by JS.
+  options.httpOnly = false;
+  options.path = "/";
+  return serializeCookie(REFRESH_CSRF_COOKIE, csrfToken, options);
+}
+
+type CookieOptions = {
+  path?: string;
+  httpOnly?: boolean;
+  sameSite?: "Lax" | "Strict" | "None";
+  secure?: boolean;
+  domain?: string;
+  maxAge?: number;
+  expires?: Date;
+};
+
+function buildCookieOptions(expiresAt?: Date, maxAgeOverride?: number): CookieOptions {
+  const sameSiteEnv = process.env.AUTH_COOKIE_SAMESITE;
+  // Default to Lax for localhost (secure None cookies are often blocked over http)
+  const sameSite: NonNullable<CookieOptions["sameSite"]> =
+    sameSiteEnv === undefined || sameSiteEnv === ""
+      ? "Lax"
+      : (sameSiteEnv as NonNullable<CookieOptions["sameSite"]>);
+  const secure = USE_HOST_PREFIX || process.env.AUTH_COOKIE_SECURE === "true";
+  const domainEnv = process.env.AUTH_COOKIE_DOMAIN;
+  // __Host- cookies must not set Domain, so skip when the prefix is active.
+  const domain = USE_HOST_PREFIX ? undefined : domainEnv;
+  const path = REFRESH_COOKIE_PATH;
+  const maxAge =
+    maxAgeOverride !== undefined
+      ? maxAgeOverride
+      : expiresAt
+        ? Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000))
+        : SESSION_MAX_AGE_SECONDS;
+
+  return {
+    path,
+    httpOnly: true,
+    sameSite,
+    secure,
+    ...(domain ? { domain } : {}),
+    ...(maxAge !== undefined ? { maxAge } : {}),
+    ...(expiresAt ? { expires: expiresAt } : {}),
+  };
+}
+
+function serializeCookie(name: string, value: string, options: CookieOptions): string {
+  const segments = [`${name}=${encodeURIComponent(value)}`];
+  if (options.domain) segments.push(`Domain=${options.domain}`);
+  if (options.path) segments.push(`Path=${options.path}`);
+  if (options.expires) segments.push(`Expires=${options.expires.toUTCString()}`);
+  if (options.maxAge !== undefined) segments.push(`Max-Age=${Math.max(0, Math.floor(options.maxAge))}`);
+  segments.push(`SameSite=${options.sameSite ?? "Lax"}`);
+  if (options.secure) segments.push("Secure");
+  if (options.httpOnly) segments.push("HttpOnly");
+  return segments.join("; ");
+}
+
+
+
+function extractIpFromRequest(request: Request): string | undefined {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    const [first] = forwarded.split(",");
+    if (first?.trim()) {
+      return first.trim();
+    }
+  }
+  const realIp = request.headers.get("x-real-ip");
+  return realIp ?? undefined;
+}

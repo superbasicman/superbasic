@@ -105,6 +105,16 @@ export type CreateSessionInput = {
   rememberMe?: boolean;
 };
 
+export type CreateSessionWithRefreshInput = CreateSessionInput & {
+  refreshMetadata?: Record<string, unknown> | null;
+  refreshFamilyId?: string | null;
+};
+
+export type CreateSessionWithRefreshResult = {
+  session: SessionHandle;
+  refresh: IssueRefreshTokenResult;
+};
+
 export type RevokeSessionInput = {
   sessionId: string;
   reason?: string;
@@ -123,6 +133,19 @@ export type RevokeTokenInput = {
   tokenId: string;
   revokedBy?: string;
   reason?: string;
+};
+
+export type IssueRefreshTokenInput = {
+  userId: string;
+  sessionId: string;
+  expiresAt: Date;
+  metadata?: Record<string, unknown> | null;
+  familyId?: string | null;
+};
+
+export type IssueRefreshTokenResult = {
+  refreshToken: string;
+  token: RefreshTokenRecord;
 };
 
 export type IssuedToken = {
@@ -156,7 +179,7 @@ export type TokenRecord = {
 export type RefreshTokenRecord = TokenRecord & {
   type: 'refresh';
   sessionId: string;
-  familyId: string;
+  familyId: string | null;
   expiresAt: Date;
 };
 

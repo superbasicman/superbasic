@@ -3,19 +3,24 @@ import { setCookie, getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { CookieOptions } from 'hono/utils/cookie';
 
-export const REFRESH_TOKEN_COOKIE = 'sb.refresh-token';
-export const REFRESH_CSRF_COOKIE = 'sb.refresh-csrf';
-const REFRESH_COOKIE_PATH = '/v1/auth/refresh';
-const isProduction = process.env.NODE_ENV === 'production';
+import {
+  REFRESH_COOKIE_PATH,
+  REFRESH_CSRF_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+  USE_HOST_PREFIX,
+} from '../../../lib/refresh-cookie-constants.js';
+
+export { REFRESH_CSRF_COOKIE, REFRESH_TOKEN_COOKIE } from '../../../lib/refresh-cookie-constants.js';
 
 function buildCookieOptions(expiresAt?: Date, maxAgeOverride?: number): CookieOptions {
-  const domain = process.env.AUTH_COOKIE_DOMAIN;
   const sameSiteEnv = process.env.AUTH_COOKIE_SAMESITE;
   const sameSite: NonNullable<CookieOptions['sameSite']> =
     sameSiteEnv === undefined || sameSiteEnv === ''
       ? 'Lax'
       : (sameSiteEnv as NonNullable<CookieOptions['sameSite']>);
-  const secure = isProduction || process.env.AUTH_COOKIE_SECURE === 'true';
+  const secure = USE_HOST_PREFIX || process.env.AUTH_COOKIE_SECURE === 'true';
+  // __Host- cookies must omit Domain.
+  const domain = USE_HOST_PREFIX ? undefined : process.env.AUTH_COOKIE_DOMAIN;
   const maxAge =
     maxAgeOverride !== undefined
       ? maxAgeOverride

@@ -11,7 +11,7 @@ import {
   createAccessToken,
 } from '../../../test/helpers.js';
 import { generateAccessToken } from '@repo/auth-core';
-import { refreshTokenService } from '../../../lib/refresh-token-service.js';
+import { authService } from '../../../lib/auth-service.js';
 import { REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
 
 const prisma = getTestPrisma;
@@ -120,7 +120,7 @@ describe('POST /v1/auth/logout', () => {
     const { user } = await createTestUser();
     const { token: accessToken, session } = await createAccessToken(user.id);
 
-    const refresh = await refreshTokenService.issueRefreshToken({
+    const refresh = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: session.id,
       expiresAt: new Date(Date.now() + 1000 * 60 * 60),
@@ -161,7 +161,7 @@ describe('DELETE /v1/auth/sessions/:id', () => {
     const { token: accessToken, session } = await createAccessToken(user.id);
     const otherSession = await createSessionRecord(user.id);
 
-    const refresh = await refreshTokenService.issueRefreshToken({
+    const refresh = await authService.issueRefreshToken({
       userId: user.id,
       sessionId: otherSession.id,
       expiresAt: new Date(Date.now() + 1000 * 60 * 60),

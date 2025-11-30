@@ -7,15 +7,6 @@ import app from '../../../app.js';
 import { makeRequest } from '../../../test/helpers.js';
 
 describe('Auth endpoint rate limiting', () => {
-  it('rate limits POST /v1/auth/token', async () => {
-    const response = await makeRequest(app, 'POST', '/v1/auth/token', {
-      body: {},
-    });
-
-    // In test env, rate limit middleware is bypassed; assert no crash and expected error shape
-    expect([400, 401]).toContain(response.status);
-  });
-
   it('rate limits POST /v1/auth/refresh', async () => {
     const response = await makeRequest(app, 'POST', '/v1/auth/refresh', {
       body: {},

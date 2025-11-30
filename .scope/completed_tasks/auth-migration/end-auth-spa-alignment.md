@@ -1,0 +1,15 @@
+- Context: Align SPA auth to `docs/auth-migration/end-auth-goal.md` by removing the Auth.js session-cookie → `/v1/auth/token` exchange and moving to AuthCore-issued access/refresh tokens for web. Avoid the legacy flow and ensure API/SPA are consistent with the end-state architecture.
+
+- [x] 1. Switch SPA login to AuthCore-issued tokens (no Auth.js session swap)
+  - Sanity check (documented): For the SPA, we will follow the end-state flow in `docs/auth-migration/end-auth-goal.md` by having the client call AuthCore-backed endpoints directly and never touch `authjs.session-token` or `/v1/auth/token`. The SPA login/register path will be:
+    - `POST /v1/auth/login` (to be implemented) with JSON `{ email, password, rememberMe?, clientType: "web" }` → AuthCore validates credentials, creates a session, sets `sb.refresh-token` + `sb.refresh-csrf` cookies, and returns `{ tokenType: "Bearer", accessToken, refreshToken, expiresIn, sessionId }`. SPA stores `accessToken` client-side and echoes `sb.refresh-csrf` via the `x-csrf-token` header on refresh/logout.
+    - `POST /v1/auth/refresh` uses the refresh cookie by default (body `refreshToken` only for non-cookie contexts) and returns a rotated `{ accessToken, refreshToken, expiresIn }`; SPA updates its stored access token and, if a refresh token is returned, updates storage for native clients.
+    - `POST /v1/auth/logout` requires Bearer access token + `x-csrf-token` when the refresh cookie is present and revokes the AuthCore session, clearing cookies.
+    - Registration stays `POST /v1/register`; after success, SPA immediately calls `POST /v1/auth/login` to obtain tokens. OAuth sign-ins will also hand off to AuthCore token issuance (no cookie swap) once wired in.
+- [x] 2. Update API/auth routes to support the SPA’s AuthCore flow and remove the Auth.js session-exchange path
+  - Sanity check: Added `POST /v1/auth/login` (AuthCore-backed) that verifies credentials against the users table, creates an AuthCore session, issues access + refresh tokens, sets `sb.refresh-token` and `sb.refresh-csrf` cookies, and returns `{ tokenType, accessToken, refreshToken, expiresIn, sessionId }`. Applies rate limiting on `/auth/login`. `/v1/auth/token` remains disabled (410) and no SPA dependency remains on the legacy session swap. Tests added in `apps/api/src/routes/v1/__tests__/auth-login.test.ts` (requires test DB to run).
+- [x] 3. Update SPA auth client to consume AuthCore tokens directly
+  - Sanity check: SPA login/register now call `POST /v1/auth/login` (AuthCore) and store the returned access token; refresh uses `/v1/auth/refresh` via cookie + CSRF, logout uses `/v1/auth/logout` with CSRF, and the legacy `/v1/auth/token` exchange helper was removed. OAuth/magic-link flows surface a “not available in this SPA flow yet” message instead of invoking the legacy session swap. Manual verification still needed; web tests not run here.
+
+Follow-up:
+- [x] Wire Google OAuth and magic-link callbacks into the AuthCore flow (Auth.js completes provider login → API mints AuthCore session/access/refresh without `/v1/auth/token`), then re-enable the SPA buttons to call that flow.

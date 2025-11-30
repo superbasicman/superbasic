@@ -11,7 +11,7 @@
 import { readFileSync, writeFileSync } from 'fs';
 import { resolve } from 'path';
 import { execSync } from 'child_process';
-import { generateKeyPairSync } from 'crypto';
+import { generateKeyPairSync, randomBytes } from 'crypto';
 import * as readline from 'readline';
 
 const rl = readline.createInterface({
@@ -47,17 +47,16 @@ function generateSecret(): string {
   try {
     return execSync('openssl rand -base64 32').toString().trim();
   } catch {
-    // Fallback if openssl not available
-    return Array.from({ length: 32 }, () => 
-      Math.random().toString(36)[2] || '0'
-    ).join('');
+    // Secure fallback if openssl is not available
+    return randomBytes(32).toString('base64');
   }
 }
 
 function generateEd25519PrivateKeyBase64(): string {
   try {
     const { privateKey } = generateKeyPairSync('ed25519');
-    return privateKey.export({ type: 'pkcs8', format: 'pem' }).toString('base64');
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }) as string;
+    return Buffer.from(pem, 'utf8').toString('base64');
   } catch (error) {
     throw new Error(`Failed to generate Ed25519 key: ${(error as Error).message}`);
   }
@@ -277,7 +276,7 @@ async function main() {
   config.AUTH_URL = getExistingValue('AUTH_URL', existingApiEnv) ?? 'http://localhost:3000';
   config.AUTH_TRUST_HOST = getExistingValue('AUTH_TRUST_HOST', existingApiEnv) ?? 'true';
   config.WEB_APP_URL = getExistingValue('WEB_APP_URL', existingApiEnv) ?? 'http://localhost:5173';
-  
+
   success('Server configuration loaded (existing values reused when present)');
 
   // ============================================================
@@ -468,7 +467,7 @@ async function main() {
   // STEP 6: Google OAuth (Optional)
   // ============================================================
   log('═══════════════════════════════════════════════════════════');
-  log('STEP 5: Google OAuth (Optional)');
+  log('STEP 6: Google OAuth (Optional)');
   log('═══════════════════════════════════════════════════════════');
 
   const existingGoogleClientId = getExistingValue('GOOGLE_CLIENT_ID', existingApiEnv);
@@ -536,7 +535,7 @@ async function main() {
     await question('\nPress Enter when ready to paste API key...');
 
     const resendApiKey = await question('Paste Resend API Key: ');
-    
+
     if (!resendApiKey.startsWith('re_')) {
       warning('API key should start with re_ - continuing anyway...');
     }
@@ -718,6 +717,7 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
   console.log('  • apps/api/.env.local');
   console.log('  • packages/database/.env.local');
   console.log('  • apps/web/.env.local');
+  console.log('  • apps/api/.env.test');
 
   log('🚀 Next steps:');
   console.log('  1. Start the development server:');

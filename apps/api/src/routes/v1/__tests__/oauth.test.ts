@@ -17,6 +17,9 @@ import {
   makeRequest,
   createTestUser,
 } from '../../../test/helpers.js';
+import { AUTHJS_CREDENTIALS_PROVIDER_ID, AUTHJS_GOOGLE_PROVIDER_ID } from '@repo/auth';
+
+const ENCODED_GOOGLE_ID = AUTHJS_GOOGLE_PROVIDER_ID;
 
 describe('OAuth Flows', () => {
   beforeEach(async () => {
@@ -30,9 +33,9 @@ describe('OAuth Flows', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data).toHaveProperty('google');
-      expect(data.google).toMatchObject({
-        id: 'google',
+      expect(data).toHaveProperty(AUTHJS_GOOGLE_PROVIDER_ID);
+      expect(data[AUTHJS_GOOGLE_PROVIDER_ID]).toMatchObject({
+        id: AUTHJS_GOOGLE_PROVIDER_ID,
         name: 'Google',
         type: 'oidc', // Auth.js uses OpenID Connect for Google
       });
@@ -44,11 +47,11 @@ describe('OAuth Flows', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      
+
       // Verify credentials provider
-      expect(data).toHaveProperty('credentials');
-      expect(data.credentials.type).toBe('credentials');
-      
+      expect(data).toHaveProperty(AUTHJS_CREDENTIALS_PROVIDER_ID);
+      expect(data[AUTHJS_CREDENTIALS_PROVIDER_ID].type).toBe('credentials');
+
       // Verify email provider (magic links)
       expect(data).toHaveProperty('nodemailer');
       expect(data.nodemailer.type).toBe('email');
@@ -59,7 +62,7 @@ describe('OAuth Flows', () => {
     it('should redirect to error page when OAuth credentials missing', async () => {
       // Note: In test environment, Google OAuth credentials are not configured
       // Auth.js returns 302 redirect to error page with Configuration error
-      const response = await makeRequest(app, 'GET', '/v1/auth/signin/google');
+      const response = await makeRequest(app, 'GET', `/v1/auth/signin/${ENCODED_GOOGLE_ID}`);
 
       expect(response.status).toBe(302);
 
@@ -71,32 +74,32 @@ describe('OAuth Flows', () => {
     it('should have Google provider configured in Auth.js', async () => {
       // Verify Google provider exists in Auth.js config
       const { authConfig } = await import('@repo/auth');
-      
+
       expect(authConfig.providers).toBeTruthy();
       expect(Array.isArray(authConfig.providers)).toBe(true);
-      
+
       // Find Google provider in config
       const googleProvider = authConfig.providers.find(
-        (p: any) => p.id === 'google' || p.name === 'Google'
+        (p: any) => p.id === AUTHJS_GOOGLE_PROVIDER_ID || p.name === 'Google'
       );
-      
+
       expect(googleProvider).toBeDefined();
-      expect((googleProvider as any)?.id).toBe('google');
+      expect((googleProvider as any)?.id).toBe(AUTHJS_GOOGLE_PROVIDER_ID);
     });
 
     it('should verify OAuth redirect URI configuration', async () => {
       // Verify AUTH_URL is configured for OAuth callbacks
       const authUrl = process.env.AUTH_URL || process.env.NEXTAUTH_URL;
-      
+
       // In test environment, AUTH_URL should be set
       expect(authUrl).toBeTruthy();
-      
+
       // Verify it's a valid URL
       expect(() => new URL(authUrl!)).not.toThrow();
-      
+
       // Verify callback path would be correct
-      const callbackUrl = new URL('/v1/auth/callback/google', authUrl!);
-      expect(callbackUrl.pathname).toBe('/v1/auth/callback/google');
+      const callbackUrl = new URL(`/v1/auth/callback/${ENCODED_GOOGLE_ID}`, authUrl!);
+      expect(callbackUrl.pathname).toBe(`/v1/auth/callback/${ENCODED_GOOGLE_ID}`);
     });
   });
 
@@ -106,7 +109,7 @@ describe('OAuth Flows', () => {
 
       // Auth.js returns 302 redirect to error page for unknown providers
       expect(response.status).toBe(302);
-      
+
       const location = response.headers.get('Location');
       expect(location).toBeTruthy();
       expect(location).toContain('error=Configuration');
@@ -116,7 +119,7 @@ describe('OAuth Flows', () => {
       const response = await makeRequest(
         app,
         'GET',
-        '/v1/auth/callback/google?error=access_denied'
+        `/v1/auth/callback/${ENCODED_GOOGLE_ID}?error=access_denied`
       );
 
       // Auth.js redirects to error page with error parameter
@@ -132,7 +135,7 @@ describe('OAuth Flows', () => {
       const response = await makeRequest(
         app,
         'GET',
-        '/v1/auth/callback/google?code=test-code'
+        `/v1/auth/callback/${ENCODED_GOOGLE_ID}?code=test-code`
       );
 
       // Auth.js should reject callback without valid state

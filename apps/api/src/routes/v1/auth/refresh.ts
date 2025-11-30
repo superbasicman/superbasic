@@ -3,9 +3,9 @@ import { z } from 'zod';
 import { parseOpaqueToken, verifyTokenSecret, SESSION_MAX_AGE_SECONDS, authEvents } from '@repo/auth';
 import type { Context } from 'hono';
 import type { AppBindings } from '../../../types/context.js';
-import { prisma } from '@repo/database';
+import { prisma, Prisma } from '@repo/database';
 import type { TokenHashEnvelope } from '@repo/auth';
-import { refreshTokenService } from '../../../lib/refresh-token-service.js';
+import { authService } from '../../../lib/auth-service.js';
 import { generateAccessToken } from '@repo/auth-core';
 import {
   getRefreshTokenFromCookie,
@@ -130,19 +130,42 @@ export async function refreshTokens(c: Context<AppBindings>) {
 
   const sessionUpdate = await updateSessionTimestamps(session.id, session.kind, session.absoluteExpiresAt, now);
 
-  await prisma.token.update({
-    where: { id: tokenRecord.id },
-    data: {
-      revokedAt: now,
-      lastUsedAt: now,
-    },
-  });
+  try {
+    await prisma.token.update({
+      where: { id: tokenRecord.id, revokedAt: null },
+      data: {
+        revokedAt: now,
+        lastUsedAt: now,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      // Token was already revoked (race condition or reuse)
+      await handleRevokedTokenReuse(
+        {
+          tokenId: tokenRecord.id,
+          sessionId: session.id,
+          familyId: tokenRecord.familyId,
+          userId: tokenRecord.userId,
+          ipAddress,
+          userAgent,
+          requestId,
+        },
+        now
+      );
+      return invalidGrant(c);
+    }
+    throw error;
+  }
 
-  const rotated = await refreshTokenService.issueRefreshToken({
+  // Preserve the existing family; if missing, seed with the current token id to keep the family stable.
+  const familyId = tokenRecord.familyId ?? tokenRecord.id;
+
+  const rotated = await authService.issueRefreshToken({
     userId: tokenRecord.userId,
     sessionId: session.id,
     expiresAt: sessionUpdate.expiresAt,
-    familyId: tokenRecord.familyId ?? null,
+    familyId,
     metadata: {
       source: 'auth-refresh-endpoint',
       ipAddress: ipAddress ?? null,

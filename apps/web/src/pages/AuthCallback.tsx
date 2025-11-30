@@ -1,53 +1,49 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { authApi, ApiError } from '../lib/api';
-import { clearTokens } from '../lib/tokenStorage';
+import { ApiError } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'pending' | 'success'>('pending');
+  const [status, setStatus] = useState<'pending' | 'success' | 'redirect'>('pending');
+  const { completeProviderLogin } = useAuth();
+  const ranRef = useRef(false);
 
   useEffect(() => {
-    let cancelled = false;
+    if (ranRef.current) {
+      return;
+    }
+    ranRef.current = true;
 
-    async function runExchange() {
+    const provider = searchParams.get('provider');
+
+    async function complete() {
+      if (!provider) {
+        navigate('/login', { replace: true });
+        return;
+      }
+
       try {
-        await authApi.exchangeTokens();
-
-        if (cancelled) return;
-
-        // Show a quick success state, then reload to reinit auth with fresh tokens.
+        await completeProviderLogin();
         setStatus('success');
-        setTimeout(() => {
-          if (!cancelled) {
-            window.location.replace('/');
-          }
-        }, 200);
+        navigate('/', { replace: true });
       } catch (err) {
-        if (cancelled) return;
-
-        clearTokens();
         const message =
-          err instanceof ApiError ? err.message : 'Authentication failed. Please try again.';
+          err instanceof ApiError
+            ? err.message
+            : 'Unable to complete sign-in. Please try again.';
         setError(message);
-        setStatus('pending');
+        setStatus('redirect');
+        setTimeout(() => {
+          navigate('/login', { replace: true });
+        }, 1200);
       }
     }
 
-    // Only try exchange if we have a provider hint (arrived from OAuth/magic link)
-    const provider = searchParams.get('provider');
-    if (provider) {
-      runExchange();
-    } else {
-      navigate('/login', { replace: true });
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [navigate, searchParams]);
+    complete();
+  }, [navigate, searchParams, completeProviderLogin]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -64,7 +60,9 @@ export default function AuthCallback() {
             Redirecting…
           </div>
         ) : (
-          <div className="text-sm text-gray-600">Please wait while we finish signing you in.</div>
+          <div className="rounded border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+            Please wait while we finish signing you in.
+          </div>
         )}
       </div>
     </div>

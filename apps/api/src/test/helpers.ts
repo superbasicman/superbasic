@@ -10,6 +10,7 @@ import {
   createOpaqueToken,
   SESSION_MAX_AGE_SECONDS,
   SESSION_ABSOLUTE_MAX_AGE_SECONDS,
+  AUTHJS_CREDENTIALS_PROVIDER_ID,
 } from '@repo/auth';
 import type { PermissionScope } from '@repo/auth-core';
 import { generateAccessToken } from '@repo/auth-core';
@@ -99,7 +100,7 @@ export async function makeAuthenticatedRequest(
  */
 export function extractCookie(response: Response, name: string): string | null {
   const setCookieHeaders = response.headers.getSetCookie?.() || [];
-  
+
   for (const header of setCookieHeaders) {
     const match = header.match(new RegExp(`${name}=([^;]+)`));
     if (match && match[1]) {
@@ -120,15 +121,15 @@ export async function getAuthJsCSRFToken(
   app: Hono<any>
 ): Promise<{ csrfToken: string; csrfCookie: string }> {
   const response = await makeRequest(app, 'GET', '/v1/auth/csrf');
-  
+
   if (response.status !== 200) {
     throw new Error(`Failed to get CSRF token: ${response.status}`);
   }
 
   const data = await response.json();
-  const csrfCookie = extractCookie(response, '__Host-authjs.csrf-token') || 
-                     extractCookie(response, 'authjs.csrf-token');
-  
+  const csrfCookie = extractCookie(response, '__Host-authjs.csrf-token') ||
+    extractCookie(response, 'authjs.csrf-token');
+
   if (!data.csrfToken || !csrfCookie) {
     throw new Error('CSRF token or cookie not found in response');
   }
@@ -143,13 +144,13 @@ export async function getAuthJsCSRFToken(
  * Post form data to Auth.js endpoint with CSRF token (generic helper)
  * 
  * @param app - Hono application instance
- * @param path - Auth.js endpoint path (e.g., '/v1/auth/callback/credentials')
+ * @param path - Auth.js endpoint path (e.g., '/v1/auth/callback/authjs%3Acredentials')
  * @param formData - Form data to post (will be merged with CSRF token)
  * @returns Response object
  * 
  * @example
  * // Sign in with credentials
- * const response = await postAuthJsForm(app, '/v1/auth/callback/credentials', {
+ * const response = await postAuthJsForm(app, '/v1/auth/callback/authjs%3Acredentials', {
  *   email: 'user@example.com',
  *   password: 'password123'
  * });
@@ -200,10 +201,14 @@ export async function signInWithCredentials(
   email: string,
   password: string
 ): Promise<Response> {
-  return postAuthJsForm(app, '/v1/auth/callback/credentials', {
-    email,
-    password,
-  });
+  return postAuthJsForm(
+    app,
+    `/v1/auth/callback/${AUTHJS_CREDENTIALS_PROVIDER_ID}`,
+    {
+      email,
+      password,
+    }
+  );
 }
 
 /**
@@ -226,7 +231,7 @@ export function createTestUserCredentials(
 ): TestUserCredentials {
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 10000);
-  
+
   return {
     email: overrides.email || `test-${timestamp}-${random}@example.com`,
     password: overrides.password || 'Test1234!',

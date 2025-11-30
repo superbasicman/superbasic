@@ -2,20 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import { type PrismaClient, type Token as PrismaToken, prisma } from '@repo/database';
 import { toJsonInput } from './json.js';
-import type { PermissionScope, RefreshTokenRecord, TokenHashEnvelope } from './types.js';
-
-export type IssueRefreshTokenInput = {
-  userId: string;
-  sessionId: string;
-  expiresAt: Date;
-  familyId?: string | null;
-  metadata?: Record<string, unknown> | null;
-};
-
-export type IssueRefreshTokenResult = {
-  refreshToken: string;
-  token: RefreshTokenRecord;
-};
+import type {
+  IssueRefreshTokenInput,
+  IssueRefreshTokenResult,
+  PermissionScope,
+  RefreshTokenRecord,
+  TokenHashEnvelope,
+} from './types.js';
 
 type TokenServiceDependencies = {
   prisma?: PrismaClient;
@@ -82,10 +75,6 @@ function mapRefreshToken(record: PrismaToken): RefreshTokenRecord {
     throw new Error(`Refresh token ${record.id} is missing sessionId`);
   }
 
-  if (!record.familyId) {
-    throw new Error(`Refresh token ${record.id} is missing familyId`);
-  }
-
   if (!record.expiresAt) {
     throw new Error(`Refresh token ${record.id} is missing expiresAt`);
   }
@@ -99,7 +88,7 @@ function mapRefreshToken(record: PrismaToken): RefreshTokenRecord {
     tokenHash: record.tokenHash as TokenHashEnvelope,
     scopes: record.scopes as PermissionScope[],
     name: record.name,
-    familyId: record.familyId,
+    familyId: record.familyId ?? null,
     metadata: (record.metadata as Record<string, unknown> | null) ?? null,
     lastUsedAt: record.lastUsedAt,
     expiresAt: record.expiresAt,

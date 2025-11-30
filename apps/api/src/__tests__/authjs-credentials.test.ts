@@ -16,6 +16,7 @@ import {
   extractCookie,
   signInWithCredentials,
 } from '../test/helpers.js';
+import { AUTHJS_CREDENTIALS_PROVIDER_ID } from '@repo/auth';
 
 describe('Auth.js Credentials Provider', () => {
   beforeEach(async () => {
@@ -251,9 +252,9 @@ describe('Auth.js Credentials Provider', () => {
       expect(response.status).toBe(200);
 
       const data = await response.json();
-      expect(data).toHaveProperty('credentials');
-      expect(data.credentials).toMatchObject({
-        id: 'credentials',
+      expect(data).toHaveProperty(AUTHJS_CREDENTIALS_PROVIDER_ID);
+      expect(data[AUTHJS_CREDENTIALS_PROVIDER_ID]).toMatchObject({
+        id: AUTHJS_CREDENTIALS_PROVIDER_ID,
         name: 'Credentials',
         type: 'credentials',
       });

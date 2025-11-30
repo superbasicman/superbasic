@@ -28,7 +28,12 @@ function logAuthDebug(event: string, data: Record<string, unknown>) {
   }
 }
 import { sendMagicLinkEmail, getRecipientLogId } from "./email.js";
-import { SESSION_MAX_AGE_SECONDS, SESSION_ABSOLUTE_MAX_AGE_SECONDS } from "./constants.js";
+import {
+  SESSION_MAX_AGE_SECONDS,
+  SESSION_ABSOLUTE_MAX_AGE_SECONDS,
+  AUTHJS_CREDENTIALS_PROVIDER_ID,
+  AUTHJS_GOOGLE_PROVIDER_ID,
+} from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
 import { hashToken } from "./pat.js";
 import {
@@ -391,14 +396,14 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
     ) {
       await prisma.session
         .delete({ where: { id: record.id } })
-        .catch(() => {});
+        .catch(() => { });
       return null;
     }
 
     if (record.expiresAt < new Date()) {
       await prisma.session
         .delete({ where: { id: record.id } })
-        .catch(() => {});
+        .catch(() => { });
       return null;
     }
 
@@ -455,10 +460,142 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
   return adapter;
 }
 
-export const authConfig: AuthConfig = {
+// Extend Auth.js config type to include email-based linking override (not yet typed upstream).
+type AuthConfigWithLinking = AuthConfig & { allowDangerousEmailAccountLinking?: boolean };
+
+const credentialsProvider = Credentials({
+  id: AUTHJS_CREDENTIALS_PROVIDER_ID,
+  name: "Credentials",
+  credentials: {
+    email: { label: "Email", type: "email" },
+    password: { label: "Password", type: "password" },
+  },
+  async authorize(credentials, req) {
+    try {
+      const request = (req as any)?.request ?? (req as Request | undefined);
+      const provider = AUTHJS_CREDENTIALS_PROVIDER_ID;
+
+      if (!credentials?.email || !credentials?.password) {
+        logAuthDebug("credentials_authorize", {
+          reason: "missing_email_or_password",
+        });
+        emitLoginAudit("user.login.failed", {
+          provider,
+          email: credentials?.email?.toString() ?? null,
+          reason: "missing_email_or_password",
+          request: request ?? null,
+        });
+        return null;
+      }
+
+      const rawEmail = String(credentials.email).trim();
+      const normalized = rawEmail.toLowerCase();
+
+      console.error("[auth][debug] credentials_authorize_invoked", {
+        email: rawEmail,
+        normalized,
+      });
+      logAuthDebug("credentials_authorize_start", { email: rawEmail });
+
+      // Prefer the canonical emailLower column but gracefully fall back to the
+      // legacy email field for any users that haven't been backfilled yet.
+      const user =
+        (await prisma.user.findUnique({
+          where: { emailLower: normalized },
+        })) ??
+        (await prisma.user.findFirst({
+          where: {
+            email: {
+              equals: rawEmail,
+              mode: "insensitive",
+            },
+          },
+        }));
+
+      if (!user || !user.password) {
+        logAuthDebug("credentials_authorize", {
+          email: rawEmail,
+          reason: "user_not_found_or_missing_password",
+        });
+        emitLoginAudit("user.login.failed", {
+          provider,
+          email: rawEmail,
+          reason: "user_not_found_or_missing_password",
+          request: request ?? null,
+        });
+        return null;
+      }
+
+      const isValid = await verifyPassword(
+        credentials.password as string,
+        user.password
+      );
+
+      if (!isValid) {
+        logAuthDebug("credentials_authorize", {
+          email: rawEmail,
+          reason: "invalid_password",
+        });
+        emitLoginAudit("user.login.failed", {
+          provider,
+          email: rawEmail,
+          reason: "invalid_password",
+          request: request ?? null,
+        });
+        return null;
+      }
+
+      logAuthDebug("credentials_authorize_success", {
+        email: rawEmail,
+        userId: user.id,
+      });
+
+      emitLoginAudit("user.login.success", {
+        provider,
+        userId: user.id,
+        email: user.email ?? rawEmail,
+        request: request ?? null,
+      });
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name ?? null,
+      };
+    } catch (error) {
+      logAuthDebug("credentials_authorize_error", {
+        email: credentials?.email ?? null,
+        message: error instanceof Error ? error.message : "unknown_error",
+      });
+      throw error;
+    }
+  },
+}) as any;
+
+// Ensure provider id stays namespaced (Auth.js providers may override id internally)
+credentialsProvider.id = AUTHJS_CREDENTIALS_PROVIDER_ID;
+
+const googleProvider = Google({
+  id: AUTHJS_GOOGLE_PROVIDER_ID,
+  name: "Google",
+  clientId: process.env.GOOGLE_CLIENT_ID || "",
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+  authorization: {
+    params: {
+      // prompt: "consent",
+      access_type: "offline",
+      response_type: "code"
+    }
+  }
+}) as any;
+googleProvider.id = AUTHJS_GOOGLE_PROVIDER_ID;
+
+const config: AuthConfigWithLinking = {
   basePath: "/v1/auth",
   trustHost: true, // Trust the host from AUTH_URL or request headers
   adapter: createPrismaAdapterWithLowercaseEmail(), // For OAuth & magic link flows
+  // With zero legacy users, allow linking by email across providers to avoid OAuthAccountNotLinked loops.
+  allowDangerousEmailAccountLinking: true,
   cookies: {
     sessionToken: {
       name: SESSION_COOKIE_NAME,
@@ -479,124 +616,9 @@ export const authConfig: AuthConfig = {
       },
     },
   },
- providers: [
-    Credentials({
-	      credentials: {
-	        email: { label: "Email", type: "email" },
-	        password: { label: "Password", type: "password" },
-	      },
-      async authorize(credentials, req) {
-        try {
-          const request = (req as any)?.request ?? (req as Request | undefined);
-          const provider = "credentials";
-
-          if (!credentials?.email || !credentials?.password) {
-            logAuthDebug("credentials_authorize", {
-              reason: "missing_email_or_password",
-            });
-            emitLoginAudit("user.login.failed", {
-              provider,
-              email: credentials?.email?.toString() ?? null,
-              reason: "missing_email_or_password",
-              request: request ?? null,
-            });
-            return null;
-          }
-
-          const rawEmail = String(credentials.email).trim();
-          const normalized = rawEmail.toLowerCase();
-
-          console.error("[auth][debug] credentials_authorize_invoked", {
-            email: rawEmail,
-            normalized,
-          });
-          logAuthDebug("credentials_authorize_start", { email: rawEmail });
-
-          // Prefer the canonical emailLower column but gracefully fall back to the
-          // legacy email field for any users that haven't been backfilled yet.
-          const user =
-            (await prisma.user.findUnique({
-              where: { emailLower: normalized },
-            })) ??
-            (await prisma.user.findFirst({
-              where: {
-                email: {
-                  equals: rawEmail,
-                  mode: "insensitive",
-                },
-              },
-            }));
-
-          if (!user || !user.password) {
-            logAuthDebug("credentials_authorize", {
-              email: rawEmail,
-              reason: "user_not_found_or_missing_password",
-            });
-            emitLoginAudit("user.login.failed", {
-              provider,
-              email: rawEmail,
-              reason: "user_not_found_or_missing_password",
-              request: request ?? null,
-            });
-            return null;
-          }
-
-          const isValid = await verifyPassword(
-            credentials.password as string,
-            user.password
-          );
-
-          if (!isValid) {
-            logAuthDebug("credentials_authorize", {
-              email: rawEmail,
-              reason: "invalid_password",
-            });
-            emitLoginAudit("user.login.failed", {
-              provider,
-              email: rawEmail,
-              reason: "invalid_password",
-              request: request ?? null,
-            });
-            return null;
-          }
-
-          logAuthDebug("credentials_authorize_success", {
-            email: rawEmail,
-            userId: user.id,
-          });
-
-          emitLoginAudit("user.login.success", {
-            provider,
-            userId: user.id,
-            email: user.email ?? rawEmail,
-            request: request ?? null,
-          });
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name ?? null,
-          };
-        } catch (error) {
-          logAuthDebug("credentials_authorize_error", {
-            email: credentials?.email ?? null,
-            message: error instanceof Error ? error.message : "unknown_error",
-          });
-          throw error;
-        }
-      },
-    }),
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-      authorization: {
-        params: {
-          // prompt: "consent",
-          access_type: "offline",
-          response_type: "code"
-        }
-      }
-    }),
+  providers: [
+    credentialsProvider,
+    googleProvider,
     Nodemailer({
       from: process.env.EMAIL_FROM ?? "onboard@resend.com",
       // Server config required by Auth.js Nodemailer provider
@@ -737,7 +759,7 @@ export const authConfig: AuthConfig = {
         return false;
       }
 
-      if (account.provider === "credentials") {
+      if (account.provider === AUTHJS_CREDENTIALS_PROVIDER_ID) {
         return true;
       }
 
@@ -847,23 +869,23 @@ export const authConfig: AuthConfig = {
     },
     async redirect({ url, baseUrl }) {
       const webAppUrl = process.env.WEB_APP_URL || "http://localhost:5173";
-      
+
       // If url is already pointing to the web app, return as-is
       if (url.startsWith(webAppUrl)) {
         return url;
       }
-      
+
       // If url is relative, prepend web app URL
       if (url.startsWith('/')) {
         return `${webAppUrl}${url}`;
       }
-      
+
       // If url starts with baseUrl (API server), extract the path and redirect to web app
       if (url.startsWith(baseUrl)) {
         const path = url.substring(baseUrl.length);
         return `${webAppUrl}${path}`;
       }
-      
+
       // For external URLs (OAuth providers), return as-is
       return url;
     },
@@ -873,3 +895,5 @@ export const authConfig: AuthConfig = {
     // This ensures WEB_APP_URL is evaluated at request time, not module load time
   },
 };
+
+export const authConfig: AuthConfig = config;

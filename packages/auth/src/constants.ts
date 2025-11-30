@@ -20,3 +20,7 @@ export const JWT_SALT = "authjs.session-token"; // Auth.js v5 default
 
 // Clock skew tolerance for token validation
 export const CLOCK_SKEW_TOLERANCE_SECONDS = 60;
+
+// Provider identifiers (namespaced for Auth.js)
+export const AUTHJS_CREDENTIALS_PROVIDER_ID = "authjs:credentials";
+export const AUTHJS_GOOGLE_PROVIDER_ID = "authjs:google";

@@ -169,79 +169,9 @@ async function performAccessTokenRefresh() {
   });
 }
 
-/**
- * Form-encoded POST helper for Auth.js endpoints
- * Auth.js expects application/x-www-form-urlencoded, not JSON
- */
-async function apiFormPost<T>(
-  endpoint: string,
-  data: Record<string, string>
-): Promise<T> {
-  const url = `${API_URL}${endpoint}`;
-
-  // First, get CSRF token
-  const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
-    credentials: "include",
-  });
-  const csrfData = await csrfResponse.json();
-  const csrfToken = csrfData.csrfToken;
-
-  // Build form-encoded body with CSRF token
-  const formData = new URLSearchParams({
-    ...data,
-    csrfToken,
-  });
-
-  const response = await fetch(url, {
-    method: "POST",
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: formData.toString(),
-    redirect: "manual", // Don't follow redirects - we'll handle them ourselves
-  });
-
-  // Handle 401 globally
-  if (response.status === 401) {
-    throw new ApiError("Unauthorized", 401);
-  }
-
-  // Auth.js returns 302 redirects for both success and failure
-  // With redirect: 'manual', we get status 0 (opaque response) and can't read headers
-  // We'll detect errors by checking if session creation succeeded
-  if (response.status === 302 || response.status === 0) {
-    // Return empty object - caller will check if session was created
-    return {} as T;
-  }
-
-  // Handle 200 OK responses
-  if (response.status === 200) {
-    // Try to parse JSON response
-    const text = await response.text();
-    if (text) {
-      try {
-        return JSON.parse(text) as T;
-      } catch {
-        // If not JSON, return empty object
-        return {} as T;
-      }
-    }
-    return {} as T;
-  }
-
-  // Parse error response
-  const errorData = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new ApiError(
-      errorData.error || "An error occurred",
-      response.status,
-      errorData.details
-    );
-  }
-
-  return errorData;
+async function refreshAfterProviderCallback() {
+  await performAccessTokenRefresh();
+  return authApi.me();
 }
 
 /**
@@ -249,61 +179,59 @@ async function apiFormPost<T>(
  */
 export const authApi = {
   /**
-   * Login with email and password (Auth.js credentials provider)
-   * Sets httpOnly cookie on success
+   * Login with email and password (AuthCore-backed)
+   * Returns and stores access token; refresh cookie set by API
    */
   async login(credentials: LoginInput): Promise<{ user: UserResponse }> {
-    // Step 1: Submit credentials to Auth.js
-    await apiFormPost("/v1/auth/callback/credentials", {
-      email: credentials.email,
-      password: credentials.password,
+    const result = await apiFetch<{
+      tokenType: string;
+      accessToken: string;
+      refreshToken?: string;
+      expiresIn: number;
+      sessionId: string;
+    }>("/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+        rememberMe: true,
+        clientType: "web",
+      }),
     });
 
-    // Step 2: Exchange Auth.js session cookie for API tokens
-    try {
-      await this.exchangeTokens();
-    } catch (error) {
+    if (!result || typeof result.accessToken !== "string") {
       clearTokens();
-      if (error instanceof ApiError && error.status === 401) {
-        throw new ApiError("Invalid email or password", 401);
-      }
-      throw error;
+      throw new ApiError("Invalid email or password", 401);
     }
 
-    // Step 3: Fetch current user using access token
+    saveTokens({
+      accessToken: result.accessToken,
+      expiresIn: result.expiresIn,
+    });
+
+    // Fetch current user using access token
     try {
-      const result = await this.me();
-      return result;
+      const response = await this.me();
+      return response;
     } catch (error) {
-      // Only convert to "Invalid credentials" if we got a clean 401
-      // (meaning Auth.js returned 200 with null session)
-      if (error instanceof ApiError && error.status === 401) {
-        throw new ApiError("Invalid email or password", 401);
-      }
-      // For any other error (5xx, network, etc), surface generic error
-      // This prevents showing "Invalid credentials" when the API is down
       clearTokens();
-      throw new ApiError("Something went wrong. Please try again.", 500);
+      throw error;
     }
   },
 
   /**
    * Login with Google OAuth
-   * Redirects to Google OAuth consent screen
+   * Starts Auth.js OAuth; AuthCore session is minted in callback
    */
   async loginWithGoogle(): Promise<void> {
-    // Auth.js requires POST with CSRF token for OAuth signin
-    // We need to submit a form programmatically
     const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
       credentials: "include",
     });
-    
     const { csrfToken } = await csrfResponse.json();
 
-    // Wait a moment to ensure cookie is processed
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // Wait briefly to ensure cookie is processed
+    await new Promise((resolve) => setTimeout(resolve, 50));
 
-    // Create and submit form programmatically
     const form = document.createElement("form");
     form.method = "POST";
     form.action = `${API_URL}/v1/auth/signin/google`;
@@ -325,18 +253,6 @@ export const authApi = {
   },
 
   /**
-   * Request magic link via email
-   * Sends magic link to user's email address
-   */
-  async requestMagicLink(email: string): Promise<void> {
-    // Auth.js email provider expects form-encoded data
-    await apiFormPost("/v1/auth/signin/nodemailer", {
-      email,
-      callbackUrl: `${window.location.origin}/auth/callback?provider=magic_link`,
-    });
-  },
-
-  /**
    * Register a new user
    * Does NOT set session cookie - call login() after registration
    */
@@ -348,11 +264,47 @@ export const authApi = {
   },
 
   /**
-   * Logout - clears httpOnly cookie (Auth.js signout)
+   * Logout - revokes AuthCore session and clears tokens
    */
   async logout(): Promise<void> {
     clearTokens();
-    await apiFormPost("/v1/auth/signout", {});
+    const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
+    await apiFetch("/v1/auth/logout", {
+      method: "POST",
+      headers: {
+        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      },
+    });
+  },
+
+  /**
+   * Request magic link via email
+   * Sends magic link to user's email address (Auth.js email provider)
+   */
+  async requestMagicLink(email: string): Promise<void> {
+    const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
+      credentials: "include",
+    });
+    const { csrfToken } = await csrfResponse.json();
+
+    const form = new URLSearchParams({
+      email,
+      csrfToken,
+      callbackUrl: `${window.location.origin}/auth/callback?provider=magic_link`,
+    });
+
+    const response = await fetch(`${API_URL}/v1/auth/signin/nodemailer`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: form.toString(),
+    });
+
+    if (!response.ok) {
+      throw new ApiError("Failed to send magic link", response.status);
+    }
   },
 
   /**
@@ -388,26 +340,10 @@ export const authApi = {
   },
 
   /**
-   * Exchange Auth.js session cookie for access/refresh tokens
+   * Complete OAuth/magic-link callback using the refresh cookie to obtain an access token
    */
-  async exchangeTokens(params: { rememberMe?: boolean } = {}) {
-    const result = await apiFetch<{
-      tokenType: string;
-      accessToken: string;
-      refreshToken: string;
-      expiresIn: number;
-    }>("/v1/auth/token", {
-      method: "POST",
-      body: JSON.stringify({
-        clientType: "web",
-        rememberMe: params.rememberMe ?? false,
-      }),
-    });
-
-    saveTokens({
-      accessToken: result.accessToken,
-      expiresIn: result.expiresIn,
-    });
+  async completeProviderLogin(): Promise<{ user: UserResponse }> {
+    const result = await refreshAfterProviderCallback();
     return result;
   },
 };

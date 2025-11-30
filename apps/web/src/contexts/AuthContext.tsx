@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
   type ReactNode,
 } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -15,6 +16,7 @@ interface AuthContextType {
   login: (credentials: LoginInput) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   requestMagicLink: (email: string) => Promise<void>;
+  completeProviderLogin: () => Promise<void>;
   register: (data: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
   isLoading: boolean;
@@ -114,6 +116,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /**
+   * Complete OAuth/magic-link flows by exchanging the refresh cookie for an access token
+   * and hydrating the authenticated user in context.
+   */
+  const completeProviderLogin = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { user: currentUser } = await authApi.completeProviderLogin();
+      setUser(currentUser);
+      setAuthError(null);
+    } catch (error) {
+      clearStoredTokens();
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  /**
    * Register a new user then automatically log them in
    * Registration endpoint doesn't set session cookie, so we call login after
    */
@@ -134,11 +154,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /**
-   * Login with Google OAuth
-   * Redirects to Google OAuth consent screen
+   * Login with Google OAuth (currently disabled in AuthCore SPA flow)
    */
   async function loginWithGoogle(): Promise<void> {
-    await authApi.loginWithGoogle();
+    try {
+      await authApi.loginWithGoogle();
+    } catch (error) {
+      const message =
+        error instanceof ApiError
+          ? error.message
+          : 'Google login is not available right now.';
+      setAuthError(message);
+    }
   }
 
   /**
@@ -148,7 +175,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function requestMagicLink(email: string): Promise<void> {
     try {
       await authApi.requestMagicLink(email);
-      // Success - caller should show "Check your email" message
     } catch (error) {
       // Re-throw to allow UI to handle error display
       throw error;
@@ -178,6 +204,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     loginWithGoogle,
     requestMagicLink,
+    completeProviderLogin,
     register,
     logout,
     isLoading,
