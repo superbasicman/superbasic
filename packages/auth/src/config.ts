@@ -620,43 +620,47 @@ const config: AuthConfigWithLinking = {
   providers: [
     credentialsProvider,
     googleProvider,
-    Nodemailer({
-      id: AUTHJS_EMAIL_PROVIDER_ID,
-      from: process.env.EMAIL_FROM ?? "onboard@resend.com",
-      // Server config required by Auth.js Nodemailer provider
-      // We override sendVerificationRequest so this isn't actually used
-      server: {
-        host: "localhost",
-        port: 25,
-        auth: {
-          user: "",
-          pass: "",
+    (() => {
+      const emailProvider = Nodemailer({
+        id: AUTHJS_EMAIL_PROVIDER_ID,
+        from: process.env.EMAIL_FROM ?? "onboard@resend.com",
+        // Server config required by Auth.js Nodemailer provider
+        // We override sendVerificationRequest so this isn't actually used
+        server: {
+          host: "localhost",
+          port: 25,
+          auth: {
+            user: "",
+            pass: "",
+          },
+          secure: false,
+          tls: {
+            rejectUnauthorized: false,
+          },
         },
-        secure: false,
-        tls: {
-          rejectUnauthorized: false,
+        sendVerificationRequest: async ({ identifier: email, url }) => {
+          const recipient = getRecipientLogId(email);
+          console.log("[Auth.js] sendVerificationRequest called:", {
+            recipient,
+            urlLength: url.length,
+          });
+          try {
+            await sendMagicLinkEmail({ to: email, url });
+            console.log("[Auth.js] sendMagicLinkEmail completed successfully:", {
+              recipient,
+            });
+          } catch (error) {
+            console.error("[Auth.js] sendMagicLinkEmail failed:", {
+              recipient,
+              error,
+            });
+            throw error;
+          }
         },
-      },
-      sendVerificationRequest: async ({ identifier: email, url }) => {
-        const recipient = getRecipientLogId(email);
-        console.log("[Auth.js] sendVerificationRequest called:", {
-          recipient,
-          urlLength: url.length,
-        });
-        try {
-          await sendMagicLinkEmail({ to: email, url });
-          console.log("[Auth.js] sendMagicLinkEmail completed successfully:", {
-            recipient,
-          });
-        } catch (error) {
-          console.error("[Auth.js] sendMagicLinkEmail failed:", {
-            recipient,
-            error,
-          });
-          throw error;
-        }
-      },
-    }) as any, // Type cast to avoid Auth.js provider type strictness issues
+      }) as any; // Type cast to avoid Auth.js provider type strictness issues
+      emailProvider.id = AUTHJS_EMAIL_PROVIDER_ID;
+      return emailProvider;
+    })(),
   ],
   jwt: {
     async encode(params) {
@@ -800,7 +804,7 @@ const config: AuthConfigWithLinking = {
 
         await ensureProfileExists(userId);
 
-        if (account.provider !== "email") {
+        if (account.provider !== AUTHJS_EMAIL_PROVIDER_ID) {
           const existingAccount = await prisma.account.findUnique({
             where: {
               provider_providerAccountId: {

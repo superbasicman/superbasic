@@ -40,7 +40,7 @@
 | **Identity Linking** | `UserIdentity` table with `(provider, providerUserId)` | Auth.js `accounts` table exists but not used for linking logic | ⚠️ Partial | HIGH |
 | **Email Semantics** | `User.email` as canonical, sync verified emails, handle conflicts | Basic email in `users` table, no sync logic | ❌ Missing | MEDIUM |
 | **Supported Providers** | Auth.js (credentials, Google, magic link), future Auth0/SSO | Auth.js with credentials, Google, magic link | ✅ Aligned | - |
-| **Provider Namespacing** | `authjs:credentials`, `authjs:google` format | Provider stored as `google`, `credentials` | ⚠️ Partial | LOW |
+| **Provider Namespacing** | `authjs:credentials`, `authjs:google`, `authjs:email` format | Provider stored as `google`, `credentials` | ⚠️ Partial | LOW |
 
 **Current Implementation:**
 ```typescript
@@ -640,7 +640,7 @@ async function login(credentials: LoginInput): Promise<void> {
 |--------|-----------|----------------------|--------|----------|
 | **Abstraction Layer** | `IdentityProvider` interface | ❌ Auth.js tightly coupled | ❌ Missing | HIGH |
 | **Identity Linking** | `UserIdentity` table | Auth.js `accounts` table | ⚠️ Partial | MEDIUM |
-| **Provider Namespacing** | `authjs:google`, `auth0:google` | `google`, `credentials` | ⚠️ Partial | LOW |
+| **Provider Namespacing** | `authjs:google`, `authjs:email`, `auth0:google` | `google`, `credentials` | ⚠️ Partial | LOW |
 | **Migration Strategy** | Gradual cutover with link-on-login | N/A | ❌ Missing | LOW (future) |
 
 **Gap:** No clean abstraction layer means migrating to Auth0 would require significant refactoring.
@@ -784,7 +784,7 @@ async function login(credentials: LoginInput): Promise<void> {
 
 2. ⬜ **HIGH:** Implement Auth.js adapter _(Not started)_
    - Wrap existing Auth.js logic in `IdentityProvider` interface
-   - Update provider naming: `authjs:credentials`, `authjs:google`
+  - Update provider naming: `authjs:credentials`, `authjs:google`, `authjs:email`
 
 3. ⬜ **MEDIUM:** Implement identity linking logic _(Not started)_
    - Look up by `(provider, providerUserId)` first

@@ -23,7 +23,7 @@ The most significant gap is in how tokens are issued and verified.
 | Feature | Goal | Current State | Status |
 | :--- | :--- | :--- | :--- |
 | **Access Tokens** | **Short-lived JWTs** (stateless signature check + DB validation). | **Opaque Session Tokens**. `packages/auth/src/config.ts` (Auth.js) issues opaque tokens. `AuthCoreService` expects JWTs. | ❌ **Misaligned** |
-| **Refresh Tokens** | Long-lived, opaque, hashed, rotated. | `Session` table acts as refresh token storage. `Token` table has `refresh` type support in schema/service, but Auth.js config doesn't seem to use it yet. | ⚠️ Partial |
+| **Refresh Tokens** | Long-lived, opaque, hashed, rotated. | Issued via `Token` table: `createSessionWithRefresh` (login, OAuth, Auth.js callbacks) creates `Token` records and `/v1/auth/refresh` rotates them via `AuthCoreService.issueRefreshToken` with family reuse detection. | ✅ Aligned |
 | **PATs** | Long-lived, opaque, hashed, scoped. | `packages/auth/src/pat.ts` and `AuthCoreService` implement this correctly. | ✅ Aligned |
 | **Verification** | Middleware verifies JWTs or PATs. | `AuthCoreService.verifyRequest` handles JWTs and PATs. **It does NOT support the opaque session tokens currently issued by Auth.js.** | ❌ **Broken** |
 
@@ -52,8 +52,5 @@ To align the implementation with the goal:
 1.  **Update Auth.js Config (`packages/auth/src/config.ts`)**:
     - Modify the `jwt` callback to **issue a signed JWT** (using `AuthCoreService` signing keys) instead of returning the opaque session token.
     - The JWT should contain the `sub` (userId), `sid` (sessionId), and be signed by the `AuthCoreService` issuer.
-2.  **Implement Refresh Token Rotation**:
-    - Ensure `AuthCoreService.createSession` (or the Auth.js adapter) creates a `Token` (type `refresh`) in addition to the `Session`.
-    - Update the `/v1/auth/refresh` endpoint to use `AuthCoreService.issueRefreshToken`.
-3.  **Verify Middleware**:
+2.  **Verify Middleware**:
     - Once Auth.js issues JWTs, `AuthCoreService.verifyRequest` should correctly verify them.

@@ -21,6 +21,9 @@ import {
   makeRequest,
   postAuthJsForm,
 } from '../../../test/helpers.js';
+import { AUTHJS_EMAIL_PROVIDER_ID } from '@repo/auth';
+
+const EMAIL_SIGNIN_PATH = `/v1/auth/signin/${AUTHJS_EMAIL_PROVIDER_ID}`;
 
 type TokenHashEnvelope = {
   hash: string;
@@ -60,7 +63,7 @@ describe('Magic Link Flows', () => {
 
   describe('Magic Link Request', () => {
     it('should accept magic link request with valid email', async () => {
-      const response = await postAuthJsForm(app, '/v1/auth/signin/nodemailer', {
+      const response = await postAuthJsForm(app, EMAIL_SIGNIN_PATH, {
         email: 'test@example.com',
       });
 
@@ -69,13 +72,14 @@ describe('Magic Link Flows', () => {
 
       const location = response.headers.get('Location');
       expect(location).toBeTruthy();
-      expect(location).toContain('verify-request');
-      expect(location).toContain('provider=nodemailer');
-      expect(location).toContain('type=email');
+      const decodedLocation = decodeURIComponent(location!);
+      expect(decodedLocation).toContain('verify-request');
+      expect(decodedLocation).toContain(`provider=${AUTHJS_EMAIL_PROVIDER_ID}`);
+      expect(decodedLocation).toContain('type=email');
     });
 
     it('should normalize email address (lowercase + trim)', async () => {
-      const response = await postAuthJsForm(app, '/v1/auth/signin/nodemailer', {
+      const response = await postAuthJsForm(app, EMAIL_SIGNIN_PATH, {
         email: '  TEST@EXAMPLE.COM  ',
       });
 
@@ -87,7 +91,7 @@ describe('Magic Link Flows', () => {
     });
 
     it('should reject invalid email format', async () => {
-      const response = await postAuthJsForm(app, '/v1/auth/signin/nodemailer', {
+      const response = await postAuthJsForm(app, EMAIL_SIGNIN_PATH, {
         email: 'not-an-email',
       });
 
@@ -100,7 +104,7 @@ describe('Magic Link Flows', () => {
     });
 
     it('should reject empty email', async () => {
-      const response = await postAuthJsForm(app, '/v1/auth/signin/nodemailer', {
+      const response = await postAuthJsForm(app, EMAIL_SIGNIN_PATH, {
         email: '',
       });
 
@@ -113,7 +117,7 @@ describe('Magic Link Flows', () => {
       const email = 'token-test@example.com'; // Use unique email to avoid old tokens
 
       // Request magic link
-      const response = await postAuthJsForm(app, '/v1/auth/signin/nodemailer', {
+      const response = await postAuthJsForm(app, EMAIL_SIGNIN_PATH, {
         email,
       });
 
@@ -185,9 +189,9 @@ describe('Magic Link Flows', () => {
       expect(authConfig.providers).toBeTruthy();
       expect(Array.isArray(authConfig.providers)).toBe(true);
       
-      // Find email provider in config (Auth.js uses "nodemailer" as provider ID)
+      // Find email provider in config (namespaced Auth.js email provider)
       const emailProvider = authConfig.providers.find(
-        (p: any) => p.id === 'nodemailer' || p.type === 'email'
+        (p: any) => p.id === AUTHJS_EMAIL_PROVIDER_ID || p.type === 'email'
       );
       
       expect(emailProvider).toBeDefined();
@@ -228,8 +232,8 @@ describe('Magic Link Flows', () => {
       const email = 'unique@example.com';
 
       // Request 2 magic links
-      await postAuthJsForm(app, '/v1/auth/signin/nodemailer', { email });
-      await postAuthJsForm(app, '/v1/auth/signin/nodemailer', { email });
+      await postAuthJsForm(app, EMAIL_SIGNIN_PATH, { email });
+      await postAuthJsForm(app, EMAIL_SIGNIN_PATH, { email });
 
       // Verify 2 different tokens were created
       const tokens = await prisma.verificationToken.findMany({
@@ -253,7 +257,7 @@ describe('Magic Link Flows', () => {
       const prisma = getTestPrisma();
       const email = 'expiry@example.com';
 
-      await postAuthJsForm(app, '/v1/auth/signin/nodemailer', { email });
+      await postAuthJsForm(app, EMAIL_SIGNIN_PATH, { email });
 
       const token = await prisma.verificationToken.findFirst({
         where: { identifier: email },
@@ -272,7 +276,7 @@ describe('Magic Link Flows', () => {
       const prisma = getTestPrisma();
       const email = 'hashed@example.com';
 
-      await postAuthJsForm(app, '/v1/auth/signin/nodemailer', { email });
+      await postAuthJsForm(app, EMAIL_SIGNIN_PATH, { email });
 
       const token = await prisma.verificationToken.findFirst({
         where: { identifier: email },
@@ -298,9 +302,9 @@ describe('Magic Link Flows', () => {
 
       const data = await response.json();
       
-      // Auth.js uses "nodemailer" as the provider ID for email
-      expect(data).toHaveProperty('nodemailer');
-      expect(data.nodemailer.type).toBe('email');
+      // Auth.js uses the namespaced provider ID for email
+      expect(data).toHaveProperty(AUTHJS_EMAIL_PROVIDER_ID);
+      expect(data[AUTHJS_EMAIL_PROVIDER_ID].type).toBe('email');
     });
 
     it('should verify email provider configuration', async () => {

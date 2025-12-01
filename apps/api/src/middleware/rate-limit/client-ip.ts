@@ -2,6 +2,11 @@ import type { Context } from 'hono';
 import { getConnInfo } from '@hono/node-server/conninfo';
 import { isIP } from 'node:net';
 
+// One-time warning flags to avoid noisy logs
+let warnedMissingTrustedProxyConfig = false;
+let warnedUnknownResolution = false;
+let warnedUntrustedRemoteHeader = false;
+
 function normalizeIp(value?: string | null): string | null {
   if (!value) {
     return null;
@@ -62,9 +67,24 @@ export function resolveClientIp(c: Context): string {
   const remoteIp = getRemoteAddress(c);
   const trustedProxies = parseTrustedProxyIps();
   const headerIp = getHeaderIp(c);
+  const hasTrustedProxies = trustedProxies.size > 0;
+
+  if (headerIp && !hasTrustedProxies && !warnedMissingTrustedProxyConfig) {
+    warnedMissingTrustedProxyConfig = true;
+    console.warn(
+      'AUTH_TRUSTED_PROXY_IPS not set; ignoring X-Real-IP/X-Forwarded-For. Configure proxies to trust forwarded headers.'
+    );
+  }
 
   if (remoteIp && trustedProxies.has(remoteIp) && headerIp) {
     return headerIp;
+  }
+
+  if (remoteIp && headerIp && !trustedProxies.has(remoteIp) && !warnedUntrustedRemoteHeader) {
+    warnedUntrustedRemoteHeader = true;
+    console.warn(
+      `resolveClientIp: ignoring forwarded header from untrusted remote ${remoteIp}. Add it to AUTH_TRUSTED_PROXY_IPS to trust headers.`
+    );
   }
 
   if (remoteIp) {
@@ -73,8 +93,15 @@ export function resolveClientIp(c: Context): string {
 
   // In environments without connection info (e.g., some tests), allow header use
   // only if trusted proxies are explicitly configured.
-  if (!remoteIp && headerIp && trustedProxies.size > 0) {
+  if (!remoteIp && headerIp && hasTrustedProxies) {
     return headerIp;
+  }
+
+  if (!warnedUnknownResolution) {
+    warnedUnknownResolution = true;
+    console.debug(
+      'resolveClientIp: falling back to "unknown". Ensure connection info is available or configure AUTH_TRUSTED_PROXY_IPS.'
+    );
   }
 
   return 'unknown';

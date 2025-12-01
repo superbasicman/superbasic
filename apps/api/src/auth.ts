@@ -7,7 +7,7 @@
 
 import { Hono } from "hono";
 import { Auth } from "@auth/core";
-import { AUTHJS_CREDENTIALS_PROVIDER_ID, authConfig } from "@repo/auth";
+import { AUTHJS_CREDENTIALS_PROVIDER_ID, AUTHJS_EMAIL_PROVIDER_ID, authConfig } from "@repo/auth";
 import {
   credentialsRateLimitMiddleware,
   magicLinkRateLimitMiddleware,
@@ -33,14 +33,16 @@ import {
 const authApp = new Hono();
 
 // Apply credentials rate limiting (5 req/minute per IP) before Auth.js handler
-authApp.use(
-  `/callback/${encodeURIComponent(AUTHJS_CREDENTIALS_PROVIDER_ID)}`,
-  credentialsRateLimitMiddleware
-);
+const credentialsCallbackPath = `/callback/${AUTHJS_CREDENTIALS_PROVIDER_ID}`;
+const encodedCredentialsCallbackPath = `/callback/${encodeURIComponent(AUTHJS_CREDENTIALS_PROVIDER_ID)}`;
+authApp.use(credentialsCallbackPath, credentialsRateLimitMiddleware);
+authApp.use(encodedCredentialsCallbackPath, credentialsRateLimitMiddleware);
 
-// Apply magic link rate limiting (3 req/hour per email) before Auth.js handler
-// Auth.js uses "nodemailer" as the provider ID for email authentication
-authApp.use("/signin/nodemailer", magicLinkRateLimitMiddleware);
+// Apply magic link rate limiting (3 req/hour per email) before Auth.js handler.
+const emailProviderPath = `/signin/${AUTHJS_EMAIL_PROVIDER_ID}`;
+const encodedEmailProviderPath = `/signin/${encodeURIComponent(AUTHJS_EMAIL_PROVIDER_ID)}`;
+authApp.use(emailProviderPath, magicLinkRateLimitMiddleware);
+authApp.use(encodedEmailProviderPath, magicLinkRateLimitMiddleware);
 
 /**
  * Mount Auth.js handler at all routes
@@ -128,7 +130,12 @@ export { authApp, maybeIssueAuthCoreSession };
 
 async function maybeIssueAuthCoreSession(request: Request, headers: Headers) {
   // Only run for Auth.js callbacks/signin endpoints that set the session cookie.
-  if (!request.url.includes("/callback/") && !request.url.includes("/signin/nodemailer")) {
+  const isMagicLinkSignin =
+    request.url.includes(emailProviderPath) || request.url.includes(encodedEmailProviderPath);
+  const isCredentialsCallback =
+    request.url.includes(credentialsCallbackPath) || request.url.includes(encodedCredentialsCallbackPath);
+
+  if (!request.url.includes("/callback/") && !isMagicLinkSignin && !isCredentialsCallback) {
     return null;
   }
 

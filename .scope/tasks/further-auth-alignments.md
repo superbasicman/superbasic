@@ -14,11 +14,11 @@
        - `sid` (sessionId)
      - The JWT must be signed by the `AuthCoreService` issuer.
 
-2. [ ] Implement Refresh Token Rotation
-   - Context: The schema/service has support for refresh tokens via the `Token` table, but the Auth.js config does not appear to use it yet.
+2. [x] Implement Refresh Token Rotation
+   - Context: Refresh tokens are issued via the `Token` table; `createSessionWithRefresh` and `/v1/auth/refresh` already use `AuthCoreService.issueRefreshToken`.
    - Details:
-     - Ensure `AuthCoreService.createSession` (or the Auth.js adapter) creates a `Token` (type `refresh`) in addition to the `Session`.
-     - Update the `/v1/auth/refresh` endpoint to use `AuthCoreService.issueRefreshToken`.
+     - `AuthCoreService.createSessionWithRefresh` issues `Token` records of type `refresh` alongside sessions.
+     - `/v1/auth/refresh` rotates tokens via `AuthCoreService.issueRefreshToken`, revokes the prior token, and preserves family IDs.
 
 3. [x] Verify Middleware Behavior
    - Context: `AuthCoreService.verifyRequest` is intended to verify JWTs (and PATs) once Auth.js issues JWTs instead of opaque session tokens.

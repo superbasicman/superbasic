@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import { makeRequest } from '../../test/helpers.js';
 import type { RateLimitResult } from '@repo/rate-limit';
+import { AUTHJS_EMAIL_PROVIDER_ID } from '@repo/auth';
 
 // Mock rate limiter
 let mockCheckLimit: ((key: string, config: { limit: number; window: number }) => Promise<RateLimitResult>) | null = null;
@@ -34,12 +35,14 @@ vi.mock('@repo/rate-limit', () => ({
 // Import after mocking
 const { magicLinkRateLimitMiddleware } = await import('../rate-limit/index.js');
 
+const EMAIL_SIGNIN_PATH = `/auth/signin/${AUTHJS_EMAIL_PROVIDER_ID}`;
+
 // Create test app
 function createTestApp() {
   const app = new Hono();
 
   // Magic link endpoint with rate limiting
-  app.post('/auth/signin/nodemailer', magicLinkRateLimitMiddleware, async (c) => {
+  app.post(EMAIL_SIGNIN_PATH, magicLinkRateLimitMiddleware, async (c) => {
     return c.json({ success: true, message: 'Magic link sent' });
   });
 
@@ -65,7 +68,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      const response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'test@example.com' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -90,7 +93,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      const response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'test@example.com' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -110,7 +113,7 @@ describe('Magic Link Rate Limiting', () => {
     it('should return 400 when email is missing', async () => {
       const app = createTestApp();
 
-      const response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ csrfToken: 'test-token' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -139,7 +142,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'Test@Example.COM' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -162,7 +165,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: '  test@example.com  ' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -184,7 +187,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      const response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'test@example.com' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -206,7 +209,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      const response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'test@example.com' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -238,12 +241,12 @@ describe('Magic Link Rate Limiting', () => {
       const app = createTestApp();
 
       // Request magic links for different emails
-      const email1Response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const email1Response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'user1@example.com' }).toString(),
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
 
-      const email2Response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const email2Response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'user2@example.com' }).toString(),
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       });
@@ -265,7 +268,7 @@ describe('Magic Link Rate Limiting', () => {
 
       const app = createTestApp();
 
-      const response = await makeRequest(app, 'POST', '/auth/signin/nodemailer', {
+      const response = await makeRequest(app, 'POST', EMAIL_SIGNIN_PATH, {
         body: new URLSearchParams({ email: 'test@example.com' }).toString(),
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

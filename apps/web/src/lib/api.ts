@@ -4,6 +4,7 @@ import { getCookieValue } from "./cookies";
 
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
+const AUTHJS_EMAIL_PROVIDER_ID = "authjs:email";
 
 /**
  * API client error class for structured error handling
@@ -293,7 +294,7 @@ export const authApi = {
       callbackUrl: `${window.location.origin}/auth/callback?provider=magic_link`,
     });
 
-    const response = await fetch(`${API_URL}/v1/auth/signin/nodemailer`, {
+    const response = await fetch(`${API_URL}/v1/auth/signin/${AUTHJS_EMAIL_PROVIDER_ID}`, {
       method: "POST",
       credentials: "include",
       headers: {

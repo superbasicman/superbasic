@@ -17,7 +17,7 @@ import {
   makeRequest,
   createTestUser,
 } from '../../../test/helpers.js';
-import { AUTHJS_CREDENTIALS_PROVIDER_ID, AUTHJS_GOOGLE_PROVIDER_ID } from '@repo/auth';
+import { AUTHJS_CREDENTIALS_PROVIDER_ID, AUTHJS_EMAIL_PROVIDER_ID, AUTHJS_GOOGLE_PROVIDER_ID } from '@repo/auth';
 
 const ENCODED_GOOGLE_ID = AUTHJS_GOOGLE_PROVIDER_ID;
 
@@ -53,8 +53,8 @@ describe('OAuth Flows', () => {
       expect(data[AUTHJS_CREDENTIALS_PROVIDER_ID].type).toBe('credentials');
 
       // Verify email provider (magic links)
-      expect(data).toHaveProperty('nodemailer');
-      expect(data.nodemailer.type).toBe('email');
+      expect(data).toHaveProperty(AUTHJS_EMAIL_PROVIDER_ID);
+      expect(data[AUTHJS_EMAIL_PROVIDER_ID].type).toBe('email');
     });
   });
 

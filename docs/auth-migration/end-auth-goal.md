@@ -69,7 +69,7 @@ Core domain types (independent of Auth.js/Auth0):
   Guidelines for `provider`:
 
   - Use stable identifiers that survive IdP configuration changes, e.g.:
-    - `'authjs:credentials'`, `'authjs:google'`
+    - `'authjs:credentials'`, `'authjs:google'`, `'authjs:email'`
     - `'auth0:default'`
     - `'google'` if directly integrated with Google OIDC
     - `'saml:<id>'` for specific SAML connections
@@ -194,7 +194,7 @@ Usage:
 When an IdP flow completes, it returns a `VerifiedIdentity`:
 
     type VerifiedIdentity = {
-      provider: string;         // 'authjs:credentials', 'authjs:google', 'auth0:default', 'google', 'apple', 'saml:<id>', etc.
+      provider: string;         // 'authjs:credentials', 'authjs:google', 'authjs:email', 'auth0:default', 'google', 'apple', 'saml:<id>', etc.
       providerUserId: string;
       email: string | null;
       emailVerified?: boolean;
@@ -1191,7 +1191,7 @@ The design intentionally supports future IdP switches:
 
 - Existing data:
   - `User` remains the canonical internal account.
-  - `UserIdentity` rows currently have providers like `'authjs:credentials'`, `'authjs:google'`.
+  - `UserIdentity` rows currently have providers like `'authjs:credentials'`, `'authjs:google'`, `'authjs:email'`.
 - Introducing Auth0:
   - New logins from Auth0 produce `VerifiedIdentity` with:
     - `provider = 'auth0:<connection>'` (e.g. `'auth0:default'`),
