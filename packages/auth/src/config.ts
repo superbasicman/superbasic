@@ -33,6 +33,7 @@ import {
   SESSION_ABSOLUTE_MAX_AGE_SECONDS,
   AUTHJS_CREDENTIALS_PROVIDER_ID,
   AUTHJS_GOOGLE_PROVIDER_ID,
+  AUTHJS_EMAIL_PROVIDER_ID,
 } from "./constants.js";
 import { ensureProfileExists } from "./profile.js";
 import { hashToken } from "./pat.js";
@@ -620,6 +621,7 @@ const config: AuthConfigWithLinking = {
     credentialsProvider,
     googleProvider,
     Nodemailer({
+      id: AUTHJS_EMAIL_PROVIDER_ID,
       from: process.env.EMAIL_FROM ?? "onboard@resend.com",
       // Server config required by Auth.js Nodemailer provider
       // We override sendVerificationRequest so this isn't actually used
@@ -788,7 +790,7 @@ const config: AuthConfigWithLinking = {
               emailLower: normalizedEmail,
               name: user.name || oauthProfile?.name || null,
               image: user.image || oauthProfile?.picture || null,
-              emailVerified: account.provider === "email" ? null : new Date(),
+              emailVerified: account.provider === AUTHJS_EMAIL_PROVIDER_ID ? null : new Date(),
             },
           });
           userId = newUser.id;

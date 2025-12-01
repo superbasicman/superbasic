@@ -202,7 +202,7 @@ AUTH_TRUST_HOST=true            # Required for development
 
 Passwordless authentication via email link.
 
-**Endpoint:** `POST /v1/auth/signin/nodemailer`
+**Endpoint:** `POST /v1/auth/signin/authjs:email`
 
 **Content-Type:** `application/x-www-form-urlencoded`
 
@@ -213,7 +213,7 @@ Passwordless authentication via email link.
 **How it works:**
 
 1. Client fetches CSRF token from `/v1/auth/csrf`
-2. Client POSTs email to `/v1/auth/signin/nodemailer` with CSRF token
+2. Client POSTs email to `/v1/auth/signin/authjs:email` with CSRF token
 3. Server generates secure verification token (256 bits entropy)
 4. Server sends email with magic link via Resend
 5. Server redirects to verify-request page (302 redirect)
@@ -231,13 +231,13 @@ CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | \
   grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
 
 # Step 2: Request magic link
-curl -i -X POST http://localhost:3000/v1/auth/signin/nodemailer \
+curl -i -X POST http://localhost:3000/v1/auth/signin/authjs:email \
   -b /tmp/cookies.txt \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -d "email=user@example.com&csrfToken=$CSRF_TOKEN"
 
 # Response: HTTP/1.1 302 Found
-# Location: /v1/auth/verify-request?provider=nodemailer&type=email
+# Location: /v1/auth/verify-request?provider=authjs:email&type=email
 
 # Step 3: Check email inbox for magic link
 # Email subject: "Sign in to SuperBasic Finance"
