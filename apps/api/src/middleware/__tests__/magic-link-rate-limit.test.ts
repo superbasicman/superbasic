@@ -28,6 +28,7 @@ vi.mock('@repo/rate-limit', () => ({
     },
     resetLimit: vi.fn(),
   })),
+  createMockRedis: vi.fn(() => ({})),
 }));
 
 // Import after mocking

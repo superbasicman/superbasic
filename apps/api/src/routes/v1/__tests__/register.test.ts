@@ -8,6 +8,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
 
+// Mock rate limit to be permissive for registration tests
+vi.mock('@repo/rate-limit', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@repo/rate-limit')>();
+  return {
+    ...actual,
+    createRateLimiter: () => ({
+      checkLimit: async () => ({ allowed: true, remaining: 999, reset: 0 }),
+      getUsage: async () => 0,
+      resetLimit: async () => { },
+    }),
+    createMockRedis: () => ({}),
+  };
+});
+
 import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import { makeRequest, createTestUserCredentials } from '../../../test/helpers.js';
@@ -62,11 +76,11 @@ describe('POST /v1/register', () => {
 
       expect(user).toBeTruthy();
       expect(user?.email).toBe(credentials.email);
-      
+
       // Verify password is hashed (not plaintext)
       expect(user?.password).not.toBe(credentials.password);
       expect(user?.password).toMatch(/^\$2[aby]\$/); // bcrypt hash format
-      
+
       // Verify password can be verified
       const isValid = await verifyPassword(credentials.password, user!.password!);
       expect(isValid).toBe(true);
@@ -204,7 +218,7 @@ describe('POST /v1/register', () => {
     it('should emit user.registered event on successful registration', async () => {
       const credentials = createTestUserCredentials();
       let capturedEvent: any = null;
-      
+
       // Set up event listener before making request
       const handler = (event: any) => {
         if (event.type === 'user.registered' && event.email === credentials.email) {
@@ -234,7 +248,7 @@ describe('POST /v1/register', () => {
       const credentials = createTestUserCredentials();
       const testIp = '192.168.1.100';
       let capturedEvent: any = null;
-      
+
       // Set up event listener before making request
       const handler = (event: any) => {
         if (event.type === 'user.registered' && event.email === credentials.email) {
@@ -263,7 +277,7 @@ describe('POST /v1/register', () => {
       const credentials = createTestUserCredentials();
       const testIp = '10.0.0.50';
       let capturedEvent: any = null;
-      
+
       // Set up event listener before making request
       const handler = (event: any) => {
         if (event.type === 'user.registered' && event.email === credentials.email) {
@@ -290,7 +304,7 @@ describe('POST /v1/register', () => {
 
     it('should not emit event on failed registration (duplicate email)', async () => {
       const credentials = createTestUserCredentials();
-      
+
       // Register first user
       await makeRequest(app, 'POST', '/v1/register', {
         body: credentials,

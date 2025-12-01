@@ -72,7 +72,7 @@ export function createRateLimiter(redis: Redis) {
       if (currentCount >= config.limit) {
         // Rate limit exceeded
         const oldestEntry = await redis.zrange(rateLimitKey, 0, 0, { withScores: true });
-        const resetTime = oldestEntry.length > 0 
+        const resetTime = oldestEntry.length > 0
           ? Math.ceil((Number(oldestEntry[1]) + config.window * 1000) / 1000)
           : Math.ceil((now + config.window * 1000) / 1000);
 
@@ -164,3 +164,5 @@ export const RateLimitPresets = {
 } as const;
 
 export { Redis } from '@upstash/redis';
+export { MockRedis, createMockRedis } from './mock.js';
+

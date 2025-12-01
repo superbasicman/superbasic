@@ -91,11 +91,11 @@ Security hardening tasks to strengthen the auth implementation before production
   - Sanity check: Import and apply middleware to refresh route
   - Result: No action needed; middleware already enforces 10 req/min per IP on `/v1/auth/refresh`
 
-- [ ] 10. Test rate limiting behavior
+- [x] 10. Test rate limiting behavior
   - Make 31 rapid requests to `/v1/auth/refresh` from same IP
   - Sanity check: 31st request returns 429 Too Many Requests
 
-- [ ] 11. Add rate limit test coverage
+- [x] 11. Add rate limit test coverage
   - Add test case in `apps/api/src/routes/v1/__tests__/auth-rate-limit.test.ts`
   - Sanity check: Test verifies 429 response after exceeding limit
 
