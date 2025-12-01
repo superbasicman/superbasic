@@ -24,6 +24,7 @@ export interface RequestOptions {
   body?: unknown;
   headers?: Record<string, string>;
   cookies?: Record<string, string>;
+  env?: Record<string, unknown>;
 }
 
 /**
@@ -41,7 +42,7 @@ export async function makeRequest(
   path: string,
   options: RequestOptions = {}
 ): Promise<Response> {
-  const { body, headers = {}, cookies = {} } = options;
+  const { body, headers = {}, cookies = {}, env } = options;
 
   // Build cookie header from cookies object
   const cookieHeader = Object.entries(cookies)
@@ -69,7 +70,7 @@ export async function makeRequest(
 
   // Make request to Hono app
   const request = new Request(`http://localhost${path}`, init);
-  return app.fetch(request);
+  return app.fetch(request, env as any);
 }
 
 /**

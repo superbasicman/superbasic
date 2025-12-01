@@ -3,13 +3,23 @@
  * Tests request counting, limit enforcement, and graceful failure
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
 import { Hono, Context, Next } from 'hono';
 import { makeRequest } from '../../test/helpers.js';
 import type { RateLimitResult } from '@repo/rate-limit';
+import { resolveClientIp } from '../rate-limit/client-ip.js';
 
 // Mock rate limiter for testing
 let mockCheckLimit: ((key: string, config: { limit: number; window: number }) => Promise<RateLimitResult>) | null = null;
+let originalTrustedProxyIps: string | undefined;
+
+beforeAll(() => {
+  originalTrustedProxyIps = process.env.AUTH_TRUSTED_PROXY_IPS;
+});
+
+afterAll(() => {
+  process.env.AUTH_TRUSTED_PROXY_IPS = originalTrustedProxyIps;
+});
 
 // Create a test middleware that uses our mock
 function createTestRateLimitMiddleware() {
@@ -20,10 +30,7 @@ function createTestRateLimitMiddleware() {
       return;
     }
 
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() ||
-      c.req.header('x-real-ip') ||
-      'unknown';
+    const ip = resolveClientIp(c);
 
     const result = await mockCheckLimit(`auth:${ip}`, {
       limit: 10,
@@ -60,16 +67,28 @@ function createTestApp() {
   return app;
 }
 
+const trustedProxyEnv = {
+  incoming: {
+    socket: {
+      remoteAddress: '127.0.0.1',
+      remotePort: 443,
+      remoteFamily: 'IPv4',
+    },
+  },
+};
+
 describe('Rate Limiting Middleware', () => {
   describe('Rate Limit Enforcement', () => {
     beforeEach(() => {
       // Reset mock before each test
       mockCheckLimit = null;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '127.0.0.1';
     });
 
     afterEach(() => {
       // Clean up after each test
       mockCheckLimit = null;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '127.0.0.1';
     });
 
     it('should allow requests within rate limit', async () => {
@@ -227,6 +246,7 @@ describe('Rate Limiting Middleware', () => {
         headers: {
           'x-forwarded-for': '203.0.113.42',
         },
+        env: trustedProxyEnv,
       });
 
       expect(capturedKey).toBe('auth:203.0.113.42');
@@ -251,6 +271,7 @@ describe('Rate Limiting Middleware', () => {
         headers: {
           'x-real-ip': '198.51.100.23',
         },
+        env: trustedProxyEnv,
       });
 
       expect(capturedKey).toBe('auth:198.51.100.23');
@@ -277,13 +298,15 @@ describe('Rate Limiting Middleware', () => {
         headers: {
           'x-forwarded-for': '203.0.113.42, 198.51.100.1, 192.0.2.1',
         },
+        env: trustedProxyEnv,
       });
 
       expect(capturedKey).toBe('auth:203.0.113.42');
     });
 
-    it('should use "unknown" when no IP headers are present', async () => {
+    it('should fall back to connection IP when no proxy headers are present', async () => {
       let capturedKey: string | undefined;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '';
 
       // Mock the rate limiter to capture the key
       mockCheckLimit = async (key: string) => {
@@ -297,19 +320,64 @@ describe('Rate Limiting Middleware', () => {
 
       const app = createTestApp();
 
-      await makeRequest(app, 'POST', '/auth/test');
+      await makeRequest(app, 'POST', '/auth/test', {
+        env: {
+          incoming: {
+            socket: {
+              remoteAddress: '203.0.113.50',
+              remotePort: 443,
+              remoteFamily: 'IPv4',
+            },
+          },
+        },
+      });
 
-      expect(capturedKey).toBe('auth:unknown');
+      expect(capturedKey).toBe('auth:203.0.113.50');
+    });
+
+    it('should ignore spoofed proxy headers when proxy is untrusted', async () => {
+      let capturedKey: string | undefined;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '';
+
+      mockCheckLimit = async (key: string) => {
+        capturedKey = key;
+        return {
+          allowed: true,
+          remaining: 9,
+          reset: Math.floor(Date.now() / 1000) + 60,
+        };
+      };
+
+      const app = createTestApp();
+
+      await makeRequest(app, 'POST', '/auth/test', {
+        headers: {
+          'x-forwarded-for': '198.51.100.23',
+        },
+        env: {
+          incoming: {
+            socket: {
+              remoteAddress: '192.0.2.10',
+              remotePort: 443,
+              remoteFamily: 'IPv4',
+            },
+          },
+        },
+      });
+
+      expect(capturedKey).toBe('auth:192.0.2.10');
     });
   });
 
   describe('Rate Limit Failure Handling', () => {
     beforeEach(() => {
       mockCheckLimit = null;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '127.0.0.1';
     });
 
     afterEach(() => {
       mockCheckLimit = null;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '127.0.0.1';
     });
 
     it('should allow requests when Redis is unavailable', async () => {
@@ -395,10 +463,12 @@ describe('Rate Limiting Middleware', () => {
   describe('Rate Limit Reset and Isolation', () => {
     beforeEach(() => {
       mockCheckLimit = null;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '127.0.0.1';
     });
 
     afterEach(() => {
       mockCheckLimit = null;
+      process.env.AUTH_TRUSTED_PROXY_IPS = '127.0.0.1';
     });
 
     it('should reset rate limit window correctly', async () => {
