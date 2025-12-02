@@ -25,7 +25,8 @@ export type AuthEventType =
   | "token.revoked"
   | "token.auth_failed"
   | "token.scope_denied"
-  | "auth.failed_rate_limited";
+  | "auth.failed_rate_limited"
+  | "user.session.created";
 
 /**
  * Base authentication event structure

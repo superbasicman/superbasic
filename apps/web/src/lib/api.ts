@@ -5,6 +5,7 @@ import { getCookieValue } from "./cookies";
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
 const AUTHJS_EMAIL_PROVIDER_ID = "authjs:email";
+const AUTHJS_CREDENTIALS_PROVIDER_ID = "authjs:credentials";
 
 /**
  * API client error class for structured error handling
@@ -181,43 +182,34 @@ async function refreshAfterProviderCallback() {
 export const authApi = {
   /**
    * Login with email and password (AuthCore-backed)
-   * Returns and stores access token; refresh cookie set by API
+   * Hits Auth.js credentials callback, then refreshes tokens from the auth-core flow.
    */
   async login(credentials: LoginInput): Promise<{ user: UserResponse }> {
-    const result = await apiFetch<{
-      tokenType: string;
-      accessToken: string;
-      refreshToken?: string;
-      expiresIn: number;
-      sessionId: string;
-    }>("/v1/auth/login", {
-      method: "POST",
-      body: JSON.stringify({
-        email: credentials.email,
-        password: credentials.password,
-        rememberMe: true,
-        clientType: "web",
-      }),
+    const form = new URLSearchParams({
+      email: credentials.email,
+      password: credentials.password,
+      callbackUrl: `${window.location.origin}/auth/callback?provider=credentials`,
     });
 
-    if (!result || typeof result.accessToken !== "string") {
-      clearTokens();
-      throw new ApiError("Invalid email or password", 401);
+    const response = await fetch(
+      `${API_URL}/v1/auth/callback/${encodeURIComponent(AUTHJS_CREDENTIALS_PROVIDER_ID)}`,
+      {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form.toString(),
+        redirect: "manual",
+      }
+    );
+
+    if (response.status !== 200 && response.status !== 302) {
+      throw new ApiError("Invalid email or password", response.status || 401);
     }
 
-    saveTokens({
-      accessToken: result.accessToken,
-      expiresIn: result.expiresIn,
-    });
-
-    // Fetch current user using access token
-    try {
-      const response = await this.me();
-      return response;
-    } catch (error) {
-      clearTokens();
-      throw error;
-    }
+    await refreshAfterProviderCallback();
+    return this.me();
   },
 
   /**
@@ -225,23 +217,9 @@ export const authApi = {
    * Starts Auth.js OAuth; AuthCore session is minted in callback
    */
   async loginWithGoogle(): Promise<void> {
-    const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
-      credentials: "include",
-    });
-    const { csrfToken } = await csrfResponse.json();
-
-    // Wait briefly to ensure cookie is processed
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
     const form = document.createElement("form");
     form.method = "POST";
     form.action = `${API_URL}/v1/auth/signin/google`;
-
-    const csrfInput = document.createElement("input");
-    csrfInput.type = "hidden";
-    csrfInput.name = "csrfToken";
-    csrfInput.value = csrfToken;
-    form.appendChild(csrfInput);
 
     const callbackInput = document.createElement("input");
     callbackInput.type = "hidden";
@@ -283,14 +261,8 @@ export const authApi = {
    * Sends magic link to user's email address (Auth.js email provider)
    */
   async requestMagicLink(email: string): Promise<void> {
-    const csrfResponse = await fetch(`${API_URL}/v1/auth/csrf`, {
-      credentials: "include",
-    });
-    const { csrfToken } = await csrfResponse.json();
-
     const form = new URLSearchParams({
       email,
-      csrfToken,
       callbackUrl: `${window.location.origin}/auth/callback?provider=magic_link`,
     });
 

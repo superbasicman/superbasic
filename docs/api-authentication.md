@@ -1,6 +1,8 @@
 # API Authentication Guide
 
-SuperBasic Finance provides multiple authentication methods for accessing the API: session-based authentication (credentials, OAuth, magic links) for web clients and Bearer token authentication (PATs) for programmatic access.
+> **Note:** Auth.js is identity-only. `/v1/auth/login` is removed, `/v1/auth/csrf` is not used, and Auth.js session/CSRF cookies are stripped. Provider callbacks mint auth-core refresh cookies (`sb.refresh-token` + `sb.refresh-csrf`) and return an access token header for bootstrap. Refresh uses double-submit CSRF on `sb.refresh-csrf`.
+
+SuperBasic Finance provides multiple authentication methods for accessing the API: Auth.js provider flows that issue auth-core refresh/access tokens for web clients, and Bearer token authentication (PATs) for programmatic access.
 
 ## Table of Contents
 
@@ -28,91 +30,46 @@ SuperBasic Finance provides multiple authentication methods for accessing the AP
 
 ### Session Authentication
 
-Session authentication uses opaque Auth.js session tokens stored in httpOnly cookies. The cookie value is a random, non-decodable string (not a JWT) that maps to server-side state in the `sessions` table. This method is used by the web client and provides full access to all API endpoints without scope restrictions. SuperBasic Finance supports three session authentication methods:
+Session authentication uses auth-core refresh cookies issued by Auth.js provider callbacks. Auth.js cookies are stripped; only auth-core cookies are sent:
 
-1. **Credentials** - Traditional email/password login
-2. **OAuth** - Sign in with Google (GitHub and Apple coming in Phase 16)
+- `sb.refresh-token` (httpOnly) + `sb.refresh-csrf` (readable) set on callback.
+- `X-Access-Token` header is returned on callback for bootstrap.
+- Clients call `POST /v1/auth/refresh` with double-submit CSRF (`X-CSRF-Token: <sb.refresh-csrf>`), receive `{ accessToken, expiresIn }`, and use Bearer tokens for API calls.
+
+Supported identity flows:
+
+1. **Credentials** - Traditional email/password login (Auth.js credentials callback)
+2. **OAuth** - Sign in with Google
 3. **Magic Link** - Passwordless email authentication
-
-All session authentication methods result in the same session cookie format and provide identical access levels.
-
-**Session Cookie Details:**
-
-- **Cookie name:** `authjs.session-token`
-- **Value:** Random opaque token (not a JWT); server stores only a hash in the `sessions` table
-- **httpOnly:** `true` - Prevents JavaScript access
-- **secure:** `true` - HTTPS only (production)
-- **sameSite:** `lax` - CSRF protection
-- **maxAge:** 30 days - Session expiration
-
-**Session Endpoints:**
-
-- `GET /v1/auth/session` - Get current session data
-- `POST /v1/auth/signout` - Sign out and clear session
-- `GET /v1/auth/csrf` - Get CSRF token (required for sign-in requests)
-- `GET /v1/auth/providers` - List available authentication providers
 
 ---
 
 #### Credentials (Email/Password)
 
-Traditional email and password authentication.
-
-**Endpoint:** `POST /v1/auth/callback/credentials`
-
-**Content-Type:** `application/x-www-form-urlencoded`
-
-**CSRF Protection:** Required - obtain token from `GET /v1/auth/csrf` first
+**Endpoint:** `POST /v1/auth/callback/authjs:credentials` (form-encoded)
 
 **How it works:**
 
-1. Client fetches CSRF token from `/v1/auth/csrf`
-2. Client POSTs credentials to `/v1/auth/callback/credentials` with CSRF token
-3. Server validates credentials against hashed password in database
-4. Server mints an opaque session token, hashes it in the database, and sets the `authjs.session-token` cookie
-5. Server redirects to callback URL (302 redirect)
-6. Client fetches session data from `/v1/auth/session`
+1. POST email/password to `/v1/auth/callback/authjs:credentials` (no Auth.js CSRF needed).
+2. Callback sets `sb.refresh-token` + `sb.refresh-csrf` cookies and returns `X-Access-Token`/`X-Access-Token-Expires-In` headers.
+3. Optionally call `POST /v1/auth/refresh` with `X-CSRF-Token: <sb.refresh-csrf>` to obtain `{ accessToken, expiresIn }` for API calls.
 
 **Example request:**
 
 ```bash
-# Step 1: Get CSRF token
-CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | \
-  grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
-
-# Step 2: Sign in with credentials
-curl -i -X POST http://localhost:3000/v1/auth/callback/credentials \
-  -b /tmp/cookies.txt \
-  -c /tmp/cookies.txt \
+# Sign in with credentials (stores refresh/CSRF cookies)
+curl -i -c /tmp/cookies.txt -X POST http://localhost:3000/v1/auth/callback/authjs:credentials \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=user@example.com&password=SecurePassword123!&csrfToken=$CSRF_TOKEN"
+  --data-urlencode "email=user@example.com" \
+  --data-urlencode "password=SecurePassword123!"
 
-# Response: HTTP/1.1 302 Found
-# Set-Cookie: authjs.session-token=<opaque_token>; Path=/; HttpOnly; SameSite=Lax
-
-# Step 3: Get session data
-curl http://localhost:3000/v1/auth/session -b /tmp/cookies.txt
+# Exchange refresh cookie for access token
+CSRF=$(awk '($0 !~ /^#/ && $6=="sb.refresh-csrf"){print $7}' /tmp/cookies.txt | tail -n1)
+curl -s -b /tmp/cookies.txt -X POST http://localhost:3000/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
+  -d '{}' 
 ```
-
-**Response (session data):**
-
-```json
-{
-  "user": {
-    "id": "user_abc123",
-    "email": "user@example.com",
-    "name": "John Doe",
-    "image": null
-  },
-  "expires": "2025-02-20T10:30:00.000Z"
-}
-```
-
-**Error Responses:**
-
-- `401 Unauthorized` - Invalid email or password
-- `400 Bad Request` - Missing required fields
-- `403 Forbidden` - CSRF token invalid or missing
 
 ---
 
@@ -130,9 +87,8 @@ Sign in with Google account using OAuth 2.0 + OpenID Connect.
 4. Google redirects back to `/v1/auth/callback/google` with authorization code
 5. Server exchanges code for access token and user profile
 6. Server creates or links user account (by email)
-7. Server mints an opaque session token, hashes it in the database, and sets the `authjs.session-token` cookie
+7. Server sets `sb.refresh-token` + `sb.refresh-csrf` cookies and returns `X-Access-Token` header
 8. Server redirects to `callbackUrl`
-9. Client fetches session data from `/v1/auth/session`
 
 **Example flow:**
 
@@ -142,28 +98,15 @@ open "http://localhost:3000/v1/auth/signin/google?callbackUrl=http://localhost:5
 
 # User completes Google OAuth consent...
 
-# Step 2: After redirect, get session data
-curl http://localhost:3000/v1/auth/session \
-  -H "Cookie: authjs.session-token=<token_from_browser>"
+# Step 2: After redirect, refresh to get access token
+CSRF=$(awk '($0 !~ /^#/ && $6=="sb.refresh-csrf"){print $7}' /tmp/cookies.txt | tail -n1)
+curl -s -b /tmp/cookies.txt -X POST http://localhost:3000/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
+  -d '{}'
 ```
 
-**Response (session data):**
-
-```json
-{
-  "user": {
-    "id": "user_abc123",
-    "email": "user@gmail.com",
-    "name": "John Doe",
-    "image": "https://lh3.googleusercontent.com/..."
-  },
-  "expires": "2025-02-20T10:30:00.000Z"
-}
-```
-
-**Account Linking:**
-
-If a user with the same email already exists (created via credentials or magic link), the OAuth account is linked to the existing user. No duplicate accounts are created.
+Use the refresh cookie + `sb.refresh-csrf` header to call `/v1/auth/refresh` and obtain an access token.
 
 **Database Records:**
 
@@ -202,71 +145,42 @@ AUTH_TRUST_HOST=true            # Required for development
 
 Passwordless authentication via email link.
 
-**Endpoint:** `POST /v1/auth/signin/authjs:email`
-
-**Content-Type:** `application/x-www-form-urlencoded`
-
-**CSRF Protection:** Required - obtain token from `GET /v1/auth/csrf` first
+**Endpoint:** `POST /v1/auth/signin/authjs:email` (form-encoded)
 
 **Rate Limiting:** 3 requests per hour per email address
 
 **How it works:**
 
-1. Client fetches CSRF token from `/v1/auth/csrf`
-2. Client POSTs email to `/v1/auth/signin/authjs:email` with CSRF token
-3. Server generates secure verification token (256 bits entropy)
-4. Server sends email with magic link via Resend
-5. Server redirects to verify-request page (302 redirect)
-6. User clicks magic link in email
-7. Server validates the magic-link token and mints an opaque session token
-8. Server sets the `authjs.session-token` cookie
-9. Server redirects to callback URL
-10. Client fetches session data from `/v1/auth/session`
+1. Client POSTs email to `/v1/auth/signin/authjs:email` (no Auth.js CSRF needed).
+2. Server generates verification token and sends email via Resend.
+3. User clicks link → `/v1/auth/callback/authjs:email` sets `sb.refresh-token` + `sb.refresh-csrf` and returns `X-Access-Token`.
+4. Client calls `/v1/auth/refresh` with `X-CSRF-Token: <sb.refresh-csrf>` to obtain an access token, then uses Bearer tokens for API calls.
 
 **Example request:**
 
 ```bash
-# Step 1: Get CSRF token
-CSRF_TOKEN=$(curl -s -c /tmp/cookies.txt http://localhost:3000/v1/auth/csrf | \
-  grep -o '"csrfToken":"[^"]*"' | cut -d'"' -f4)
-
-# Step 2: Request magic link
+# Step 1: Request magic link
 curl -i -X POST http://localhost:3000/v1/auth/signin/authjs:email \
-  -b /tmp/cookies.txt \
   -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "email=user@example.com&csrfToken=$CSRF_TOKEN"
+  -d "email=user@example.com"
 
 # Response: HTTP/1.1 302 Found
 # Location: /v1/auth/verify-request?provider=authjs:email&type=email
 
-# Step 3: Check email inbox for magic link
-# Email subject: "Sign in to SuperBasic Finance"
-# Link format: http://localhost:3000/v1/auth/callback/email?token=...&email=...
-
-# Step 4: Click link (or curl it)
-curl -i "http://localhost:3000/v1/auth/callback/email?token=<token>&email=user@example.com"
+# Step 2: Click magic link (from email)
+curl -i "http://localhost:3000/v1/auth/callback/authjs:email?token=<token>&email=user@example.com"
 
 # Response: HTTP/1.1 302 Found
-# Set-Cookie: authjs.session-token=<opaque_token>; Path=/; HttpOnly; SameSite=Lax
+# Set-Cookie: sb.refresh-token=...; HttpOnly; SameSite=Lax
+# Set-Cookie: sb.refresh-csrf=...
 # Location: http://localhost:5173/  # Callback URL
 
-# Step 5: Get session data
-curl http://localhost:3000/v1/auth/session \
-  -H "Cookie: authjs.session-token=<token>"
-```
-
-**Response (session data):**
-
-```json
-{
-  "user": {
-    "id": "user_abc123",
-    "email": "user@example.com",
-    "name": null,
-    "image": null
-  },
-  "expires": "2025-02-20T10:30:00.000Z"
-}
+# Step 3: Exchange refresh cookie for access token
+CSRF=$(awk '($0 !~ /^#/ && $6=="sb.refresh-csrf"){print $7}' /tmp/cookies.txt | tail -n1)
+curl -s -b /tmp/cookies.txt -X POST http://localhost:3000/v1/auth/refresh \
+  -H "Content-Type: application/json" \
+  -H "X-CSRF-Token: $CSRF" \
+  -d '{}'
 ```
 
 **Email Template:**
@@ -452,7 +366,7 @@ Create a new Personal Access Token with specified scopes and expiration.
 ```bash
 curl -X POST https://api.superbasic.finance/v1/tokens \
   -H "Content-Type: application/json" \
-  -H "Cookie: authjs.session-token=<session_token>" \
+  -H "Authorization: Bearer <access_token>" \
   -d '{
     "name": "Mobile App",
     "scopes": ["read:transactions", "read:accounts"],
@@ -1282,17 +1196,11 @@ Magic link requests are automatically rate limited:
 
 ### Common Authentication Issues
 
-**Session Cookie Not Set:**
+**Refresh Cookie Not Set:**
 
-- **Symptom:** Login succeeds but `/v1/auth/session` returns null
+- **Symptom:** Login succeeds but `/v1/auth/refresh` returns 401
 - **Cause:** Cookie domain mismatch or SameSite restrictions
-- **Solution:** Ensure API and web client are on same domain or use proper CORS configuration
-
-**CSRF Token Errors:**
-
-- **Symptom:** `403 Forbidden` when signing in
-- **Cause:** Missing or invalid CSRF token
-- **Solution:** Always fetch CSRF token from `/v1/auth/csrf` before sign-in requests
+- **Solution:** Ensure API and web client are on same domain, HTTPS in production, and CORS allows credentials.
 
 **OAuth Redirect Loop:**
 

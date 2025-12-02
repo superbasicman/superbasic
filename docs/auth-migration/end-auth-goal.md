@@ -1,1349 +1,1119 @@
-# Auth Architecture Plan (`end-auth-goal.md`)
+# Auth Architecture Plan (auth.md)
 
 Goal: Define the end-state authentication & authorization architecture for SuperBasic Finance that:
-- Works cleanly for web, Capacitor, and fully native mobile.
-- Is IdP-agnostic (Auth.js today, Auth0/other tomorrow).
-- Minimizes future refactors by centralizing auth into a single, well-defined core.
+
+- Works cleanly for web, Capacitor, native mobile, CLI, and service-to-service.
+- Is IdP-agnostic (supports multiple identity providers over time).
+- Centralizes auth into a single, well-defined core.
 - Meets modern security expectations (short-lived access, refresh rotation with reuse detection, scoped tokens, multi-tenant safety).
-- Provides a fully functional OAuth 2.1-style authorization server from day 1.
+- Provides a fully functional OAuth 2.1-style authorization server.
 - Provides basic OpenID Connect (OIDC) compatibility (code flow + id_token + userinfo) for first- and third-party clients.
 
-This document describes the target polished design, not how to migrate from the current implementation.
-
-------------------------------------------------------------
-1. High-Level Design
-------------------------------------------------------------
-
-1.1 Core idea
-
-Split auth into two conceptual layers:
-
-1) Identity Provider (IdP) – proves who the user is.
-
-   Could be:
-   - Auth.js + own DB (credentials, Google, magic link, etc.)
-   - Auth0 / another hosted provider
-   - Future: enterprise SSO (SAML/OIDC)
-
-   Output: a Verified Identity (userId, email, etc.) after login.
-
-2) First-Party Auth Core – manages how clients access the API.
-
-   - Lives in `packages/auth-core` (or similar).
-   - Issues & validates:
-     - Short-lived access tokens (JWT).
-     - Long-lived refresh tokens (opaque, hashed).
-     - Long-lived Personal Access Tokens (PATs) (opaque, hashed, scoped).
-     - OpenID Connect id_tokens for clients that request OIDC.
-   - Provides a uniform AuthContext to the rest of the system.
-
-Everything in `apps/api` and `packages/core` should talk to the Auth Core, not the IdP directly.
-
-------------------------------------------------------------
-2. Domain Model & Concepts
-------------------------------------------------------------
-
-2.1 Entities
-
-In this document, `userId` always refers to the internal domain user (`profiles.id`), not the IdP’s own `users.id` or Auth.js adapter tables. External IdP accounts are linked to this internal `User` via `UserIdentity`.
-
-Core domain types (independent of Auth.js/Auth0):
-
-User
-- id
-- email
-- status (`active`, `disabled`, `locked`, etc.)
-- Profile attributes (name, avatar, etc.)
-
-Semantics:
-- If `status = 'disabled'` or `status = 'locked'`:
-  - All sessions and refresh tokens for that user are invalid and must be revoked.
-  - All PATs for that user are invalid.
-  - Auth-core must check `User.status` on every authenticated request (JWT or PAT) and reject if not `active`.
-
-UserIdentity (for IdP-agnostic account linking)
-- id
-- userId
-- provider (string; see below)
-- providerUserId
-- Provider-specific metadata (emailVerified, tenant IDs, etc.)
-
-Guidelines for `provider`:
-- Use stable identifiers that survive IdP configuration changes, e.g.:
-  - `authjs:credentials`, `authjs:google`
-  - `auth0:default`
-  - `google` if directly integrated with Google OIDC
-  - `saml:<id>` for specific SAML connections
-- Avoid ambiguous overlap where `google` sometimes means “via Auth.js” and sometimes “direct”.
-
-ClientType (shared between sessions and request context)
-- `web | mobile | cli | partner | other`
-
-Session
-- Represents a login on a specific device/browser.
-- id
-- userId
-- type: ClientType
-- userAgent
-- ipAddress
-- deviceName (optional)
-- createdAt
-- lastUsedAt (updated on meaningful access, throttled)
-- expiresAt (inactivity timeout)
-- absoluteExpiresAt (hard max lifetime from creation, e.g. 180 days)
-- revokedAt (null if active)
-- mfaLevel (optional; `none | mfa | phishing_resistant`)
-- kind (optional; `default | persistent | short` to model “remember me” vs short sessions)
-
-Semantics:
-- `kind` allows UX differences:
-  - `short`: shorter inactivity window (e.g. shared computers).
-  - `persistent`: longer inactivity window but still capped by absoluteExpiresAt.
-- When `User.status` transitions to `disabled`/`locked`, all active sessions for that user must be revoked.
-
-Token (for refresh tokens + PATs; not access tokens)
-- id
-- userId
-- sessionId (nullable; null for PATs or some OAuth tokens)
-- type: `refresh | personal_access`
-- tokenHash (SHA-256, optionally with global pepper)
-- scopes: string[]
-- name (for PATs – “Mobile App”, “CI/CD Pipeline”)
-- createdAt
-- lastUsedAt
-- expiresAt
-- revokedAt
-- familyId (for refresh tokens: all rotated tokens from one login)
-- metadata (JSON; optional, e.g. IP allowlist, notes)
-- workspaceId (nullable; for PATs, optional workspace scoping; see below)
-
-Invariant for refresh tokens:
-- At most one active (`revokedAt IS NULL`) token per `familyId`.
-- Enforced with a partial unique index on `(familyId)` where `type = 'refresh' AND revokedAt IS NULL` plus transactional rotation logic.
-
-Workspace / Membership / Role (multi-tenant)
-Workspace
-- id
-- name
-- status
-
-WorkspaceMembership
-- workspaceId
-- userId
-- role: `owner | admin | member | viewer` (extensible)
-
-Roles map into permission scopes.
-
-Permission Scope
-- String identifiers such as:
-  - `read:transactions`, `write:transactions`
-  - `read:budgets`, `write:budgets`
-  - `read:accounts`, `write:accounts`
-  - `read:profile`, `write:profile`
-  - Future: `read:workspaces`, `write:workspaces`, `manage:members`, `admin`
-- Some scopes are workspace-scoped (e.g. `read:transactions`), some global (e.g. `read:profile`).
-- Canonical internal scope syntax:
-  - `<action>:<resource>` (e.g. `read:transactions`)
-  - Optionally `<action>:<resource>:<qualifier>` (e.g. `manage:members:invites`) if needed later.
-  - Scopes are opaque strings to clients; only auth-core interprets them.
-
-OAuthClient (for `/v1/oauth/*` and OIDC flows)
-- id / clientId
-- type: `public | confidential`
-- name
-- redirectUris: string[]
-- allowedGrantTypes: array of `authorization_code | refresh_token | client_credentials`
-- allowedScopes: string[] (upper bound on scopes this client can ever receive; includes OIDC scopes like `openid`, `profile`, `email` when applicable)
-- createdAt
-- disabledAt (nullable)
-
-2.2 AuthContext
-
-The only thing downstream services should see is an AuthContext, provided by auth middleware:
-
-type ClientType = 'web' | 'mobile' | 'cli' | 'partner' | 'other';
-
-type AuthContext = {
-  userId: string;
-  sessionId: string | null; // null for PATs or pure client_credentials flows
-  scopes: string[];         // effective scopes for the active workspace, plus any global scopes
-  activeWorkspaceId: string | null;
-  roles: string[];          // roles for activeWorkspaceId
-  requestId?: string;
-  clientType: ClientType;
-  mfaLevel?: 'none' | 'mfa' | 'phishing_resistant';
-};
-
-Key semantics:
-- `scopes` in AuthContext are the effective scopes for `activeWorkspaceId` plus any global scopes.
-- `roles` refer strictly to `activeWorkspaceId`.
-- AuthContext.scopes is always derived server-side from:
-  - Workspace membership/roles
-  - PAT restrictions
-  - OAuth client restrictions and granted OAuth/OIDC scopes
-- We do not trust scopes inside tokens (JWT or otherwise).
-
-For PATs:
-- sessionId = null.
-- scopes start from PAT record and are intersected with scopes derived from workspace membership.
-- If token.workspaceId is set, activeWorkspaceId is forced to that workspace.
-
-For OAuth client credentials flows:
-- sessionId = null.
-- userId may represent a service principal / client identity.
-- scopes are granted based on:
-  - requested `scope` parameter,
-  - intersected with OAuthClient.allowedScopes,
-  - intersected with any additional server policy.
-
-Important:
-- Authorization always requires DB/cache lookups; JWT alone is not sufficient.
-- If DB/cache required to derive AuthContext is unavailable, auth-core fails closed (treat as unauthorized).
-
-Usage:
-- Route handlers in Hono read this from context (e.g. `c.var.auth`).
-- Services in `packages/core` receive AuthContext as an argument.
-- Nothing outside auth-core needs to parse tokens or know about IdP internals.
-
-2.3 Identity linking & signup rules
-
-When an IdP flow completes, it returns a VerifiedIdentity:
-
-type VerifiedIdentity = {
-  provider: string;         // 'authjs:credentials', 'authjs:google', 'auth0:default', 'google', 'apple', 'saml:<id>', etc.
-  providerUserId: string;
-  email: string | null;
-  emailVerified?: boolean;
-  name?: string;
-  picture?: string;
-  tenantId?: string;        // e.g. Auth0 tenant, SAML tenant
-  // other claims as needed
-};
-
-Auth-core maps this to a User:
-
-1) Existing identity match (preferred)
-- Look up UserIdentity by (provider, providerUserId).
-- If found → use linked userId.
-
-2) Email-based linking (verified email only)
-- If no UserIdentity found and email is present and emailVerified === true:
-  - Look for a User with that email.
-  - If found:
-    - Create UserIdentity row pointing to that userId.
-  - If not found:
-    - Create new User + default workspace, then UserIdentity.
-
-User existence checks are server-side only; we never expose “does this email exist?” over public APIs.
-
-3) No verified email
-- If no verified email (or no email at all):
-  - Create new User, default workspace, and UserIdentity.
-  - Only allowed in flows where email is not required.
-
-4) Account merges
-- No automatic cross-account merge beyond these rules in v1.
-- If a user ends up with multiple accounts, merging is manual/operational.
-- Suspicious situations (e.g. multiple IdPs claiming the same verified email in conflicting ways) are logged for review.
-
-2.4 Email semantics & sync
-
-- User.email is the canonical primary email.
-- User.email is unique among active users (soft constraint).
-- On each successful IdP login:
-  - If emailVerified === true and VerifiedIdentity.email differs from User.email:
-    - If no other active user has that email:
-      - Update User.email and log the change.
-    - Else:
-      - Log as potential cross-account; do not change User.email.
-
-Multiple emails per user can be supported later with a UserEmail table; v1 assumes one primary email.
-
-------------------------------------------------------------
-3. Token Strategy
-------------------------------------------------------------
-
-Three main token types:
-
-1) Access Tokens – short-lived JWTs (for APIs).
-2) Refresh Tokens – long-lived, opaque, hashed, rotation + reuse detection.
-3) Personal Access Tokens (PATs) – long-lived, opaque, hashed, for programmatic access.
-4) OIDC id_tokens – short-lived JWTs (for clients; not used for API auth directly).
-
-3.1 Access Tokens (JWT)
-
-- Format: JWT, signed with asymmetric keys (prefer EdDSA/Ed25519, else RS256).
-  - No HS256 for access tokens.
-  - Include kid in header.
-  - Keys managed in KMS; public keys via JWKS.
-- Lifetime: 10–30 minutes (configurable, short).
-- Used as: `Authorization: Bearer <access_token>` for all clients.
-- Audience: include `aud` (e.g. `sb_api`) and validate.
-- Allow small clock skew (e.g. ±60s).
-
-Example access token claims:
-
-{
-  "iss": "https://api.superbasic.finance",
-  "aud": "sb_api",
-  "sub": "user_123",
-  "sid": "sess_abc",
-  "wid": "ws_123",
-  "exp": 1700000000,
-  "iat": 1699990000,
-  "token_use": "access",
-  "act": "session",   // 'session' | 'oauth_client'
-  "jti": "jwt_123"
-}
-
-Sub semantics:
-- For user-based grants (normal login, auth code with user):
-  - `sub` is the internal userId; `act = 'session'`.
-- For client_credentials grants (pure app-level access):
-  - `sub` is the OAuth clientId or a stable internal client identity; `act = 'oauth_client'`, `sessionId = null`.
-
-Notes:
-- We do not include scopes in access JWTs (`scp` or similar).
-- Access JWT is an authentication proof for APIs; actual scopes/roles are derived server-side.
-
-Storage:
-- Web: in memory or HttpOnly cookie (via BFF).
-- Mobile: secure storage (Keychain/Keystore).
-- CLI: environment/config (never committed to VCS).
-
-Verification:
-- Only accept configured asymmetric algorithm.
-- Validate iss, aud, exp, iat, signature, token_use.
-- For tokens with sid:
-  - Check session exists, not revoked, not expired.
-- Always check User.status == 'active' for user-bound tokens.
-
-Logout / revocation semantics:
-- Revoking a session or PAT does not retroactively invalidate already-issued access tokens.
-- Access tokens remain usable until exp.
-- Immediate revocation applies to refresh tokens, PATs, sessions (for new token issuance).
-- Sensitive actions can require step-up auth or shorter TTL.
-
-3.2 Refresh Tokens (rotation & reuse detection)
-
-- Format: random 256-bit string (base64url).
-- Stored as hash (SHA-256 + optional pepper).
-- Lifetime: 30–90 days (configurable), capped by session.absoluteExpiresAt.
-- Relationship with sessions:
-  - One active refresh token per session at a time.
-  - All tokens created for a given session share a familyId.
-  - DB invariant: at most one active refresh per familyId.
-
-DB enforcement:
-- Partial unique index:
-
-  CREATE UNIQUE INDEX tokens_refresh_family_active_idx
-  ON tokens (familyId)
-  WHERE type = 'refresh' AND revokedAt IS NULL;
-
-- Refresh operations run in a single transaction:
-  - Mark old token revokedAt = now.
-  - Insert new token with same familyId.
-  - Update session timestamps.
-  - Commit.
-
-Usage:
-- Client calls `/v1/auth/refresh` with refresh token (body or cookie).
-- Server:
-  - Hashes token and looks up refresh token row.
-  - If not found → `invalid_grant` (401).
-  - If found:
-    - revokedAt must be null.
-    - expiresAt > now.
-    - Associated session must exist, not revoked, not expired.
-    - User.status must be active.
-
-On success:
-- Issue new access token.
-- Rotate refresh token (revoking old, creating new).
-- Update `session.lastUsedAt` and extend `session.expiresAt` (sliding expiration) capped by `absoluteExpiresAt`.
-- Response:
-
-  {
-    "accessToken": "<jwt>",
-    "refreshToken": "<opaque>",
-    "expiresIn": 1800
-  }
-
-Reuse detection:
-- If token row exists but revokedAt is not null and there is another active token with same familyId:
-  - Treat as likely token theft.
-  - Revoke all tokens in the family and the session.
-  - Log high-severity incident.
-  - Return `invalid_grant` (401).
-
-- If token row exists but revokedAt is not null and there is no active token with that familyId:
-  - Treat as stale reuse after logout / full family revoke.
-  - Log at lower severity.
-  - Return `invalid_grant` (401).
-
-We accept occasional false-positive “kill the session” outcomes due to races.
-
-3.3 Personal Access Tokens (PATs)
-
-- Format: `sbf_<43 base64url chars>`.
-- Stored as hashed (SHA-256 + optional pepper).
-- Lifetime: configurable expiry; may be long-lived with monitoring.
-- Scopes are mandatory.
-
-Workspace scoping:
-- token.workspaceId nullable:
-  - If set: PAT is bound to a single workspace; activeWorkspaceId is forced to that workspace.
-  - Auth-core must verify WorkspaceMembership with appropriate role for that workspace.
-  - If null: PAT may act across multiple workspaces, but scopes always intersect with actual memberships.
-
-User status:
-- If User.status != active, all PATs for that user are considered invalid.
-
-Usage:
-- Clients send: `Authorization: Bearer sbf_<token>`.
+This describes the target polished design, as if for a new refactor. For v1, we can ship a smaller subset; heuristics and UX flows can be refined during implementation.
+
+--------------------------------------------------
+0. THREAT MODEL & NON-GOALS
+--------------------------------------------------
+
+0.1 Threat model
+
+We care about protecting against:
+
+- Stolen bearer credentials:
+  - Compromised access tokens.
+  - Compromised refresh tokens/PATs.
+- Compromised user accounts:
+  - Password reuse attacks vs IdP.
+  - Phishing of IdP credentials.
+  - Reused social/OIDC accounts.
+  - Malicious reuse of revoked refresh tokens or PATs.
+- Tenant isolation failures:
+  - Cross-tenant data leaks due to bugs in authorization logic.
+  - Misconfigured RLS or GUCs leaking data between users/workspaces.
+- Malicious clients:
+  - Abusing OAuth flow to impersonate users.
+  - Misusing PATs or client credentials.
+- Insider misuse:
+  - Admin/service principals accessing tenant data without explicit need.
+
+We assume:
+
+- Transport security (TLS) is in place for all external traffic.
+- Underlying infrastructure (KMS/HSM, secret storage, etc.) is reasonably secure.
+- We are not defending against state-level attackers, hardware side-channel attacks, or compromised end-user devices beyond our control.
+
+0.2 Non-goals (initially)
+
+Not a priority for initial implementation:
+
+- Fine-grained, attribute-based access control (ABAC) beyond roles + scopes.
+- Delegated user impersonation/“login as user” for support (can be added later).
+- Fully generic policy engine (e.g. OPA) integrated into runtime.
+- Cross-tenant resource sharing (beyond simple “shared workspace” concept).
+- Complex OAuth2/OIDC flows (device code, back-channel logout, etc.) beyond what’s needed for first-party clients and simple third-party integrations.
+
+--------------------------------------------------
+1. HIGH-LEVEL ARCHITECTURE
+--------------------------------------------------
+
+1.1 Components
+
+- IdP(s):
+  - One or more external identity providers (Google, etc.) and/or a first-party IdP.
+  - Provide identity assertions (id_tokens, SAML assertions, etc.).
+  - Might also provide MFA / AMR / ACR claims.
+  - For v1:
+    - A first-party IdP for email/password and email magic-link.
+    - Google as an external OIDC provider.
+
+- Auth-Core (our service):
+  - Normalizes identity assertions into a VerifiedIdentity.
+  - Issues and validates:
+    - Sessions.
+    - Access tokens (JWT).
+    - Refresh tokens (opaque).
+    - Personal Access Tokens (PATs) / API keys.
+  - Maintains:
+    - Users.
+    - Workspaces.
+    - Memberships.
+    - Service identities.
+  - Exposes:
+    - OAuth 2.1-style authorization server endpoints.
+    - OIDC endpoints (authorization, token, userinfo, jwks).
+
+- Application API (our main app):
+  - Receives access tokens / cookies / PATs.
+  - Validates them with auth-core.
+  - Constructs AuthContext for business logic.
+  - Uses Postgres Row-Level Security (RLS) with GUCs for strong data isolation.
+
+1.2 Logical flow
+
+- User signs in via IdP (OIDC, etc.) or via the first-party IdP (email/password or magic-link).
 - Auth-core:
-  - Recognizes PAT prefix.
-  - Looks up hash with `type = 'personal_access'`.
-  - Validates revokedAt null, expiresAt > now, user active.
-  - Verifies membership/roles if workspace-scoped.
-  - Derives AuthContext:
-    - userId from token
-    - sessionId = null
-    - scopes = PAT scopes ∩ membership-derived scopes
-    - activeWorkspaceId from token.workspaceId or from request (if allowed)
-    - clientType = `cli` or `partner` depending on metadata
+  - Maps the IdP identity to a local User.
+  - Creates a Session (with optional MFA state).
+  - Issues a short-lived access token (JWT) and refresh token (opaque).
+- Frontend stores access token in memory and refresh token in HTTP-only cookie; or for CLI/mobile, both tokens stored securely in local OS keychain.
+- API requests:
+  - Include `Authorization: Bearer <access_token>` or use session cookie.
+  - API or gateway calls auth-core (or local validation logic) to:
+    - Validate token.
+    - Resolve to Session, User, Workspaces, Roles, Scopes, MFA level.
+  - API constructs AuthContext and sets Postgres GUCs like:
+    - app.user_id
+    - app.workspace_id
+    - app.mfa_level
+  - RLS policies enforce per-tenant access at the DB layer.
 
-Requests authenticated with PATs:
-- Do not rely on session state.
-- Target API-style endpoints.
-- Can be rate-limited per token.
+--------------------------------------------------
+2. DATA MODEL & CORE CONCEPTS
+--------------------------------------------------
 
-3.4 Key Management & JWKS
+2.1 Users and identities
 
-- Asymmetric keys (RS256/EdDSA) in KMS or secure secret store.
-- Each key pair has a kid included in JWT header.
-- JWKS endpoint:
-  - `GET /.well-known/jwks.json`
-  - `GET /v1/auth/jwks.json` (alias)
-- Same keys can be used to sign access tokens and id_tokens; algorithms are limited to a small set (e.g. RS256, EdDSA).
+Users table
 
-Rotation strategy:
-- Regular rotation (e.g. every 60–90 days).
-- New key pair becomes active for signing.
-- Old public keys kept in JWKS until tokens expire.
-- Emergency rotation:
-  - Stop using compromised keys for signing.
-  - Decide whether to keep or remove old keys from JWKS.
+Core fields:
 
-3.5 OAuth Clients (conceptual)
+- id (UUID, stable)
+- created_at, updated_at, deleted_at (soft delete)
+- primary_email, email_verified
+- display_name
+- user_state (active, disabled, locked)
+- default_workspace_id (for UX)
+- last_login_at
 
-For `/v1/oauth/*` and OIDC flows:
+Email uniqueness:
 
-- Clients are OAuthClient records.
-- Each OAuthClient:
-  - Has `type` (public vs confidential).
-  - Has a list of `redirectUris`.
-  - Has `allowedGrantTypes` e.g. `['authorization_code', 'refresh_token']` for mobile, `['client_credentials']` for server-to-server.
-  - Has `allowedScopes` (upper bound for scopes it can receive), including OIDC scopes like `openid`, `profile`, `email` where appropriate.
+- Email should be unique among active users (soft uniqueness is acceptable, allowing reuse after deletion).
 
-OAuth `scope` parameter → internal scopes:
-- When a client calls `/v1/oauth/authorize` with `scope`:
-  - Requested scopes are parsed into a set.
-  - The effective OAuth/OIDC grant scopes = requestedScopes ∩ OAuthClient.allowedScopes.
-- When exchanging code → tokens:
-  - Stored grant scopes from auth code are attached to the resulting token’s identity.
-- On each request:
-  - Effective scopes = (grant scopes) ∩ (workspace- or user-based scopes):
-    - For user-based flows (auth code):
-      - Also intersect with membership-derived scopes and PAT constraints (if applicable).
-    - For pure client_credentials:
-      - Usually just intersection with OAuthClient.allowedScopes and any global policy.
+Account deletion and email reuse:
 
-Thus:
-- OAuth/OIDC `scope` is a request, not a guarantee.
-- Final authority is server-side intersection logic.
+- Email uniqueness applies only across active users; deleted users’ emails can be reused after a cooling-off period.
 
-3.6 OpenID Connect id_tokens
+User identities (IdP linkage)
 
-In addition to access tokens:
+Table user_identities (or similar):
 
-- For OIDC-aware clients that request `scope` including `openid`:
-  - An id_token (JWT) is issued alongside access_token (and optionally refresh_token) from `/v1/oauth/token`.
-- id_tokens:
-  - Are signed with the same asymmetric keys as access tokens (RS256 or EdDSA).
-  - Have shorter lifetimes (e.g. same or shorter TTL as corresponding access token).
-  - Are intended for clients to understand user identity and claims, not for direct API authorization.
-
-Typical id_token claims:
-
-{
-  "iss": "https://api.superbasic.finance",
-  "sub": "user_123",                  // internal userId; stable per user
-  "aud": "mobile_app_client_id",      // client_id
-  "exp": 1700000000,
-  "iat": 1699990000,
-  "auth_time": 1699985000,            // time user was authenticated
-  "nonce": "nonce-from-authorize",    // when provided in authorize request
-  "email": "user@example.com",        // if 'email' or 'profile' scope granted
-  "email_verified": true,
-  "name": "User Name",                // if 'profile' scope granted
-  "picture": "https://..."            // if 'profile' scope granted
-}
+- id
+- user_id
+- provider (enum: google, github, auth0, local_password, local_magic_link, etc.)
+- provider_subject (string, non-PII, opaque from IdP or local id)
+- email_at_provider and email_verified_at_provider
+- raw_profile (JSONB, optional)
+- created_at, updated_at, linked_at
 
 Rules:
-- id_token is only issued if `openid` is present in requestedScopes and allowed for that client.
-- Additional claims (email, name, picture) are only included if corresponding OIDC scopes are granted:
-  - `profile` → name, picture, etc.
-  - `email` → email, email_verified.
-- id_tokens are validated by clients using the JWKS and standard OIDC rules (iss, aud, exp, nonce).
 
-The API layer still does not accept id_tokens as API Bearer tokens; only access tokens are valid for API requests.
+- (provider, provider_subject) must be unique.
+- A given (provider, provider_subject) maps to at most one user_id at a time.
+- Users may have multiple identities (Google + email/password, etc.) depending on policy.
+- Tenants may restrict which providers and emails are allowed.
 
-------------------------------------------------------------
-4. Supported Client Types & Flows
-------------------------------------------------------------
+VerifiedIdentity abstraction
 
-4.1 Web SPA (browser-based)
+A small object produced by IdP adapters after validating an assertion:
 
-Login:
-- User authenticates via IdP (Auth.js/Auth0/etc.).
-- IdP adapter returns VerifiedIdentity.
-- Auth-core resolves or creates User via linking rules.
+- provider
+- provider_subject
+- email
+- email_verified
+- name
+- picture
+- raw_claims
 
-Session & token issuance:
-- Create Session (type = `web`).
-  - Set absoluteExpiresAt (e.g. 180 days from creation).
-  - Set expiresAt to inactivity timeout (e.g. 30 days) capped by absoluteExpiresAt.
-  - Set kind (`persistent` vs `short`).
-- Issue:
-  - Access token (JWT).
-  - Refresh token (opaque, with familyId).
+This decouples IdP specifics from auth-core logic.
+
+2.2 AuthContext (application view)
+
+All downstream services see an AuthContext, produced by auth middleware.
+
+Pseudo-TypeScript (for description only):
+
+    type AuthContext = {
+      principalType: 'anonymous' | 'user' | 'service';
+      // Shared fields:
+      authTime: Date;
+      sessionId?: string;          // For user sessions.
+      tokenId?: string;            // For PATs/API keys.
+      clientId?: string;           // OAuth client (service or app).
+      scopes: string[];            // Derived allowed scopes for this token.
+      // User-specific:
+      userId?: string;             // Present when principalType === 'user'
+      workspaceId?: string;        // Currently selected workspace.
+      membershipId?: string;       // Membership in workspace for the user.
+      roles?: string[];            // For this workspace.
+      mfaLevel?: 'none' | 'mfa' | 'phishing_resistant';
+      // Service-specific:
+      serviceId?: string;          // Present when principalType === 'service'
+      serviceType?: 'internal' | 'external';
+      allowedWorkspaces?: string[]; // For service identities that can act in multiple workspaces.
+    };
+
+Semantics:
+
+- Human users:
+  - principalType = 'user'
+  - userId = users.id
+  - serviceId = null
+  - current_setting('app.user_id') = userId
+
+- Service principals:
+  - principalType = 'service'
+  - serviceId = service_identities.id
+  - userId = null
+
+- Anonymous routes:
+  - principalType = 'anonymous'
+  - userId and serviceId null
+
+Scopes and roles:
+
+- Scopes reflect maximum allowed actions for this token.
+- Roles are mapped to scopes via configuration, not hard-coded inside business logic.
+- For each request, effective permissions are the intersection of:
+  - Token scopes
+  - Workspace membership roles
+  - RLS policies (for example workspace_id must match)
+
+2.3 Workspaces & memberships
+
+Workspaces
+
+Table workspaces:
+
+- id (UUID)
+- name
+- slug (for URLs)
+- owner_user_id (for "personal" default workspaces)
+- workspace_type:
+  - personal (one per user)
+  - shared (teams, etc.)
+- created_at, updated_at, deleted_at
+
+Each workspace serves as a "tenant" boundary.
+
+Memberships
+
+Table workspace_memberships:
+
+- id
+- workspace_id
+- user_id
+- role (owner, admin, member, viewer)
+- created_at, updated_at, invited_at, accepted_at, revoked_at
+
+Constraints:
+
+- (workspace_id, user_id) unique while active.
+- owner role has highest privileges for that workspace.
+- Personal workspaces may implicitly treat the user as owner even without an explicit membership row.
+
+--------------------------------------------------
+3. TOKENS, SESSIONS, AND KEYS
+--------------------------------------------------
+
+3.1 Token taxonomy
+
+We use:
+
+- Access tokens (JWT):
+  - Short-lived bearer tokens for APIs.
+  - Opaque to frontend except for expiration.
+
+- Refresh tokens (opaque):
+  - Long-lived opaque tokens, rotated regularly.
+  - Bound to a session; subject to reuse detection.
+
+- Personal Access Tokens (PATs) / API keys (opaque):
+  - Long or semi-long-lived.
+  - Workspace-scoped or user-scoped.
+  - Ideal for CLI/automation and as the main external integration surface.
+  - Shipped in v1/MVP: PAT creation, listing, revocation, and use are available on day one.
+
+- Service credentials:
+  - OAuth client credentials (client_id/client_secret).
+  - Possibly signed tokens / mTLS for internal service-to-service.
+
+- Email/verification tokens:
+  - For email verification, password reset, invite flows, magic-link sign-in.
+  - Opaque and short-lived.
+
+All long-lived opaque tokens use a consistent format and storage strategy.
+
+3.2 Canonical token format & hash envelopes
+
+All opaque tokens follow:
+
+- `<prefix>_<tokenId>.<secret>`
+
+Where:
+
+- prefix indicates type, for example:
+  - rt = refresh token
+  - pk = PAT key
+  - ev = email verification
+
+- tokenId:
+  - Random 128-bit or 160-bit string (for example base32/urlsafe).
+
+- secret:
+  - Sufficiently large random string (for example 256 bits).
+  - Only shown to the client once; never stored in plaintext.
 
 Storage:
-- Access token: in memory or via BFF in a Secure, HttpOnly cookie.
-- Refresh token: `sbf_rt` cookie:
-  - HttpOnly
-  - Secure
-  - SameSite=Lax
-  - Domain: `.superbasic.finance`
-  - Path: `/`
 
-API calls:
-- SPA sends `Authorization: Bearer <access_token>`.
-- On 401 due to expiry, SPA calls `/v1/auth/refresh`:
-  - Refresh token from cookie.
-  - CSRF protection via header/cookie (see Security).
+We store only a hash envelope (similar to password hashing, but with a KMS- or HSM-backed key), for example:
 
-Logout:
-- SPA calls `/v1/auth/logout`.
-- Server revokes session and refresh tokens.
-- SPA clears cookies/local state.
-- Existing access tokens expire naturally.
+    {
+      "hash": "<HMAC or KDF output>",
+      "salt": "<random per-token salt>",
+      "key_id": "<KMS key identifier>",
+      "hmac_algo": "HMAC-SHA256"
+    }
 
-4.2 Capacitor Hybrid Apps
+Each token row stores:
 
-- Use embedded webview or in-app browser to drive standard web login.
-- After login, exchange IdP session/cookie or code via `/v1/auth/token`.
-- Auth-core:
-  - Creates Session (type `mobile` or `web`).
-  - Issues access + refresh tokens.
-- App stores tokens in secure storage.
+- id (tokenId)
+- user_id or service_id
+- workspace_id (if scoped)
+- hash_envelope (JSONB)
+- issued_at, expires_at, revoked_at
+- last4 (for UX: showing last four characters of the secret)
+
+We never allow lookup by raw secret; we always derive tokenId by parsing the token string and look up by id, then validate the secret with the hash envelope.
+
+Rotation & key management:
+
+- key_id in hash envelope allows us to rotate HMAC/KMS keys gradually.
+- New tokens use latest key.
+- Verification uses key_id to select key.
+
+Provider credentials that must be reused (Plaid, Stripe, webhooks, etc.)
+
+- We cannot "hash-only" these because we must send them in plaintext to providers.
+- Store them encrypted with KMS/HSM-backed keys:
+  - ciphertext
+  - key_id
+  - algo
+- Where possible, rotate provider credentials by asking provider for new credentials and updating the record; old credentials are invalidated.
+
+3.3 Sessions and refresh tokens
+
+Sessions:
+
+- Represent a logical login on a device or browser.
+
+Table auth_sessions:
+
+- id
+- user_id
+- created_at, updated_at, expires_at
+- last_activity_at
+- mfa_level:
+  - none, mfa, phishing_resistant
+- mfa_completed_at
+- client_info (JSONB: user-agent, device, etc.)
+- ip_address (optional, minimal logging)
+
+Refresh tokens:
+
+Table refresh_tokens:
+
+- id (tokenId)
+- session_id
+- user_id
+- family_id (for rotation)
+- hash_envelope
+- issued_at, expires_at, revoked_at
+- last_used_at
+- created_by_ip, last_used_ip, user_agent
+- rotated_from_id (previous token in chain)
+
+Policies:
+
+- Each auth_session has exactly one current refresh token at a time.
+- All refresh tokens for a session share a family_id.
+- On each successful refresh:
+  - A new refresh token is created with the same family_id and same session_id.
+  - The previously active refresh token is marked revoked_at = now().
+
+Refresh flow:
+
+1) Validate token via hash envelope and basic checks (type, expiry, revoked_at).  
+2) Verify that token is the current (non-revoked) token for its session_id and family_id.  
+3) If valid and family_id is active:
+   - Create new refresh token with same family_id and session_id.
+   - Mark previous token revoked_at = now().
+   - Issue new access token.
+
+Reuse handling (v1 baseline and future):
+
+- V1 baseline:
+  - First incident of reuse within a short window and same IP/UA:
+    - Treat as a likely benign race condition.
+    - Return 401 invalid refresh.
+    - Do not revoke the family.
+    - Emit a low-severity security_event for observability.
+
+- Future refinement:
+  - Add more nuanced heuristics beyond the first-incident rule (for example timing, IP/UA similarity, and frequency).
+  - Suspicious reuse (for example different IP/UA, long delay since last use, or repeated attempts):
+    - Revoke all tokens in that familyId.
+    - Optionally revoke all sessions for that user.
+    - Emit a high-severity security_event.
+    - Notify the user and require full re-auth.
+
+Exact heuristics and thresholds are implementation details; behavior is "fail safe" in suspicious cases.
+
+3.4 Personal Access Tokens (PATs) / API keys
+
+- Long or semi-long-lived opaque tokens using canonical format.
+- Stored as hash envelopes in api_keys.key_hash.
+- Bound to:
+  - user_id (owner)
+  - Optional workspace_id
+- scopes specify maximum allowed operations.
+- Included in v1/MVP:
+  - Users can create, list, and revoke PATs on day one.
+  - PATs are the primary way for users to access their data programmatically.
+
+Policy (v1 baseline):
+
+- Regular users:
+  - PATs should be workspace-scoped when possible.
+  - No "never expires" PATs; enforce a maximum lifetime (for example 90 days, see defaults in 3.7).
+
+- Admin/service:
+  - Can issue broader PATs, but with shorter lifetimes and stricter logging.
+
+Revocation:
+
+- Revoking an api_key marks revoked_at and prevents further use.
+- Does not affect other sessions/tokens unless configured.
+
+Audit:
+
+- Log PAT creation, last use, and revocation.
+- Show last-used information in UI to help users manage keys.
+
+Authorization header for PATs:
+
+- PATs are always sent as `Authorization: Bearer <pat>`.
+- We do not support `Authorization: Token <pat>` to keep clients and docs simpler.
+- Client SDKs will generally infer and attach the correct workspace identifier based on PAT metadata or configured defaults, so most users do not need to manually manage workspace headers.
+
+3.5 Access tokens (JWTs)
+
+- JWTs are signed access tokens with minimal claims:
+  - sub (subject)
+  - iss, aud, exp, iat
+  - sid (session id for users)
+  - jti (token id, optional for denylist or introspection)
+  - scp (scopes, optional; never used as sole source of truth)
+
+For user tokens:
+
+- sub = users.id
+
+For service principals:
+
+- sub = service_identities.id (optionally namespaced)
+
+For PAT-based access:
+
+- V1 and default behavior:
+  - Treat PATs as primary bearer credentials, not re-wrapped as JWTs.
+  - Each request validates the PAT directly against DB/cache and constructs AuthContext from the associated api_key row and workspace membership.
+- Future optimization (not implemented in v1):
+  - We may add an optional exchange endpoint that swaps a PAT for a short-lived JWT with sub and scp, to reduce introspection overhead for very high-throughput clients.
+
+Scopes in JWT:
+
+- JWT scopes are hints; the true permissions come from:
+  - The token’s stored metadata (if we introspect)
+  - Workspace memberships and roles
+  - RLS policy in Postgres
+
+Expiration:
+
+- Access tokens are short-lived; see 3.7 for default TTLs and allowed ranges.
+- By default, exp = now + the configured access token TTL.
+
+Revocation strategies for access tokens:
+
+- Primarily rely on short TTL.
+- For high-risk tokens:
+  - Optional sid or jti-based denylist in Redis/DB for early revocation.
+- For PATs:
+  - Revocation is immediate for subsequent uses because each request requires introspection against DB or cache.
+
+3.6 OIDC id_tokens
+
+- id_tokens are JWTs representing identity in OIDC flows.
+
+Claims:
+
+- Standard OIDC:
+  - iss, aud, sub, exp, iat, nonce, auth_time, etc.
+- Optional user claims:
+  - email, email_verified, name, picture
+
+sub semantics:
+
+- For first-party clients:
+  - Use public subject identifiers derived from users.id and stable over time for human users.
+- For third-party/external OAuth/OIDC clients:
+  - Use pairwise subject identifiers derived via a mapping table so different clients cannot correlate users.
+  - This pairwise mapping is per (user_id, client_id).
+- Service principals:
+  - Use stable service identifiers and do not participate in pairwise subject mappings.
+- V1 behavior and future stance:
+  - V1 ships with first-party clients only, using public subs.
+  - When third-party clients are introduced, they will use pairwise subs by design.
+
+Implementation pattern:
+
+- Maintain both:
+  - A stable internal user id (users.id).
+  - A mapping table from (user_id, client_id) to pairwise_sub.
+- When issuing id_tokens for third-party clients:
+  - Use pairwise_sub as sub.
+- When issuing for first-party clients:
+  - Use public sub based on users.id.
+
+Future work here is about refining migration/edge cases around pairwise subs, not introducing them.
+
+3.7 Default security parameters (baseline)
+
+Configurable but with strong defaults, centralized here to avoid spec drift.
+
+Access tokens:
+
+- TTL: 10 minutes
+- Allowed range: 5–15 minutes
+
+Refresh tokens:
+
+- TTL: 30 days
+- Idle timeout: tokens older than 14 days since last use require full re-auth (configurable)
+
+Sessions:
+
+- TTL: 30 days
+- Idle timeout (no activity): 14 days
+
+PATs:
+
+- TTL: 30–90 days, configurable per scope/role
+- No non-expiring keys
+
+Passwordless IdP sessions (first-party IdP):
+
+- We host a first-party IdP for email/password and email magic-link.
+- IdP sessions support flows like magic-link login and password reset while keeping browser UX smooth.
+
+MFA policy:
+
+- High-risk actions (bank connections, exporting data, PAT management, workspace ownership changes) require mfa or phishing_resistant depending on risk level.
+
+--------------------------------------------------
+4. CORE INVARIANTS
+--------------------------------------------------
+
+The system relies on:
+
+- Single canonical user id: users.id.
+- All auth decisions go through AuthContext.
+- JWT access tokens:
+  - Short-lived.
+  - Used to locate session/user/service.
+  - Never the sole source of authorization.
+- Opaque, hash-enveloped refresh tokens and PATs:
+  - Raw secrets never stored.
+  - Always look up by tokenId and verify secret with hash envelope.
+- Workspace is the core unit of data isolation:
+  - RLS in Postgres uses workspace_id.
+  - GUCs (current_setting('app.workspace_id')) must be set per request.
+- For any action, allow only if:
+  - Token is valid and not revoked.
+  - AuthContext indicates appropriate user/service identity.
+  - Workspace-level role and scopes allow the action.
+  - RLS constraints are satisfied.
+
+--------------------------------------------------
+5. IMPLEMENTATION DETAILS
+--------------------------------------------------
+
+5.1 Transport & storage
+
+Transport:
+
+- All external endpoints are HTTPS only.
+- Internal service-to-service traffic is also TLS-encrypted (or restricted via private network).
+
+Storage:
+
+- Secrets never logged.
+- Raw tokens only handled in memory and ephemeral request scope.
+- Hash envelopes and encryption keys are managed via KMS/HSM with strict access controls.
+
+5.2 Client platforms
+
+Web:
+
+- Access token:
+  - Stored in memory only (React state, etc.).
+- Refresh token:
+  - Stored in HttpOnly, Secure cookie.
+- CSRF:
+  - Authorization server endpoints that mutate state should use CSRF protection (for cookie-based flows).
+- Sign-in:
+  - Browser-based OIDC authorization code + PKCE for Google.
+  - First-party email/password and magic-link flows mediated by auth-core and normalized into VerifiedIdentity.
+  - redirect_uri validated strictly against registered values.
+
+Mobile (native / Capacitor):
+
+- Access and refresh tokens stored in secure OS storage (Keychain / Keystore).
 - API calls use `Authorization: Bearer <access_token>`.
+- Refresh endpoint accepts the refresh token in request body or Authorization header.
 
-4.3 Fully Native iOS/Android Apps
-
-Use OAuth 2.1 + OIDC Authorization Code + PKCE.
-
-High-level flow:
-1) Native app opens system browser to:
-
-   `/v1/oauth/authorize?response_type=code&client_id=mobile&redirect_uri=superbasic://callback&scope=openid profile email&state=...&code_challenge=...&code_challenge_method=S256&nonce=...`
-
-2) User logs in via IdP.
-3) Server redirects to:
-
-   `superbasic://callback?code=AUTH_CODE&state=...`
-
-4) Native app calls `/v1/oauth/token` with:
-   - grant_type = `authorization_code`
-   - code
-   - redirect_uri
-   - client_id
-   - code_verifier
-
-5) Auth-core:
-   - Validates code, client, redirect_uri, PKCE, expiry.
-   - Creates Session (type = `mobile`) for user-bound flows.
-   - Issues:
-     - access_token (for APIs),
-     - refresh_token,
-     - id_token (if `openid` in granted scopes).
-
-6) Native app:
-   - Validates id_token locally (iss, aud, exp, nonce).
-   - Stores access/refresh tokens in secure storage; uses Bearer access tokens for API.
-
-Refresh:
-- `/v1/auth/refresh` with refresh token.
-- Optionally, a new id_token can be issued on refresh if desired (or only when specifically requested via scope).
-
-4.4 CLI, Automation, 3rd-Party Integrations (PATs)
-
-- Users manage PATs via:
-  - UI, or
-  - `/v1/tokens` endpoints.
-- PAT is shown once, never retrievable.
-- Client uses `Authorization: Bearer sbf_<token>`.
-
-Auth-core:
-- Validates PAT, user status, scopes, workspace membership.
-- Builds AuthContext with clientType `cli` or `partner`.
-
-4.5 Partners and OAuth/OIDC (User-based + app-based)
-
-- Partners use:
-  - Authorization Code + PKCE (and optionally OIDC) for delegated user access (`act = 'oauth_client'`, user-bound).
-  - Client Credentials for server-to-server use (no user, “service principal” identity).
-
-Scopes:
-- Partner requests `scope` in authorize/token calls (e.g. `openid profile read:transactions`).
-- Effective scopes:
-  - requestedScopes ∩ OAuthClient.allowedScopes,
-  - further intersected with user/workspace scopes for user-based grants.
-
-Client Credentials:
-- `grant_type=client_credentials` at `/v1/oauth/token`.
-- Access token subject represents client identity.
-- AuthContext may have `sessionId = null` and `clientType = 'partner'`.
-- OIDC-related scopes (`openid`, `profile`, `email`) are typically not used in client_credentials, but server policy can define behavior if needed.
-
-------------------------------------------------------------
-5. API Surface (Auth + OAuth/OIDC Endpoints)
-------------------------------------------------------------
-
-All paths assume `/v1` prefix.
-
-5.1 Core Auth Endpoints
-
-GET `/v1/auth/session`
-- Returns current session info derived from an access token:
-  - user (id, email, name)
-  - session metadata
-  - activeWorkspaceId
-  - scopes
-  - roles
-  - mfaLevel
-
-POST `/v1/auth/token`
-- Exchanges:
-  - Authorization code (first-party or OAuth/OIDC), or
-  - Short-lived IdP login proof (for web/Capacitor BFF),
-  for access + refresh tokens (and id_token for internal OIDC-like flows if desired).
-
-Body shape depends on flow.
-
-Response (example for code exchange):
-- accessToken
-- refreshToken
-- expiresIn
-- idToken (optional, for OIDC-aware flows)
-
-POST `/v1/auth/refresh`
-- Body for non-cookie flows:
-  - `{ "refreshToken": "<opaque>" }`
-- Or refresh token via cookie `sbf_rt` plus CSRF protections.
-- Response:
-
-  {
-    "accessToken": "...",
-    "refreshToken": "...",
-    "expiresIn": 1800,
-    "idToken": "..." // optional; may be omitted unless OIDC-only clients request it explicitly
-  }
-
-POST `/v1/auth/logout`
-- Revokes:
-  - Current session.
-  - All associated refresh tokens in that session’s familyId.
-- Clears auth cookies (if present).
-
-GET `/v1/auth/sessions`
-- Lists active sessions for current user (for “manage devices” UI).
-
-DELETE `/v1/auth/sessions/:id`
-- Revokes an individual session (remote logout).
-- Also revokes associated active refresh tokens.
-
-GET `/v1/auth/jwks.json`
-GET `/.well-known/jwks.json`
-- Returns JWKS for verifying JWTs (access tokens and id_tokens).
-
-5.2 OAuth/OIDC Authorization Endpoint
-
-GET `/v1/oauth/authorize`
-- Standard OAuth 2.1 + OIDC authorization endpoint.
-- Required query params:
-  - response_type=code
-  - client_id
-  - redirect_uri
-  - scope (space-delimited; may include `openid profile email` for OIDC)
-  - state
-  - code_challenge
-  - code_challenge_method
-  - nonce (required for OIDC requests with `openid`)
-- Behavior:
-  - Validates client_id and redirect_uri against OAuthClient.
-  - Validates requested scopes against OAuthClient.allowedScopes.
-  - Delegates identity verification to IdP.
-  - On success:
-    - Determines grantedScopes = requestedScopes ∩ OAuthClient.allowedScopes.
-    - Stores authorization code record with:
-      - userId
-      - clientId
-      - redirectUri
-      - codeChallenge
-      - grantScopes
-      - nonce (for OIDC)
-      - authTime (for OIDC auth_time claim)
-      - expiry (e.g. 5–10 minutes).
-  - Redirects to redirect_uri with:
-    - `code=AUTH_CODE`
-    - `state=...`
-
-5.3 OAuth/OIDC Token Endpoint
-
-POST `/v1/oauth/token`
-- Handles:
-  - `grant_type=authorization_code`:
-    - Validates code, client_id, redirect_uri, PKCE (code_verifier).
-    - Deletes code (single-use).
-    - Creates a Session (for user-based flows) if appropriate.
-    - Issues:
-      - access_token (for APIs),
-      - refresh_token (if allowed for client),
-      - id_token (if `openid` in grantScopes).
-    - Base grant scopes come from `grantScopes` stored with code.
-  - `grant_type=refresh_token`:
-    - Delegated to core refresh logic.
-    - May optionally include a fresh id_token in response if OIDC clients rely on it.
-  - `grant_type=client_credentials` (confidential clients only):
-    - Validates client authentication (client_id + client_secret or mutual TLS).
-    - Validates requested scope subset of OAuthClient.allowedScopes.
-    - Issues access token without user-bound session; `act = 'oauth_client'`, `sessionId = null`.
-    - Scopes in AuthContext derived from grantScopes ∩ policy, not from membership.
-
-Example successful response for user-based OIDC flow:
-
-{
-  "access_token": "<jwt>",
-  "refresh_token": "<opaque>",
-  "id_token": "<jwt>",
-  "token_type": "Bearer",
-  "expires_in": 1800,
-  "scope": "openid profile email read:transactions"
-}
-
-5.4 PAT Management Endpoints
-
-POST `/v1/tokens`
-- Create PAT with:
-  - name
-  - scopes
-  - optional workspaceId
-  - optional expiry
-- Returns:
-  - token plaintext once,
-  - metadata.
-
-GET `/v1/tokens`
-- List current user’s PATs with metadata:
-  - id, name, scopes, createdAt, lastUsedAt, expiresAt, masked token, workspace binding.
-
-PATCH `/v1/tokens/:id`
-- Rename a PAT.
-
-DELETE `/v1/tokens/:id`
-- Revoke PAT (revokedAt = now).
-
-5.5 OAuth Introspection, Revocation, Discovery, UserInfo
-
-POST `/v1/oauth/introspect`
-- For server-to-server token introspection (inspired by RFC 7662).
-- Input:
-  - token (access or refresh)
-  - token_type_hint (optional; `access_token` or `refresh_token`)
-- Authenticates calling client (confidential).
-- Returns JSON like:
-
-  {
-    "active": true,
-    "token_type": "access_token",
-    "client_id": "partner_app",
-    "sub": "user_123",
-    "scope": "read:transactions write:transactions",
-    "exp": 1700000000,
-    "iat": 1699990000,
-    "nbf": 1699980000,
-    "aud": "sb_api",
-    "iss": "https://api.superbasic.finance"
-  }
-
-- For inactive/invalid tokens, returns:
-
-  {
-    "active": false
-  }
-
-- Never returns raw secrets; only metadata.
-
-POST `/v1/oauth/revoke`
-- For standard token revocation (inspired by RFC 7009).
-- Input:
-  - token (refresh token or PAT)
-  - token_type_hint (optional; `refresh_token` or `access_token` for PATs)
-- Authenticates client / user.
-- On refresh token:
-  - Look up refresh token; revoke it and possibly entire family depending on policy.
-- On PAT:
-  - Revoke corresponding token row.
-- Always returns 200 for valid-format requests, regardless of whether token existed, to avoid token enumeration.
-
-GET `/v1/oidc/userinfo`
-- OIDC UserInfo endpoint for clients that obtained tokens with `openid` and possibly `profile`/`email` scopes.
-- Authenticated via:
-  - `Authorization: Bearer <access_token>` (user-bound access token).
-- Behavior:
-  - Validates access token and session/user status.
-  - Returns user claims consistent with granted OIDC scopes:
-    - For `openid` only:
-      - `{ "sub": "user_123" }`
-    - With `profile`:
-      - Adds `name`, `picture`, etc.
-    - With `email`:
-      - Adds `email`, `email_verified`.
-
-Example response:
-
-{
-  "sub": "user_123",
-  "name": "User Name",
-  "email": "user@example.com",
-  "email_verified": true,
-  "picture": "https://..."
-}
-
-GET `/.well-known/openid-configuration`
-- Discovery endpoint for OAuth/OIDC-style auto-configuration.
-- Returns JSON like:
-
-{
-  "issuer": "https://api.superbasic.finance",
-  "authorization_endpoint": "https://api.superbasic.finance/v1/oauth/authorize",
-  "token_endpoint": "https://api.superbasic.finance/v1/oauth/token",
-  "jwks_uri": "https://api.superbasic.finance/.well-known/jwks.json",
-  "introspection_endpoint": "https://api.superbasic.finance/v1/oauth/introspect",
-  "revocation_endpoint": "https://api.superbasic.finance/v1/oauth/revoke",
-  "userinfo_endpoint": "https://api.superbasic.finance/v1/oidc/userinfo",
-  "scopes_supported": [
-    "openid",
-    "profile",
-    "email",
-    "read:transactions",
-    "write:transactions",
-    "read:accounts",
-    "write:accounts",
-    "read:profile",
-    "write:profile",
-    "read:workspaces",
-    "write:workspaces",
-    "manage:members",
-    "admin"
-  ],
-  "response_types_supported": ["code"],
-  "grant_types_supported": [
-    "authorization_code",
-    "refresh_token",
-    "client_credentials"
-  ],
-  "code_challenge_methods_supported": ["S256"],
-  "id_token_signing_alg_values_supported": ["RS256", "EdDSA"],
-  "token_endpoint_auth_methods_supported": [
-    "client_secret_basic",
-    "client_secret_post"
-  ],
-  "claims_supported": [
-    "sub",
-    "iss",
-    "aud",
-    "exp",
-    "iat",
-    "auth_time",
-    "nonce",
-    "email",
-    "email_verified",
-    "name",
-    "picture"
-  ]
-}
-
-------------------------------------------------------------
-6. Authorization Model
-------------------------------------------------------------
-
-6.1 Scopes
-
-Core scopes:
-- Workspace-scoped:
-  - `read:transactions`, `write:transactions`
-  - `read:budgets`, `write:budgets`
-  - `read:accounts`, `write:accounts`
-- Global:
-  - `read:profile`, `write:profile`
-- Admin / management:
-  - `read:workspaces`, `write:workspaces`
-  - `manage:members`
-  - `admin`
-- OIDC scopes (primarily for clients, not internal auth):
-  - `openid`
-  - `profile`
-  - `email`
-
-Scope syntax:
-- Scopes are opaque strings externally, but internally follow:
-  - `<action>:<resource>` or `<action>:<resource>:<qualifier>`
-  - Example: `read:transactions`, `manage:members:invites`.
-- OIDC scopes (`openid`, `profile`, `email`) are special-cased:
-  - Control which identity claims may appear in id_token and userinfo responses.
-
-AuthContext.scopes consists of:
-- All workspace scopes effective for activeWorkspaceId (from roles, PATs, OAuth grants).
-- Any global scopes effective for the user/client.
-- Note: OIDC-specific scopes are mostly relevant to id_token/userinfo, not application-level authorization.
-
-Scopes are never taken from the access token itself; they’re recomputed on each request.
-
-6.2 Roles & Workspaces (RBAC on top of scopes)
-
-Workspace roles map to scopes, e.g.:
-
-- owner:
-  - Everything, including `admin`, `manage:members`, etc.
-- admin:
-  - Manage members, budgets, accounts, etc., but maybe not delete workspace.
-- member:
-  - Standard read/write on workspace data, no management.
-- viewer:
-  - Read-only.
-
-Mapping is centralized in auth-core. Helpers:
-
-- `AuthzService.requireScope(auth, 'write:transactions')`
-- `AuthzService.requireRole(auth, 'owner', { workspaceId })`
-
-6.3 Multi-Tenancy
-
-- Access tokens may contain `wid` as a hint only.
-- Clients specify workspace via:
-  - Path param (e.g. `/v1/workspaces/:workspaceId/transactions`)
-  - Or header `X-Workspace-Id`
-  - Or default/last-used workspace.
-
-Precedence to determine activeWorkspaceId:
-1) If route defines a `:workspaceId` param → that wins.
-2) Else, if `X-Workspace-Id` is present → use that.
-3) Else, use user’s default workspace.
-
-Then:
-- Verify WorkspaceMembership(userId, workspaceId).
-- Derive roles and workspace-scoped scopes.
-- If hints (from JWT, headers) conflict with path workspaceId, path param wins.
-
-Repository & DB-level safety:
-- Repos never see tokens/cookies.
-- Workspace-scoped data access always takes workspaceId parameter.
-- Queries must be filtered by workspaceId where applicable.
-- When acquiring DB connection, API layer sets Postgres GUCs:
-  - `app.user_id`
-  - `app.workspace_id`
-  - `app.mfa_level`
-- RLS policies enforce tenant boundaries and invariants.
-
-6.4 Service-Level Rules
-
-- Services accept AuthContext plus domain inputs.
-- Enforce business constraints (e.g. “only owner can delete workspace”).
-
-Helper:
-- `AuthzService.requireWorkspaceRole(auth, 'owner')`
-
-6.5 Route Workspace Semantics
-
-Each route has `workspaceMode` annotation:
-
-- `required`: activeWorkspaceId must be non-null (e.g. `/v1/workspaces/:workspaceId/transactions`).
-- `optional`: may be null; still computed if present (e.g. `/v1/workspaces` listing).
-- `forbidden`: activeWorkspaceId must be null (e.g. `/v1/me`).
-
-Auth middleware uses route metadata + AuthContext to enforce this.
-
-------------------------------------------------------------
-7. Integration with Hono 3-Layer Architecture
-------------------------------------------------------------
-
-7.1 Middleware
-
-Auth middleware in `apps/api`:
-
-1) Extract credentials:
-   - `Authorization: Bearer <token>` (JWT or PAT).
-   - Cookies (refresh token) for `/auth/*` endpoints.
-
-2) Call `AuthService.verifyRequest` with:
-   - authorizationHeader
-   - cookies
-   - ipAddress
-   - userAgent
-   - url
-   - headers
-   - routeWorkspaceMode
-   - routeWorkspaceParam (e.g. `"workspaceId"` or null)
-
-3) `AuthService.verifyRequest`:
-   - Distinguishes JWT vs PAT.
-   - Verifies token signature and claims (for JWT).
-   - Looks up session, PATs, workspace membership as needed.
-   - Checks User.status == active for user-bound flows.
-   - Resolves activeWorkspaceId and roles via membership, respecting route workspace mode and precedence.
-   - Derives clientType from issuing context:
-     - SPA login → `web`
-     - Mobile OAuthClient `mobile` → `mobile`
-     - PAT created by user → `cli`
-     - OAuth clients for partners → `partner`
-
-4) Attaches AuthContext to request context (e.g. `c.var.auth`).
-
-5) For public endpoints, AuthContext may be null (explicitly allowed).
-
-6) When DB client is acquired:
-   - Set GUCs from AuthContext.
-   - RLS policies ensure tenant isolation.
-
-7.2 Route Handlers
-
-- Never parse tokens or run auth logic directly.
-- Assume AuthContext is present/validated when required.
-
-Example:
-
-  transactionsRoute.get('/', async (c) => {
-    const auth = c.var.auth;
-    if (!auth) throw new UnauthorizedError();
-
-    AuthzService.requireScope(auth, 'read:transactions');
-
-    const query = listTransactionsSchema.parse({
-      ...c.req.query(),
-    });
-
-    const result = await TransactionsService.list({
-      auth,
-      ...query,
-    });
-
-    return c.json(result);
-  });
-
-7.3 Services & Repositories
-
-- Services:
-  - Accept AuthContext and domain inputs.
-  - Enforce business-level access rules.
-
-- Repositories:
-  - Accept primitives like userId and workspaceId.
-  - Do not know about tokens/IdP.
-  - Rely on explicit filters + RLS.
-
-------------------------------------------------------------
-8. Security Controls
-------------------------------------------------------------
-
-8.1 Cookies, CORS, CSRF
-
-Web/Capacitor cookies:
-
-`sbf_rt` (refresh token)
-- HttpOnly: true
-- Secure: true (production)
-- SameSite: Lax
-- Domain: `.superbasic.finance`
-- Path: `/`
-
-Optional `sbf_csrf` cookie:
-- Non-HttpOnly, random value.
-- Secure: true
-- SameSite: Lax
-- Used for double-submit CSRF protection.
-
-CORS:
-- API: `https://api.superbasic.finance`
-- SPA: `https://app.superbasic.finance`
-- CORS:
-  - Access-Control-Allow-Origin: `https://app.superbasic.finance`
-  - Access-Control-Allow-Credentials: true
-  - Access-Control-Allow-Headers includes `Authorization`, `Content-Type`, `X-CSRF-Token`, `X-Requested-With`, etc.
-- Frontend uses `credentials: 'include'` when cookies are needed.
-
-CSRF:
-- Any endpoint using cookies for auth (e.g. refresh, logout) must require:
-  - Either `X-CSRF-Token` header matching `sbf_csrf` cookie, or
-  - `X-Requested-With=XMLHttpRequest` plus Origin/Referer checks.
-- Data APIs using `Authorization: Bearer` header are CSRF-safe by design.
-
-No storing access tokens in localStorage or non-HttpOnly cookies.
-
-8.2 Token Storage & Hashing
-
-- Refresh tokens and PATs:
-  - Hash with SHA-256 + optional pepper.
-  - Plaintext never stored.
-  - Store a short prefix separately for masked display (e.g. last 4 chars).
-
-- Access tokens and id_tokens (JWTs):
-  - Not stored server-side.
-  - May log `jti` or derived identifiers for correlation/blacklist.
-
-8.3 Rate Limiting & Brute Force
-
-Apply per-IP and per-user limits to:
-- Login
-- Token refresh
-- PAT creation
-- Sensitive IdP-driven operations (password change, MFA changes)
-
-Account lockout/captcha live at the IdP layer.
-
-8.4 Session Lifetime & Sliding Expiration
-
-Definitions:
-- session.createdAt: creation time.
-- session.absoluteExpiresAt: hard max lifetime (e.g. 180 days).
-- session.lastUsedAt: updated on meaningful requests/refreshes (throttled).
-- session.expiresAt: inactivity timeout from lastUsedAt, capped by absoluteExpiresAt.
-- session.kind: influences inactivity window (`short` vs `persistent`).
-
-On successful refresh:
-- Update lastUsedAt.
-- Extend expiresAt = min(absoluteExpiresAt, lastUsedAt + inactivityWindow(kind)).
-
-When now > expiresAt or now > absoluteExpiresAt:
-- Session is expired.
-- Refresh tokens for that session are unusable regardless of token.expiresAt.
-
-When User.status becomes `disabled` or `locked`:
-- All sessions / refresh tokens for that user must be revoked immediately.
-
-8.5 MFA / Additional Factors (Future)
-
-- Implemented in IdP layer (TOTP, WebAuthn, etc.).
-- Auth-core stores mfaLevel per session and in AuthContext.
-
-Step-up / re-auth:
-- For sensitive actions (bank linking, password change):
-  - Require re-auth or stronger factor.
-- Implementation:
-  - Possibly issue short-lived step-up tokens or mark session as recentlyAuthenticatedAt.
-- Checks:
-  - mfaLevel >= requested level.
-  - recentlyAuthenticatedAt within defined window.
-
-8.6 Auditing & Logging
-
-Log events:
-- Login success/failure.
-- Token creation/rotation.
-- Refresh reuse detection (with severity).
-- Session revocation.
-- PAT operations.
-- Account disable/lock.
-
-Never log full tokens. Log:
-- userId, sessionId, tokenId, familyId.
-- Anonymized/truncated network info:
-  - IP truncated (e.g. IPv4 /24, IPv6 /48) or hashed.
-  - User agent normalized (browser family + version + OS family).
-- Action type, timestamp, and relevant context.
-
-Update tokens.lastUsedAt and sessions.lastUsedAt on successful use (throttled to avoid hot writes).
-
-8.7 Error Model
-
-Error JSON structure:
-
-{
-  "error": "<error_code>",
-  "error_description": "<human readable>"
-}
-
-Common codes:
-- invalid_request (400)
-- invalid_grant (401)
-- unauthorized (401)
-- forbidden (403)
-- invalid_client (401/403)
-
-Non-auth endpoints use similar codes for auth-related errors (e.g. 401/403).
-
-8.8 Performance
-
-Per-request work typically:
-- Verify JWT.
-- Look up Session (for session-based flows).
-- Resolve WorkspaceMembership and roles for active workspace.
-- For PAT/partner flows, validate PAT or client credentials.
-
-To optimize:
-- Membership/role cache keyed by (userId, workspaceId) with short TTL (30–120s).
-- Invalidate/refresh on membership changes.
-- Cache JWKS internally.
-
-Security requirement:
-- Caching only for positive, short-lived results.
-- If DB/cache not available, fail closed: treat request as unauthorized.
-
-------------------------------------------------------------
-9. Operational & UX Considerations
-------------------------------------------------------------
-
-9.1 “Manage Devices” Page
-
-Backed by `/v1/auth/sessions` and `/v1/auth/sessions/:id`:
-- Display:
-  - Device type, browser (from normalized UA), region (from truncated IP).
-  - CreatedAt, lastUsedAt.
-  - Session kind.
-- Actions:
-  - Revoke sessions (log out device).
-
-9.2 “API Tokens” Page
-
-Backed by `/v1/tokens`:
-- Display:
-  - Name, scopes, createdAt, lastUsedAt, expiry, masked token, workspace binding.
-- Actions:
-  - Create tokens.
-  - Rename.
-  - Revoke.
-
-9.3 Incident Response
-
-If compromise suspected:
-- Admin/support tools:
-  - Revoke user sessions.
-  - Revoke specific PATs.
-  - Revoke all tokens in a refresh family.
-  - Force “log out of all devices” for a user.
-- Use audit logs to trace activity by tokenId/familyId/userId.
-
-9.4 Account Deletion
-
-On user deletion or deletion request:
-- Revoke all sessions and refresh tokens.
-- Revoke all PATs.
-- Handle workspaces:
-  - If user is sole owner: delete or mark workspace for cleanup per product policy.
-  - Else: remove membership, transfer any required ownership.
-- Audit logs:
-  - Consider anonymization per compliance requirements.
-
-------------------------------------------------------------
-10. IdP-Agnostic Design
-------------------------------------------------------------
-
-IdentityProvider interface:
-
-interface IdentityProvider {
-  authenticateWithCredentials(email: string, password: string): Promise<VerifiedIdentity>;
-  initiateOAuth(provider: 'google' | 'apple' | ...): RedirectUrl;
-  handleOAuthCallback(query: URLSearchParams): Promise<VerifiedIdentity>;
-  sendMagicLink(email: string): Promise<void>;
-  verifyMagicLink(token: string): Promise<VerifiedIdentity>;
-  // Future: handleSamlResponse, handleOidcLogout, etc.
-}
-
-Auth-core consumes only VerifiedIdentity + linking rules.
-
-Separation:
-- User is canonical internal account.
-- UserIdentity links external IdP accounts to User.
-- Switching IdP should not break:
-  - Token formats (access, refresh, PAT, id_token).
-  - Auth endpoints.
-  - AuthContext.
-  - PATs/scopes/sessions.
-
-Password resets, verification, MFA:
-- Implemented at IdP.
-- Auth-core cares about:
-  - emailVerified,
-  - mfaLevel (if provided),
-  - resulting userId.
-
-Back-channel logout / SSO logout:
-- IdP can notify app to log out user/session.
-- Integration layer:
-  - Maps IdP subject/session to userId/sessionId.
-  - Revokes sessions and refresh tokens using same primitives as `/v1/auth/logout`.
-
-10.1 Migration: Auth.js → Auth0 (or other)
-
-- Current system:
-  - User is canonical.
-  - UserIdentity.provider values like `authjs:credentials` or `authjs:google`.
-
-Introducing Auth0:
-- New logins from Auth0 produce VerifiedIdentity with:
-  - provider = `auth0:<connection>`
-  - providerUserId = auth0 user id
-  - email, emailVerified, etc.
-
-Linking behavior:
-- Existing users:
-  - If emailVerified and matching User.email:
-    - Create corresponding UserIdentity row.
-- New users:
-  - Create new User + UserIdentity.
-
-Auth-core, tokens, PATs, scopes, sessions, AuthContext, and OIDC behavior all remain unchanged during migration; only IdentityProvider implementation and UserIdentity rows evolve.
-
-------------------------------------------------------------
-11. Summary
-------------------------------------------------------------
-
-This design defines a full, production-grade authentication and authorization system for SuperBasic Finance that:
-
-- Centralizes identity and tokens in a first-party auth-core.
-- Uses:
-  - Short-lived asymmetrically signed JWT access tokens with key rotation.
-  - Long-lived, opaque refresh tokens with strict rotation and reuse detection.
-  - Scoped, hashed PATs for API/automation.
-  - OIDC-compatible id_tokens and a userinfo endpoint for client-side identity.
-- Provides a single AuthContext abstraction with clear workspace semantics and server-side scope derivation.
-- Implements a fully functional OAuth 2.1 + OIDC server from day 1:
-  - `/v1/oauth/authorize`
-  - `/v1/oauth/token`
-  - `/v1/oauth/introspect`
-  - `/v1/oauth/revoke`
-  - `/v1/oidc/userinfo`
-  - `/.well-known/jwks.json`
-  - `/.well-known/openid-configuration`
-- Keeps authorization for application data server-side and database-backed, with strong multi-tenant isolation (RLS + explicit filters).
-- Is IdP-agnostic and compatible with future MFA and SSO.
-- Has built-in support for operational needs:
-  - Device management.
-  - API token management.
-  - Incident response and auditing (with privacy-conscious logging).
-- Fails closed on auth/DB failures and uses careful caching for performance without sacrificing security.
-
-This is intended to be a “one-time heavy lift” auth architecture that avoids major rewrites later, while still being flexible enough for new IdPs, flows, and security requirements, and OIDC-compatible for clients that expect modern identity semantics.
+CLI / automation:
+
+- Prefer PATs/API keys for long-lived automation.
+- PATs sent as `Authorization: Bearer <pat>`.
+- OAuth-based CLIs can also use access+refresh tokens stored in local OS keychains.
+
+Service-to-service:
+
+- Use OAuth 2.1 client credentials grant bound to a ServiceIdentity.
+- Optionally support signed tokens or mTLS for specific internal flows.
+
+5.3 Session UX and flows
+
+Sign-in:
+
+1) Frontend initiates sign-in via:
+   - OIDC Sign in with Google, or
+   - First-party email/password, or
+   - First-party magic-link.
+2) IdP (external or first-party) authenticates the user and returns identity claims or an assertion.
+3) Backend exchanges or validates this and normalizes to VerifiedIdentity.
+4) Auth-core:
+   - Resolves VerifiedIdentity to an internal User (via UserIdentity and email-linking rules, plus tenant-specific linking policy).
+   - Creates a new Session and initial refresh token.
+   - Issues a short-lived access token (JWT) and sets transport-specific credentials (cookies, response body, etc.).
+5) IdP session may persist for SSO; v1 APIs rely on auth-core sessions/tokens.
+
+Sign-out:
+
+- Revokes auth-core sessions/tokens.
+- Optionally triggers IdP global logout as a UX choice.
+- Access tokens already issued remain valid until expiry; for high-risk scenarios, additional denylisting mechanisms may be used.
+
+Remember-me and idle timeout:
+
+- "Remember me" toggles session TTL within a safe range (for example 24 hours vs 30 days).
+- Idle timeout enforced via last_activity_at and refresh token usage.
+
+5.4 Multi-tenant workspace selection
+
+Workspace selection:
+
+- Each request that needs workspace-level permissions must either:
+  - Include X-Workspace-Id header, or
+  - Rely on a default workspace_id if:
+    - Token is scoped to a single workspace, or
+    - User has a single workspace.
+
+Backend resolves workspace and sets:
+
+- current_setting('app.workspace_id')
+
+Client ergonomics:
+
+- Client SDKs should handle workspace selection automatically wherever possible:
+  - For workspace-scoped PATs, the SDK can always send the correct workspace without the caller providing X-Workspace-Id manually.
+  - For interactive clients, the SDK can manage "current workspace" state and header plumbing so most callers never touch the header directly.
+
+Default workspace:
+
+- For personal users, default workspace might be their personal workspace.
+- For PATs:
+  - If PAT is workspace-scoped, we use that workspace.
+  - If PAT is user-scoped and user has multiple workspaces, require explicit header (ideally hidden behind client SDK ergonomics).
+
+5.5 Service identities
+
+Table service_identities:
+
+- id
+- name
+- service_type (internal, external)
+- allowed_workspaces (JSONB array or join table)
+- client_id (for OAuth)
+- created_at, updated_at, disabled_at
+
+Credentials:
+
+Table client_secrets:
+
+- id
+- service_identity_id
+- hash_envelope or encrypted secret
+- created_at, expires_at, revoked_at
+
+Stored hashed using the same hash envelope pattern as other secrets, with a distinct key_id namespace and optional pepper.
+
+- last4 stored for UX/auditing; raw secret only shown once on creation/rotation.
+- Rotated per-client with created_at/expires_at/disabled_at on client_secrets rows; enforce single active secret unless migrating.
+- Prefer private_key_jwt or mTLS for higher-sensitivity clients; symmetric secrets are a fallback for low-risk server-side apps.
+- Require PKCE even for public clients; confidential clients must also authenticate with their configured method.
+
+Relationship between service_identities and oauth_clients:
+
+- For simplicity, adopt a 1:1 relationship:
+  - Each ServiceIdentity has one primary OAuthClient for client_credentials.
+  - client_id on service_identities references this oauth_clients row.
+
+5.6 RLS & GUCs
+
+We rely heavily on Postgres RLS + custom GUCs for isolation:
+
+GUCs:
+
+- app.user_id
+- app.workspace_id
+- app.mfa_level
+- app.service_id (optional for service principals)
+
+Pattern:
+
+- Before each request:
+  - Auth middleware validates token/PAT and constructs an AuthContext.
+  - DB wrapper sets required GUCs via SET or SET LOCAL:
+    - SET app.user_id = :userId::uuid
+    - SET app.workspace_id = :workspaceId::uuid
+    - SET app.mfa_level = :mfaLevel
+
+RLS policies:
+
+- Expressed in terms of these GUCs.
+- Example policy:
+
+    CREATE POLICY tenant_isolation ON transactions
+      USING (
+        workspace_id = current_setting('app.workspace_id')::uuid
+      );
+
+Additional invariants:
+
+- Some actions require elevated mfa_level:
+  - RLS or check constraints can enforce that for certain tables.
+- Some actions are only allowed for service principals:
+  - Use current_setting('app.service_id') IS NOT NULL.
+
+DB wrapper responsibilities:
+
+- Ensures:
+  - GUCs are set correctly per request, based on AuthContext.
+  - Connections are reset or GUCs cleared between pooled uses to avoid leakage.
+
+Error semantics:
+
+- 401 – bad/missing credentials (invalid, expired, or revoked).
+- 403 – authenticated but not authorized or not fully satisfied MFA requirements.
+- 503 – cannot validate auth due to infra failure.
+
+5.7 OAuth 2.1 authorization server
+
+Core endpoints (end-state design):
+
+- /oauth/authorize (authorization code with PKCE)
+- /oauth/token (exchange code for tokens; refresh tokens; client credentials)
+- /oauth/revoke (revoke access/refresh tokens)
+- /oauth/introspect (optional, for resource servers)
+- /openid/userinfo
+- /.well-known/openid-configuration
+- /.well-known/jwks.json
+
+Supported grants:
+
+- Authorization code with PKCE (for web/mobile/CLI)
+- Refresh token grant
+- Client credentials (for service-to-service)
+- No implicit grant
+
+Note: This represents the end-state authorization server. In v1, we will only implement the subset of endpoints and grants required by the v1 simplifications in 5.17 (for example, first-party authorization code + PKCE, refresh token, and only those client credentials flows that are actually needed).
+
+Clients
+
+Table oauth_clients:
+
+- id (client_id)
+- client_name
+- client_type (public or confidential)
+- redirect_uris (JSONB or separate table)
+- allowed_scopes
+- allowed_grant_types
+- token_endpoint_auth_method (none, client_secret_basic, etc.)
+- created_at, updated_at, disabled_at
+
+Registered first-party clients:
+
+- Web app (single-page app with backend)
+- Mobile/Capacitor app
+- CLI (may use device flow in future)
+
+Third-party clients:
+
+- Later extension; for now likely limited to simple integrations.
+
+Consent:
+
+- For third-party OAuth clients:
+  - Present a consent screen describing scopes in human language.
+  - Persist grants in a table such as oauth_grants:
+    - user_id, client_id, scopes, created_at, updated_at, revoked_at.
+
+- On subsequent authorizations:
+  - If requested scopes are a subset of existing granted scopes, consent may be skipped or reduced.
+  - If requested scopes expand beyond existing grants, show an updated consent screen.
+
+Key management:
+
+- Use asymmetric keys (for example RS256/ES256).
+- Include kid in JWT header.
+- Maintain JWKS endpoint with active keys.
+
+5.8 MFA & risk-based controls
+
+MFA modeling:
+
+- mfaLevel and mfaCompletedAt are stored on auth_sessions.
+- When user completes MFA:
+  - Update session.mfaLevel and mfaCompletedAt.
+
+Mapping IdP MFA:
+
+- For IdPs that provide AMR/ACR claims:
+  - Map those claims to local mfaLevel values (none, mfa, phishing_resistant).
+  - Avoid double-prompting when IdP has already enforced a strong second factor.
+
+- If IdP MFA does not meet requirements for certain high-risk actions:
+  - Require local MFA step-up even if IdP thinks MFA has been done.
+
+High-risk actions:
+
+- Connecting or modifying bank accounts.
+- Creating or revoking PATs/API keys.
+- Exporting financial data.
+- Changing workspace ownership or admin roles.
+
+Policy:
+
+- For each high-risk endpoint:
+  - Check that AuthContext.mfaLevel >= required level.
+  - If not, return a 403 MFA-required error and instruct frontend to trigger MFA step-up.
+  - 403 is used because the user is authenticated but needs additional factors.
+
+5.9 Error semantics
+
+- 401 Unauthorized:
+  - Missing/invalid/expired/revoked credentials.
+
+- 403 Forbidden:
+  - Valid credentials but insufficient scopes, role, or MFA level.
+  - Includes the case where MFA is required but not satisfied.
+
+- 503 Service Unavailable:
+  - Unable to validate auth due to infra failure (DB/cache issues).
+  - We never fall back to trusting JWT claims alone in this situation.
+
+5.10 Rate limiting
+
+Auth-focused endpoints should be aggressively rate-limited:
+
+- Per IP:
+  - Login attempts.
+  - Token grant/refresh.
+
+- Per user:
+  - Failed login attempts.
+
+- Per client_id:
+  - Misbehaving OAuth clients.
+
+Implementation:
+
+- Shared rate-limiting middleware (Redis, in-memory for dev).
+- Separate buckets for:
+  - /login, /oauth/authorize, /oauth/token, /oauth/revoke, /oauth/introspect.
+- Stronger limits on password/MFA endpoints if we host them.
+
+5.11 Logging & auditing
+
+Security events:
+
+Table security_events (or equivalent stream):
+
+- id
+- user_id (optional)
+- workspace_id (optional)
+- service_id (optional)
+- event_type:
+  - login_success, login_failed, mfa_challenge, mfa_failed, mfa_success
+  - refresh_token_reuse_detected, pat_created, pat_revoked, etc.
+- ip_address, user_agent
+- created_at
+- metadata (JSONB)
+
+Audit logs:
+
+- For bank/financial operations, consider a separate immutable event log.
+- Retention and access to logs must be designed with privacy in mind.
+
+Alerting:
+
+- High-severity events (for example confirmed refresh token theft, suspicious login patterns) can trigger alerts.
+
+5.12 Tenant & workspace isolation
+
+RLS invariants:
+
+- Every tenant-scoped table includes a workspace_id.
+- RLS ensures that only rows with workspace_id = current_setting('app.workspace_id')::uuid are visible.
+- No table includes cross-tenant joins without explicit authorization checks.
+
+Global tables:
+
+- Some tables are global (for example users, oauth_clients, service_identities).
+- Access to these is restricted by role and is mostly for system admins and auth-core itself.
+
+Workspace membership resolution:
+
+- On each request:
+  - Validate token.
+  - Resolve workspace via header or default.
+  - Load membership row (or from cache).
+  - Populate AuthContext with workspace_id, membership_id, roles, and derived scopes.
+
+- If no membership exists for the requested workspace:
+  - Return 403.
+
+Shared workspaces:
+
+- For now, we treat shared workspaces as normal workspaces with multiple memberships.
+
+5.13 Admin & support access
+
+Admin roles:
+
+- global_admin or similar:
+  - Stored in a separate roles table or configuration.
+  - Grants access to admin APIs; does not bypass RLS by default.
+
+Support tools:
+
+- Prefer building dedicated admin routes that:
+  - Use separate DB connections with distinct GUCs.
+  - Require explicit logging of actions (who did what, when, why).
+
+Impersonation (future):
+
+- If needed:
+  - "Login as user" would use a special session that:
+    - Keeps track of the original admin.
+    - Logs all actions.
+  - Must be restricted by policy and hardware keys for admins.
+
+5.14 Backwards compatibility & migrations
+
+Token evolution:
+
+- We may need to:
+  - Change token structure or fields.
+  - Add new algorithms or keys.
+
+Strategy:
+
+- Use a kid header and JWKS for JWT keys.
+- For opaque tokens:
+  - Use versioned prefixes (rt1_, rt2_, etc.) if format changes.
+- Support both old and new formats during migration window.
+
+User identity migrations:
+
+- When changing IdPs or adding new identity providers:
+  - Keep existing user_id stable.
+  - Use mapping from old IdP subjects to new ones.
+  - Avoid resetting sessions where possible; use silent re-auth.
+
+Workspace & role migrations:
+
+- Changes to role semantics must be additive where possible:
+  - Introduce new roles or scopes without breaking existing clients.
+  - For destructive changes, use multi-step migrations and feature flags.
+
+Backwards-compatible changes:
+
+- Prefer additive changes to AuthContext, scopes, and token schemas.
+- Version OIDC endpoints or client configs if sub or other core semantics ever change.
+
+5.15 Future work / open questions
+
+- How to refine migration and edge cases for pairwise subject identifiers in OIDC (third-party clients will use pairwise subs when introduced).
+- Whether to add explicit device identifiers to sessions for sign-in alerts.
+- Which additional IdP factors (for example passkeys, hardware keys) to support and how to encode them in mfaLevel.
+- When to implement device authorization flow (if needed for TVs/headless CLIs).
+- Additional admin tooling for:
+  - Bulk revocation.
+  - Security incident response.
+  - Auditing service identity usage.
+- When to introduce more sophisticated refresh reuse heuristics beyond the v1 first-incident benign-race rule.
+- When to introduce sid/jti-based denylist for near-real-time access token revocation.
+
+5.16 GUC & connection-pool hygiene
+
+To avoid subtle RLS and tenancy bugs:
+
+- All DB access must go through middleware/DB wrapper that:
+  - Sets app.user_id, app.workspace_id, app.mfa_level from the AuthContext at the start of a request.
+  - Resets or clears these GUCs before releasing a connection back to the pool.
+  - Never forget to clear app.user_id or app.workspace_id when returning a connection.
+
+- For long-lived workers using pooled connections:
+  - Ensure per-job setup and teardown of GUCs.
+  - Never run background jobs that inherit GUCs from a previous request because of how the pool is used.
+
+- For pgbouncer or similar:
+  - Prefer transaction pooling for app workloads, with explicit BEGIN/COMMIT around request-level work.
+  - Ensure GUCs are set within the transaction scope and not relied on across transactions.
+
+5.17 Recommended v1 simplifications (opinionated)
+
+To keep initial implementation tractable and safe:
+
+Scopes and roles:
+
+- Start with a very small, coarse set of scopes:
+  - read:accounts, write:accounts, read:transactions, write:transactions, manage:members, admin.
+- Map a small set of roles (owner, admin, member, viewer) to these scopes via configuration.
+- Introduce scope aliases early so you can evolve scopes later without breaking existing tokens.
+
+IdPs:
+
+- V1/MVP includes:
+  - First-party email/password authentication (with modern password hashing such as Argon2 or bcrypt).
+  - Email-based magic-link login for passwordless sign-in.
+  - Sign in with Google via OIDC.
+- All of these are normalized into VerifiedIdentity by auth-core.
+- Implement tenant-specific linking policy but keep it simple (for example allow email linking only for selected domains or verified domains).
+- Add SAML/enterprise providers later without changing core semantics.
+
+Refresh reuse heuristics:
+
+- V1: use the first-incident benign-race rule:
+  - First reuse in a short window and same IP/UA ⇒ treat as benign race; return 401 invalid refresh, log low-severity event, and do not revoke family.
+- Add nuanced IP/UA/timing-based heuristics once telemetry is available.
+
+Service identities:
+
+- Start with per-workspace service identities, or very small allowlists.
+- If allowed_workspaces contains more than one workspace, require explicit workspace header and never default.
+
+High-risk cache policy:
+
+- In v1, always hit DB (no cache) for a small set of high-risk actions (transfers, bank connections, PAT management, workspace deletion).
+- Introduce more nuanced cache behavior later as needed.
+
+OAuth/OIDC:
+
+- For a long while, treat the system as first-party web plus maybe first-party CLI and mobile clients only.
+- Use PATs as the primary external integration surface for users building on top of the API from day one.
+- Defer third-party OAuth/OIDC entirely — clients, consent screens, and oauth_grants — until there is clear demand.
+- When expanding beyond v1, be explicit about which additional endpoints and grants from 5.7 are being turned on and why.
+
+MFA:
+
+- Start with TOTP-based MFA or IdP-provided MFA.
+- Add WebAuthn/passkeys later for phishing-resistant flows.
+
+PATs / API access:
+
+- Ensure v1 includes:
+  - A minimal UI and API to create, list, and revoke PATs.
+  - PATs that are workspace-scoped by default for safety.
+  - Documentation explaining how to use PATs to access user-created views and data.
+
+Operationalization:
+
+- Build small, focused admin views:
+  - Session lists per user.
+  - PATs per user/workspace.
+  - Service identities and their keys.
+- Add observability:
+  - Dashboards for auth errors, token issuance, refresh flows, and rate limits.
+
+--------------------------------------------------
+6. SUMMARY
+--------------------------------------------------
+
+This plan provides:
+
+- A clear separation between identity (IdP), auth core, and application.
+- Strong multi-tenant isolation via Postgres RLS and GUCs.
+- A unified token and key management story, with:
+  - JWT access tokens.
+  - Opaque, hash-enveloped refresh tokens and PATs.
+- Well-defined AuthContext that all services can rely on, with a single principalType axis rather than multiple overlapping identity flags.
+- A v1/MVP that includes:
+  - Email/password sign-in.
+  - Magic-link sign-in.
+  - Sign in with Google.
+  - PAT-based access as the primary external integration surface from day one.
+- Centralized security defaults (TTLs, timeouts, MFA expectations) to reduce configuration drift between sections.
+- A path from a focused v1 (first-party + PAT-based integration) to a more full-featured OAuth/OIDC platform as the product grows, with client ergonomics (especially around workspace selection) handled primarily by SDKs rather than raw headers in app code.

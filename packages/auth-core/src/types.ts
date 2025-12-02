@@ -98,8 +98,8 @@ export type CreateSessionInput = {
   userId: string;
   identity: VerifiedIdentity;
   clientType: ClientType;
-  ipAddress?: string;
-  userAgent?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
   mfaLevel?: MfaLevel;
   workspaceId?: string | null;
   rememberMe?: boolean;

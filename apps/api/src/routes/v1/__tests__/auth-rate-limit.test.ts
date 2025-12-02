@@ -28,16 +28,16 @@ describe('Auth endpoint rate limiting', () => {
   });
 
   it('rate limits other auth endpoints (limit 10)', async () => {
-    // Make 10 allowed requests to login
+    // Make 10 allowed requests to logout
     for (let i = 0; i < 10; i++) {
-      const response = await makeRequest(app, 'POST', '/v1/auth/login', {
+      const response = await makeRequest(app, 'POST', '/v1/auth/logout', {
         body: {},
       });
       expect(response.status).not.toBe(429);
     }
 
     // 11th request should be blocked
-    const response = await makeRequest(app, 'POST', '/v1/auth/login', {
+    const response = await makeRequest(app, 'POST', '/v1/auth/logout', {
       body: {},
     });
 

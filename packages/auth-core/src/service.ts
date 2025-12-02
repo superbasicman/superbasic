@@ -48,6 +48,12 @@ type AuthCoreServiceDependencies = {
   clockToleranceSeconds: number;
   setContext?: typeof setPostgresContext;
   tokenService?: TokenService;
+  onSessionCreated?: (session: {
+    id: string;
+    userId: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }) => void;
 };
 
 function extractBearer(header?: string): string | null {
@@ -126,6 +132,12 @@ export class AuthCoreService implements AuthService {
   private readonly clockToleranceSeconds: number;
   private readonly setContext: typeof setPostgresContext;
   private readonly tokenService: TokenService;
+  private readonly onSessionCreated?: (session: {
+    id: string;
+    userId: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+  }) => void;
 
   constructor(dependencies: AuthCoreServiceDependencies) {
     this.prisma = dependencies.prisma;
@@ -135,6 +147,9 @@ export class AuthCoreService implements AuthService {
     this.clockToleranceSeconds = dependencies.clockToleranceSeconds;
     this.setContext = dependencies.setContext ?? setPostgresContext;
     this.tokenService = dependencies.tokenService ?? new TokenService({ prisma: this.prisma });
+    if (dependencies.onSessionCreated) {
+      this.onSessionCreated = dependencies.onSessionCreated;
+    }
   }
 
   async verifyRequest(input: VerifyRequestInput): Promise<AuthContext | null> {
@@ -248,6 +263,15 @@ export class AuthCoreService implements AuthService {
 
       return session;
     });
+
+    if (this.onSessionCreated) {
+      this.onSessionCreated({
+        id: created.id,
+        userId: created.userId,
+        ipAddress: created.ipAddress,
+        userAgent: created.userAgent,
+      });
+    }
 
     return {
       sessionId: created.id,

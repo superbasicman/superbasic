@@ -113,35 +113,6 @@ export function extractCookie(response: Response, name: string): string | null {
 }
 
 /**
- * Get CSRF token from Auth.js for testing credentials sign-in
- * 
- * @param app - Hono application instance
- * @returns Object with csrfToken and cookie
- */
-export async function getAuthJsCSRFToken(
-  app: Hono<any>
-): Promise<{ csrfToken: string; csrfCookie: string }> {
-  const response = await makeRequest(app, 'GET', '/v1/auth/csrf');
-
-  if (response.status !== 200) {
-    throw new Error(`Failed to get CSRF token: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const csrfCookie = extractCookie(response, '__Host-authjs.csrf-token') ||
-    extractCookie(response, 'authjs.csrf-token');
-
-  if (!data.csrfToken || !csrfCookie) {
-    throw new Error('CSRF token or cookie not found in response');
-  }
-
-  return {
-    csrfToken: data.csrfToken,
-    csrfCookie,
-  };
-}
-
-/**
  * Post form data to Auth.js endpoint with CSRF token (generic helper)
  * 
  * @param app - Hono application instance
@@ -167,24 +138,14 @@ export async function postAuthJsForm(
   path: string,
   formData: Record<string, string>
 ): Promise<Response> {
-  // Get CSRF token
-  const { csrfToken, csrfCookie } = await getAuthJsCSRFToken(app);
-
-  // Build form data with CSRF token
   const formParams = new URLSearchParams({
     ...formData,
-    csrfToken,
   });
 
-  // Make request with CSRF cookie
   return makeRequest(app, 'POST', path, {
     body: formParams.toString(),
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    cookies: {
-      '__Host-authjs.csrf-token': csrfCookie,
-      'authjs.csrf-token': csrfCookie, // Fallback for non-HTTPS
     },
   });
 }

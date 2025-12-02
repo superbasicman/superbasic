@@ -6,7 +6,7 @@
  */
 
 import { Hono } from "hono";
-import { Auth } from "@auth/core";
+import { Auth, skipCSRFCheck } from "@auth/core";
 import { AUTHJS_CREDENTIALS_PROVIDER_ID, AUTHJS_EMAIL_PROVIDER_ID, authConfig } from "@repo/auth";
 import {
   credentialsRateLimitMiddleware,
@@ -23,6 +23,7 @@ import { authService } from "./lib/auth-service.js";
 import { randomUUID } from "node:crypto";
 import { generateAccessToken } from "@repo/auth-core";
 import { SESSION_MAX_AGE_SECONDS } from "@repo/auth";
+import { authEvents } from "@repo/auth/events";
 import {
   REFRESH_CSRF_COOKIE,
   REFRESH_COOKIE_PATH,
@@ -56,6 +57,47 @@ authApp.use(encodedEmailProviderPath, magicLinkRateLimitMiddleware);
  */
 authApp.all("/*", async (c) => {
   try {
+    // Ensure we always use the runtime @auth/core symbol to disable CSRF checks.
+    (authConfig as any).skipCSRFCheck = skipCSRFCheck;
+
+    // Inject unified session creation logic
+    (authConfig as any).createSession = async (params: {
+      userId: string;
+      ipAddress: string | null;
+      userAgent: string | null;
+      identity: {
+        provider: string;
+        providerUserId: string;
+        email: string | null;
+        emailVerified?: boolean;
+      };
+    }) => {
+      // Create session via auth-core
+      const session = await authService.createSession({
+        userId: params.userId,
+        clientType: "web",
+        ipAddress: params.ipAddress ?? null,
+        userAgent: params.userAgent ?? null,
+        rememberMe: true, // Auth.js sessions are persistent by default
+        identity: params.identity,
+      });
+
+      // Emit audit event (now that we have the session ID)
+      authEvents.emit({
+        type: "user.session.created",
+        userId: params.userId,
+        metadata: {
+          sessionId: session.sessionId,
+          ip: params.ipAddress ?? "unknown",
+          userAgent: params.userAgent ?? "unknown",
+          timestamp: new Date().toISOString(),
+          provider: "authjs-unified", // Or derive from context if possible, but this is generic
+        },
+      });
+
+      return { sessionId: session.sessionId };
+    };
+
     // Get the original request
     const request = c.req.raw;
 
@@ -86,6 +128,7 @@ authApp.all("/*", async (c) => {
     }
 
     await maybeIssueAuthCoreSession(request, headers);
+    stripAuthJsCookies(headers);
 
     const response = new Response(authResponse.body, {
       status: authResponse.status,
@@ -93,26 +136,6 @@ authApp.all("/*", async (c) => {
       headers,
     });
 
-    // For sign-out requests with JWT strategy, Auth.js doesn't clear the cookie by default
-    // We need to manually add a Set-Cookie header to clear it
-    if (request.url.includes("/signout") && response.status === 302) {
-      // Clone the response to modify headers
-      const headers = new Headers(response.headers);
-
-      // Add Set-Cookie header to clear the session cookie
-      const cookieName = "authjs.session-token";
-      const clearCookie = `${cookieName}=; Path=/; HttpOnly; SameSite=Lax; Secure; Max-Age=0`;
-      headers.append("Set-Cookie", clearCookie);
-
-      // Return new response with updated headers
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
-    }
-
-    // Return the Auth.js response
     return response;
   } catch (error) {
     console.error("Auth.js handler error:", error);
@@ -339,6 +362,40 @@ function serializeCookie(name: string, value: string, options: CookieOptions): s
   if (options.secure) segments.push("Secure");
   if (options.httpOnly) segments.push("HttpOnly");
   return segments.join("; ");
+}
+
+function stripAuthJsCookies(headers: Headers) {
+  const isAuthJsCookie = (cookie: string) => {
+    const lower = cookie.toLowerCase();
+    return (
+      lower.startsWith("authjs.session-token=") ||
+      lower.startsWith("__secure-authjs.session-token=") ||
+      lower.startsWith("__host-authjs.session-token=") ||
+      lower.startsWith("authjs.csrf-token=") ||
+      lower.startsWith("__host-authjs.csrf-token=")
+    );
+  };
+
+  if ("getSetCookie" in headers && typeof headers.getSetCookie === "function") {
+    const filtered = headers.getSetCookie().filter((cookie: string) => !isAuthJsCookie(cookie));
+    headers.delete("set-cookie");
+    for (const cookie of filtered) {
+      headers.append("Set-Cookie", cookie);
+    }
+    return;
+  }
+
+  const raw = headers.get("set-cookie");
+  if (!raw) {
+    return;
+  }
+
+  const parts = raw.split(/,(?=[^;]+=[^;]+)/);
+  const filtered = parts.filter((cookie) => !isAuthJsCookie(cookie.trim()));
+  headers.delete("set-cookie");
+  for (const cookie of filtered) {
+    headers.append("Set-Cookie", cookie.trim());
+  }
 }
 
 

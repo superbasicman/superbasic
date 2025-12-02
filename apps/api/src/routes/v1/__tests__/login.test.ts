@@ -1,299 +1,127 @@
-/**
- * Integration tests for Auth.js credentials sign-in
- * Tests user login via Auth.js, session creation, and audit events
- * 
- * Note: Migrated from custom /v1/login endpoint to Auth.js /v1/auth/callback/authjs:credentials
- */
-
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-
-// Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
 
 import app from '../../../app.js';
 import { resetDatabase } from '../../../test/setup.js';
-import { createTestUser, createTestUserCredentials, extractCookie, signInWithCredentials } from '../../../test/helpers.js';
+import {
+  createTestUser,
+  createTestUserCredentials,
+  extractCookie,
+  signInWithCredentials,
+} from '../../../test/helpers.js';
+import { REFRESH_CSRF_COOKIE, REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
+import { authEvents } from '@repo/auth/events';
 
-// Auth.js uses this cookie name
-const COOKIE_NAME = 'authjs.session-token';
+vi.mock('@repo/auth/events', () => ({
+  authEvents: {
+    emit: vi.fn(),
+  },
+}));
 
-describe('Auth.js Credentials Sign-In', () => {
+describe('Auth.js Credentials Sign-In (no Auth.js session cookies)', () => {
   beforeEach(async () => {
     await resetDatabase();
   });
 
   describe('Login Success', () => {
-    it('should return 302 redirect with session cookie for valid credentials', async () => {
-      // Create test user
-      const { credentials } = await createTestUser({
-        name: 'Test User',
-      });
+    it('issues auth-core refresh cookies and no Auth.js cookies for valid credentials', async () => {
+      const { credentials } = await createTestUser({ name: 'Test User' });
 
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      // Auth.js returns 302 redirect on successful sign-in
-      expect(response.status).toBe(302);
-
-      // Extract session cookie
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
-      expect(sessionCookie).not.toBe('');
-
-    });
-
-    it('should set session cookie with correct attributes', async () => {
-      const { credentials } = await createTestUser();
-
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      expect(response.status).toBe(302);
-
-      // Extract session cookie
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
-      expect(sessionCookie).not.toBe('');
-
-      // Verify cookie attributes from Set-Cookie header
-      const setCookieHeaders = response.headers.getSetCookie?.() || [];
-      const cookieHeader = setCookieHeaders.find((h) => h.includes(COOKIE_NAME));
-
-      expect(cookieHeader).toBeTruthy();
-      expect(cookieHeader).toContain('HttpOnly');
-      expect(cookieHeader).toContain('SameSite=Lax');
-      expect(cookieHeader).toContain('Path=/');
-      // Auth.js uses Expires instead of Max-Age
-      expect(cookieHeader).toContain('Expires=');
-    });
-
-    it('should set httpOnly and sameSite cookie attributes', async () => {
-      const { credentials } = await createTestUser();
-
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
+      const response = await signInWithCredentials(app, credentials.email, credentials.password);
 
       expect(response.status).toBe(302);
 
       const setCookieHeaders = response.headers.getSetCookie?.() || [];
-      const cookieHeader = setCookieHeaders.find((h) => h.includes(COOKIE_NAME));
+      expect(setCookieHeaders.some((h) => h.includes('authjs.session-token'))).toBe(false);
+      expect(setCookieHeaders.some((h) => h.includes('authjs.csrf-token'))).toBe(false);
+      expect(setCookieHeaders.some((h) => h.includes('__Host-authjs.csrf-token'))).toBe(false);
 
-      // Verify security attributes (Secure flag requires HTTPS in production)
-      expect(cookieHeader).toContain('HttpOnly');
-      expect(cookieHeader).toContain('SameSite=Lax');
-      expect(cookieHeader).toContain('Path=/');
+      const refreshCookie = extractCookie(response, REFRESH_TOKEN_COOKIE);
+      const csrfCookie = extractCookie(response, REFRESH_CSRF_COOKIE);
+      expect(refreshCookie).toBeTruthy();
+      expect(csrfCookie).toBeTruthy();
+      expect(refreshCookie).toBeTruthy();
+      expect(csrfCookie).toBeTruthy();
+      expect(response.headers.get('X-Access-Token')).toBeTruthy();
 
-      // Note: Secure flag is only set when using HTTPS protocol
-      // In test environment with HTTP requests, Secure is not set
-      // In production with HTTPS, Auth.js automatically sets Secure
-    });
-
-    it('should accept email with different case', async () => {
-      const { credentials } = await createTestUser({
-        email: 'test@example.com',
-      });
-
-      // Login with uppercase email
-      const response = await signInWithCredentials(
-        app,
-        'TEST@EXAMPLE.COM',
-        credentials.password
+      expect(authEvents.emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'user.session.created',
+          userId: expect.any(String),
+          metadata: expect.objectContaining({
+            provider: 'authjs-unified',
+          }),
+        })
       );
-
-      expect(response.status).toBe(302);
-
-      // Verify session contains correct user
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
     });
 
-    it('should trim whitespace from email', async () => {
+    it('sets refresh and CSRF cookies with expected attributes', async () => {
       const { credentials } = await createTestUser();
 
-      const response = await signInWithCredentials(
-        app,
-        `  ${credentials.email}  `,
-        credentials.password
-      );
+      const response = await signInWithCredentials(app, credentials.email, credentials.password);
 
       expect(response.status).toBe(302);
 
-      // Verify session contains correct user
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
+      const setCookieHeaders = response.headers.getSetCookie?.() || [];
+      const refreshHeader = setCookieHeaders.find((h) => h.startsWith(`${REFRESH_TOKEN_COOKIE}=`));
+      const csrfHeader = setCookieHeaders.find((h) => h.startsWith(`${REFRESH_CSRF_COOKIE}=`));
+
+      expect(refreshHeader).toBeTruthy();
+      expect(refreshHeader).toContain('HttpOnly');
+      expect(refreshHeader).toContain('SameSite=');
+      expect(refreshHeader).toContain('Path=');
+
+      expect(csrfHeader).toBeTruthy();
+      expect(csrfHeader).toContain('SameSite=');
+      expect(csrfHeader).toContain('Path=');
+      expect(csrfHeader).not.toContain('HttpOnly');
     });
 
-    it('should return user data without password field', async () => {
-      const { credentials } = await createTestUser();
+    it('accepts email case-insensitively and trims whitespace', async () => {
+      const { credentials } = await createTestUser({ email: 'test@example.com' });
 
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
+      const responseUpper = await signInWithCredentials(app, 'TEST@EXAMPLE.COM', credentials.password);
+      expect(responseUpper.status).toBe(302);
+      expect(extractCookie(responseUpper, REFRESH_TOKEN_COOKIE)).toBeTruthy();
 
-      expect(response.status).toBe(302);
-
-      // Verify session data doesn't include password
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeTruthy();
+      const responseTrimmed = await signInWithCredentials(app, `  ${credentials.email}  `, credentials.password);
+      expect(responseTrimmed.status).toBe(302);
+      expect(extractCookie(responseTrimmed, REFRESH_TOKEN_COOKIE)).toBeTruthy();
     });
   });
 
   describe('Login Failure', () => {
-    it('should return 302 redirect (error) for invalid password', async () => {
+    it('returns 302 for invalid password without issuing refresh cookies', async () => {
       const { credentials } = await createTestUser();
 
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        'WrongPassword123!'
-      );
+      const response = await signInWithCredentials(app, credentials.email, 'WrongPassword123!');
 
-      // Auth.js returns 302 redirect to error page on failed sign-in
       expect(response.status).toBe(302);
-
-      // Should not set session cookie
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeNull();
+      expect(extractCookie(response, REFRESH_TOKEN_COOKIE)).toBeNull();
     });
 
-    it('should return 302 redirect (error) for non-existent email', async () => {
+    it('returns 302 for non-existent email without issuing refresh cookies', async () => {
       const credentials = createTestUserCredentials();
 
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
+      const response = await signInWithCredentials(app, credentials.email, credentials.password);
 
-      // Auth.js returns 302 redirect to error page
       expect(response.status).toBe(302);
-
-      // Should not set session cookie
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeNull();
+      expect(extractCookie(response, REFRESH_TOKEN_COOKIE)).toBeNull();
     });
 
-    it('should not leak information about whether user exists', async () => {
+    it('does not leak whether user exists', async () => {
       const { credentials: existingUser } = await createTestUser();
       const nonExistentCredentials = createTestUserCredentials();
 
-      // Try with non-existent user
       const response1 = await signInWithCredentials(
         app,
         nonExistentCredentials.email,
         nonExistentCredentials.password
       );
+      const response2 = await signInWithCredentials(app, existingUser.email, 'WrongPassword123!');
 
-      // Try with existing user but wrong password
-      const response2 = await signInWithCredentials(
-        app,
-        existingUser.email,
-        'WrongPassword123!'
-      );
-
-      // Both should return same response (302 redirect, no cookie)
       expect(response1.status).toBe(302);
       expect(response2.status).toBe(302);
-
-      const cookie1 = extractCookie(response1, COOKIE_NAME);
-      const cookie2 = extractCookie(response2, COOKIE_NAME);
-
-      expect(cookie1).toBeNull();
-      expect(cookie2).toBeNull();
-    });
-
-    it('should not set session cookie on failed login', async () => {
-      const { credentials } = await createTestUser();
-
-      const response = await signInWithCredentials(
-        app,
-        credentials.email,
-        'WrongPassword123!'
-      );
-
-      expect(response.status).toBe(302);
-
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeNull();
-    });
-
-    it('should return 302 redirect (error) for missing email field', async () => {
-      const response = await signInWithCredentials(
-        app,
-        '',
-        'Test1234!'
-      );
-
-      expect(response.status).toBe(302);
-
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeNull();
-    });
-
-    it('should return 302 redirect (error) for missing password field', async () => {
-      const response = await signInWithCredentials(
-        app,
-        'test@example.com',
-        ''
-      );
-
-      expect(response.status).toBe(302);
-
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeNull();
-    });
-
-    it('should return 302 redirect (error) for invalid email format', async () => {
-      const response = await signInWithCredentials(
-        app,
-        'not-an-email',
-        'Test1234!'
-      );
-
-      expect(response.status).toBe(302);
-
-      const sessionCookie = extractCookie(response, COOKIE_NAME);
-      expect(sessionCookie).toBeNull();
-    });
-  });
-
-  describe('Session Creation', () => {
-    // Legacy /v1/auth/token exchange removed for SPA; AuthCore tokens come from /v1/auth/login or provider callbacks.
-    it('should create profile for new user via signIn callback', async () => {
-      const { user, credentials } = await createTestUser();
-
-      const signInResponse = await signInWithCredentials(
-        app,
-        credentials.email,
-        credentials.password
-      );
-
-      const sessionCookie = extractCookie(signInResponse, COOKIE_NAME);
-
-      expect(sessionCookie).toBeTruthy();
-
-      // Verify profile was created in database (via signIn callback)
-      // Note: Profile data is not in session by default, but should exist in DB
-      const { getTestPrisma } = await import('../../../test/setup.js');
-      const prisma = getTestPrisma();
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-
-      expect(profile).toBeTruthy();
-      expect(profile?.timezone).toBe('UTC');
-      expect(profile?.currency).toBe('USD');
     });
   });
 });

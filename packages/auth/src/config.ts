@@ -3,6 +3,7 @@
  * Provides JWT-based session management with credentials provider
  */
 
+import { skipCSRFCheck } from "@auth/core";
 import type { AuthConfig } from "@auth/core";
 import type { Adapter } from "@auth/core/adapters";
 import Credentials from "@auth/core/providers/credentials";
@@ -462,7 +463,20 @@ function createPrismaAdapterWithLowercaseEmail(): Adapter {
 }
 
 // Extend Auth.js config type to include email-based linking override (not yet typed upstream).
-type AuthConfigWithLinking = AuthConfig & { allowDangerousEmailAccountLinking?: boolean };
+type AuthConfigWithLinking = AuthConfig & {
+  allowDangerousEmailAccountLinking?: boolean;
+  createSession?: (params: {
+    userId: string;
+    ipAddress: string | null;
+    userAgent: string | null;
+    identity: {
+      provider: string;
+      providerUserId: string;
+      email?: string | null;
+      emailVerified?: boolean;
+    };
+  }) => Promise<{ sessionId: string }>;
+};
 
 const credentialsProvider = Credentials({
   id: AUTHJS_CREDENTIALS_PROVIDER_ID,
@@ -826,6 +840,10 @@ const config: AuthConfigWithLinking = {
           }
         }
 
+        // Attach metadata to user object so it's available in the JWT callback
+        (user as any).ipAddress = (rawRequest as any)?.ip ?? extractRequestMetadata(rawRequest).ip;
+        (user as any).userAgent = (rawRequest as any)?.userAgent ?? extractRequestMetadata(rawRequest).userAgent;
+
         emitLoginAudit("user.login.success", {
           provider,
           userId,
@@ -844,13 +862,38 @@ const config: AuthConfigWithLinking = {
         throw error;
       }
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user) {
         if (!user.id) {
           return token;
         }
-        const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
-        const { sessionId } = await persistSessionToken(user.id, expires);
+
+        let sessionId: string;
+        const ipAddress = (user as any).ipAddress ?? null;
+        const userAgent = (user as any).userAgent ?? null;
+
+        // Use injected createSession if available (Unified Auth Flow)
+        if (typeof (config as any).createSession === 'function' && account) {
+          const result = await (config as any).createSession({
+            userId: user.id,
+            ipAddress,
+            userAgent,
+            identity: {
+              provider: account.provider,
+              providerUserId: account.providerAccountId,
+              email: user.email,
+              // Auth.js providers usually verify email, or we trust them
+              emailVerified: true,
+            },
+          });
+          sessionId = result.sessionId;
+        } else {
+          // Fallback to legacy behavior
+          const expires = new Date(Date.now() + SESSION_MAX_AGE_SECONDS * 1000);
+          const result = await persistSessionToken(user.id, expires);
+          sessionId = result.sessionId;
+        }
+
         const accessToken = await signAccessToken({
           userId: user.id,
           sessionId,
@@ -900,6 +943,7 @@ const config: AuthConfigWithLinking = {
     // Don't set pages - let redirect callback handle all redirects
     // This ensures WEB_APP_URL is evaluated at request time, not module load time
   },
+  skipCSRFCheck,
 };
 
 export const authConfig: AuthConfig = config;
