@@ -4,8 +4,7 @@ import { getCookieValue } from "./cookies";
 
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
-const AUTHJS_EMAIL_PROVIDER_ID = "authjs:email";
-const AUTHJS_CREDENTIALS_PROVIDER_ID = "authjs:credentials";
+
 
 /**
  * API client error class for structured error handling
@@ -185,28 +184,33 @@ export const authApi = {
    * Hits Auth.js credentials callback, then refreshes tokens from the auth-core flow.
    */
   async login(credentials: LoginInput): Promise<{ user: UserResponse }> {
-    const form = new URLSearchParams({
-      email: credentials.email,
-      password: credentials.password,
-      callbackUrl: `${window.location.origin}/auth/callback?provider=credentials`,
+    const response = await fetch(`${API_URL}/v1/auth/signin/password`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
     });
 
-    const response = await fetch(
-      `${API_URL}/v1/auth/callback/${encodeURIComponent(AUTHJS_CREDENTIALS_PROVIDER_ID)}`,
-      {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: form.toString(),
-        redirect: "manual",
-      }
-    );
-
-    if (response.status !== 200 && response.status !== 302) {
+    if (!response.ok) {
       throw new ApiError("Invalid email or password", response.status || 401);
     }
+
+    // We don't need to refresh immediately if the cookie is set, but we might want to fetch the user.
+    // However, the previous logic did refreshAfterProviderCallback().
+    // Let's assume the cookie is set and we can just fetch 'me'.
+    // But if we use access tokens (JWT header), we might need to get it?
+    // The new signin/password sets a cookie.
+    // If the frontend expects an access token in memory, we might need to hit refresh endpoint?
+    // The previous logic called refreshAfterProviderCallback() which calls /v1/auth/refresh.
+    // Let's keep that pattern if we want to maintain the "access token in memory" architecture.
+
+    // Wait, my signin/password implementation ONLY sets a cookie. It doesn't return an access token in the body.
+    // So we MUST call refresh to get the access token if the app relies on it.
 
     await refreshAfterProviderCallback();
     return this.me();
@@ -217,18 +221,21 @@ export const authApi = {
    * Starts Auth.js OAuth; AuthCore session is minted in callback
    */
   async loginWithGoogle(): Promise<void> {
-    const form = document.createElement("form");
-    form.method = "POST";
-    form.action = `${API_URL}/v1/auth/signin/google`;
+    const response = await fetch(`${API_URL}/v1/auth/signin/google`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
-    const callbackInput = document.createElement("input");
-    callbackInput.type = "hidden";
-    callbackInput.name = "callbackUrl";
-    callbackInput.value = `${window.location.origin}/auth/callback?provider=google`;
-    form.appendChild(callbackInput);
+    if (!response.ok) {
+      throw new ApiError("Failed to initialize Google login", response.status);
+    }
 
-    document.body.appendChild(form);
-    form.submit();
+    const data = await response.json();
+    if (data.url) {
+      window.location.href = data.url;
+    }
   },
 
   /**
@@ -261,18 +268,12 @@ export const authApi = {
    * Sends magic link to user's email address (Auth.js email provider)
    */
   async requestMagicLink(email: string): Promise<void> {
-    const form = new URLSearchParams({
-      email,
-      callbackUrl: `${window.location.origin}/auth/callback?provider=magic_link`,
-    });
-
-    const response = await fetch(`${API_URL}/v1/auth/signin/${AUTHJS_EMAIL_PROVIDER_ID}`, {
+    const response = await fetch(`${API_URL}/v1/auth/signin/email`, {
       method: "POST",
-      credentials: "include",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Content-Type": "application/json",
       },
-      body: form.toString(),
+      body: JSON.stringify({ email }),
     });
 
     if (!response.ok) {

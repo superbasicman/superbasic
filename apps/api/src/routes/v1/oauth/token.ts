@@ -1,125 +1,121 @@
-import { z } from 'zod';
-import { zValidator } from '@hono/zod-validator';
-import { AuthorizationError, normalizeRedirectUri, requireOAuthClient, validatePkcePair } from '@repo/auth-core';
-import { parseOpaqueToken } from '@repo/auth';
 import { Hono } from 'hono';
-import { authService } from '../../../lib/auth-service.js';
-import { consumeAuthorizationCode } from '../../../lib/oauth-authorization-codes.js';
-import type { AppBindings } from '../../../types/context.js';
-import { generateAccessToken } from '@repo/auth-core';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+import { setCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
+import { requireOAuthClient, AuthorizationError, validatePkcePair, generateAccessToken } from '@repo/auth-core';
+import { parseOpaqueToken, verifyTokenSecret } from '@repo/auth';
+import { authService } from '../../../lib/auth-service.js';
+
+const token = new Hono();
 
 const tokenSchema = z.object({
   grant_type: z.literal('authorization_code'),
-  code: z.string().min(1),
-  redirect_uri: z.string().min(1),
-  client_id: z.string().min(1),
-  code_verifier: z.string().min(1),
+  client_id: z.string(),
+  code: z.string(),
+  redirect_uri: z.string().url(),
+  code_verifier: z.string(),
 });
 
-const tokenRoute = new Hono<AppBindings>();
+token.post('/', zValidator('form', tokenSchema), async (c) => {
+  const {
+    client_id,
+    code,
+    redirect_uri,
+    code_verifier,
+  } = c.req.valid('form');
 
-tokenRoute.post(
-  '/token',
-  zValidator('form', tokenSchema, (result, c) => {
-    if (!result.success) {
-      return c.json(
-        { error: 'invalid_request', message: 'Invalid request parameters', issues: 'error' in result ? result.error.issues : [] },
-        400
-      );
+  try {
+    // 1. Validate client
+    await requireOAuthClient({
+      prisma,
+      clientId: client_id,
+      redirectUri: redirect_uri,
+    });
+
+    // 2. Parse and verify the authorization code
+    const parsed = parseOpaqueToken(code);
+    if (!parsed) {
+      throw new AuthorizationError('Invalid authorization code format');
     }
-  }),
-  async (c) => {
-    const body = c.req.valid('form');
 
-    try {
-      const parsedCode = parseOpaqueToken(body.code);
-      if (!parsedCode) {
-        return c.json({ error: 'invalid_grant', message: 'Authorization code is invalid' }, 400);
-      }
+    // 3. Find the authorization code in the database
+    const authCode = await prisma.oAuthAuthorizationCode.findFirst({
+      where: {
+        clientId: client_id,
+        redirectUri: redirect_uri,
+        expiresAt: { gt: new Date() },
+        consumedAt: null,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
 
-      const redirectUri = normalizeRedirectUri(body.redirect_uri);
-      const client = await requireOAuthClient({ prisma, clientId: body.client_id, redirectUri });
-
-      const codeRecord = await consumeAuthorizationCode({
-        codeId: parsedCode.tokenId,
-        codeSecret: parsedCode.tokenSecret,
-      });
-
-      if (codeRecord.clientId !== client.clientId) {
-        throw new AuthorizationError('Invalid client_id for this authorization code');
-      }
-
-      if (normalizeRedirectUri(codeRecord.redirectUri) !== redirectUri) {
-        throw new AuthorizationError('redirect_uri does not match authorization request');
-      }
-
-      validatePkcePair({
-        codeVerifier: body.code_verifier,
-        codeChallenge: codeRecord.codeChallenge,
-        codeChallengeMethod: codeRecord.codeChallengeMethod,
-      });
-
-      const ipAddress = extractIp(c);
-      const userAgentHeader = c.req.header('user-agent');
-      const clientType = client.clientId === 'mobile' ? 'mobile' : 'other';
-
-      const { session: sessionHandle, refresh: refreshResult } = await authService.createSessionWithRefresh({
-        userId: codeRecord.userId,
-        identity: {
-          provider: 'oauth:code',
-          providerUserId: codeRecord.userId,
-          email: null,
-        },
-        clientType,
-        ...(ipAddress ? { ipAddress } : {}),
-        ...(userAgentHeader ? { userAgent: userAgentHeader } : {}),
-        mfaLevel: 'none',
-        refreshMetadata: {
-          clientType,
-          ipAddress: ipAddress ?? null,
-          userAgent: userAgentHeader ?? null,
-          source: 'oauth-token-endpoint',
-        },
-      });
-
-      const { token: accessToken, claims } = await generateAccessToken({
-        userId: sessionHandle.userId,
-        sessionId: sessionHandle.sessionId,
-        clientType: sessionHandle.clientType,
-        mfaLevel: sessionHandle.mfaLevel,
-        reauthenticatedAt: Math.floor(Date.now() / 1000),
-      });
-
-      return c.json({
-        tokenType: 'Bearer',
-        accessToken: accessToken ?? null,
-        refreshToken: refreshResult.refreshToken,
-        expiresIn: claims ? claims.exp - claims.iat : undefined,
-      });
-    } catch (error) {
-      if (error instanceof AuthorizationError) {
-        return c.json({ error: 'invalid_grant', message: error.message }, 400);
-      }
-      console.error('[oauth/token] Failed to exchange authorization code', error);
-      return c.json(
-        { error: 'server_error', message: 'Unable to exchange authorization code' },
-        500
-      );
+    if (!authCode) {
+      throw new AuthorizationError('Authorization code not found or expired');
     }
+
+    // 4. Verify the code hash
+    const isValid = await verifyTokenSecret(parsed.tokenSecret, authCode.codeHash);
+    if (!isValid) {
+      throw new AuthorizationError('Invalid authorization code');
+    }
+
+    // 5. Verify PKCE
+    validatePkcePair({
+      codeVerifier: code_verifier,
+      codeChallenge: authCode.codeChallenge,
+      codeChallengeMethod: authCode.codeChallengeMethod,
+    });
+
+    // 6. Mark code as consumed
+    await prisma.oAuthAuthorizationCode.update({
+      where: { id: authCode.id },
+      data: { consumedAt: new Date() },
+    });
+
+    // 7. Create session and get access token
+    const result = await authService.createSessionWithRefresh({
+      userId: authCode.userId,
+      identity: {
+        provider: 'oauth',
+        providerUserId: client_id,
+        email: null,
+      },
+      clientType: 'web',
+      workspaceId: null,
+      rememberMe: true,
+    });
+
+    // 8. Generate access token
+    const accessToken = await generateAccessToken({
+      userId: result.session.userId,
+      sessionId: result.session.sessionId,
+      clientType: result.session.clientType,
+      workspaceId: result.session.activeWorkspaceId ?? null,
+    });
+
+    // 9. Set session cookie
+    setCookie(c, 'authjs.session-token', result.session.sessionId, {
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+      sameSite: 'Lax',
+    });
+
+    // 10. Return tokens
+    return c.json({
+      access_token: accessToken,
+      token_type: 'Bearer',
+      expires_in: 600, // 10 minutes
+    });
+
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Token exchange failed';
+    return c.json({ error: 'invalid_grant', error_description: message }, 400);
   }
-);
+});
 
-function extractIp(c: any): string | undefined {
-  const forwarded = c.req.header('x-forwarded-for');
-  if (forwarded) {
-    const [first] = forwarded.split(',');
-    if (first?.trim()) {
-      return first.trim();
-    }
-  }
-  const realIp = c.req.header('x-real-ip');
-  return realIp ?? undefined;
-}
-
-export { tokenRoute };
+export { token };

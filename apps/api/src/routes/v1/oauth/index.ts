@@ -1,13 +1,12 @@
 import { Hono } from 'hono';
-import { authorizeRoute } from './authorize.js';
-import type { AppBindings } from '../../../types/context.js';
-import { tokenRoute } from './token.js';
-import { authRateLimitMiddleware } from '../../../middleware/rate-limit/index.js';
+import { authorize } from './authorize.js';
+import { token } from './token.js';
+import { revoke } from './revoke.js';
 
-const oauthRoutes = new Hono<AppBindings>();
+const oauthRoutes = new Hono();
 
-oauthRoutes.route('/', authorizeRoute);
-oauthRoutes.use('/token', authRateLimitMiddleware);
-oauthRoutes.route('/', tokenRoute);
+oauthRoutes.route('/authorize', authorize);
+oauthRoutes.route('/token', token);
+oauthRoutes.route('/revoke', revoke);
 
 export { oauthRoutes };

@@ -6,7 +6,7 @@ import { healthRoute } from './routes/v1/health.js';
 import { registerRoute } from './routes/v1/register.js';
 import { meRoute } from './routes/v1/me.js';
 import { tokensRoute } from './routes/v1/tokens/index.js';
-import { authApp } from './auth.js';
+
 import type { AppBindings } from './types/context.js';
 import { attachAuthContext } from './middleware/auth-context.js';
 import { getCurrentSession } from './routes/v1/auth/session.js';
@@ -17,6 +17,8 @@ import { deleteSession, listSessions } from './routes/v1/auth/sessions.js';
 import { bulkRevokeSessions, bulkRevokeTokens } from './routes/v1/auth/bulk-revoke.js';
 import { oauthRoutes } from './routes/v1/oauth/index.js';
 import { handleSsoLogout, ssoLogoutValidator } from './routes/v1/auth/sso-logout.js';
+import { signin } from './routes/v1/auth/signin.js';
+import { callback } from './routes/v1/auth/callback.js';
 
 const app = new Hono<AppBindings>();
 
@@ -49,10 +51,14 @@ authRoutes.use('/sso/logout', authRateLimitMiddleware);
 authRoutes.post('/refresh', refreshTokenValidator, refreshTokens);
 authRoutes.post('/logout', logout);
 authRoutes.post('/sso/logout', ssoLogoutValidator, handleSsoLogout);
+// Mount routes
+authRoutes.route('/signin', signin);
+authRoutes.route('/callback', callback);
 // Mount Auth.js handler (handles remaining /v1/auth/*)
-authRoutes.route('/', authApp);
+
 
 v1.route('/auth', authRoutes);
+v1.route('/oauth', oauthRoutes);
 
 v1.route('/health', healthRoute);
 

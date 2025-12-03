@@ -10,7 +10,7 @@ import {
   createOpaqueToken,
   SESSION_MAX_AGE_SECONDS,
   SESSION_ABSOLUTE_MAX_AGE_SECONDS,
-  AUTHJS_CREDENTIALS_PROVIDER_ID,
+
 } from '@repo/auth';
 import type { PermissionScope } from '@repo/auth-core';
 import { generateAccessToken } from '@repo/auth-core';
@@ -112,66 +112,7 @@ export function extractCookie(response: Response, name: string): string | null {
   return null;
 }
 
-/**
- * Post form data to Auth.js endpoint with CSRF token (generic helper)
- * 
- * @param app - Hono application instance
- * @param path - Auth.js endpoint path (e.g., '/v1/auth/callback/authjs%3Acredentials')
- * @param formData - Form data to post (will be merged with CSRF token)
- * @returns Response object
- * 
- * @example
- * // Sign in with credentials
- * const response = await postAuthJsForm(app, '/v1/auth/callback/authjs%3Acredentials', {
- *   email: 'user@example.com',
- *   password: 'password123'
- * });
- * 
- * @example
- * // Request magic link
- * const response = await postAuthJsForm(app, '/v1/auth/signin/email', {
- *   email: 'user@example.com'
- * });
- */
-export async function postAuthJsForm(
-  app: Hono<any>,
-  path: string,
-  formData: Record<string, string>
-): Promise<Response> {
-  const formParams = new URLSearchParams({
-    ...formData,
-  });
 
-  return makeRequest(app, 'POST', path, {
-    body: formParams.toString(),
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  });
-}
-
-/**
- * Sign in with credentials using Auth.js (handles CSRF automatically)
- * 
- * @param app - Hono application instance
- * @param email - User email
- * @param password - User password
- * @returns Response object
- */
-export async function signInWithCredentials(
-  app: Hono<any>,
-  email: string,
-  password: string
-): Promise<Response> {
-  return postAuthJsForm(
-    app,
-    `/v1/auth/callback/${AUTHJS_CREDENTIALS_PROVIDER_ID}`,
-    {
-      email,
-      password,
-    }
-  );
-}
 
 /**
  * Test user credentials for factories

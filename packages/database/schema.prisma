@@ -4,148 +4,359 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String         @id @default(uuid()) @db.Uuid
-  email         String
-  emailLower    String         @unique @map("email_lower")
-  emailVerified DateTime?      @map("email_verified")
-  name          String?
-  image         String?
-  password      String?        @map("password_hash")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  status        UserStatus     @default(active)
-  accounts      Account[]
-  apiKeys       ApiKey[]
-  profile       Profile?
-  sessions      Session[]
-  tokens        Token[]
-  identities    UserIdentity[]
-  authorizationCodes OAuthAuthorizationCode[]
+// =============================================================================
+// CORE AUTH MODELS
+// =============================================================================
 
-  @@index([email])
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  primaryEmail       String    @map("parimary_email")
+  emailVerified      Boolean   @default(false) @map("email_verified")
+  displayName        String?   @map("display_name")
+  picture            String?
+  userState          UserState @default(active) @map("user_state")
+  defaultWorkspaceId String?   @map("default_workspace_id") @db.Uuid
+  lastLoginAt        DateTime? @map("last_login_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  deletedAt          DateTime? @map("deleted_at")
+
+  identities           UserIdentity[]
+  authSessions         AuthSession[]
+  refreshTokens        RefreshToken[]
+  apiKeys              ApiKey[]
+  authorizationCodes   OAuthAuthorizationCode[]
+  securityEvents       SecurityEvent[]
+  workspaceMemberships WorkspaceMember[]
+  profile              Profile?
+  password             UserPassword?
+
+  @@index([userState])
+  @@index([deletedAt])
+  @@index([lastLoginAt])
+  @@unique([primaryEmail, deletedAt])
   @@map("users")
 }
 
-model Account {
-  id                     String    @id @default(uuid()) @db.Uuid
-  userId                 String    @map("user_id") @db.Uuid
-  provider               String
-  providerAccountId      String    @map("provider_account_id")
-  type                   String
-  refreshTokenCiphertext String?   @map("refresh_token_ciphertext")
-  accessTokenCiphertext  String?   @map("access_token_ciphertext")
-  expiresAt              DateTime? @map("expires_at")
-  tokenType              String?   @map("token_type")
-  scope                  String?
-  idTokenCiphertext      String?   @map("id_token_ciphertext")
-  sessionState           String?   @map("session_state")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
-  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+model UserPassword {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  passwordHash String   @map("password_hash")
+  changedAt    DateTime @default(now()) @map("changed_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  @@unique([provider, providerAccountId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
-  @@map("accounts")
+  @@map("user_passwords")
 }
 
 model UserIdentity {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  provider       String
-  providerUserId String   @map("provider_user_id")
-  email          String?
-  emailVerified  Boolean? @map("email_verified")
-  metadata       Json?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                      String   @id @default(uuid()) @db.Uuid
+  userId                  String   @map("user_id") @db.Uuid
+  provider                IdentityProvider
+  providerSubject         String   @map("provider_subject")
+  emailAtProvider         String?  @map("email_at_provider")
+  emailVerifiedAtProvider Boolean? @map("email_verified_at_provider")
+  rawProfile              Json?    @map("raw_profile")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+  linkedAt                DateTime @default(now()) @map("linked_at")
 
-  @@unique([provider, providerUserId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerSubject])
   @@index([userId])
   @@map("user_identities")
 }
 
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
-model Session {
-  id                String      @id @default(uuid()) @db.Uuid
-  userId            String      @map("user_id") @db.Uuid
-  tokenId           String      @unique @map("token_id") @db.Uuid
-  sessionTokenHash  Json        @map("session_token_hash")
-  expiresAt         DateTime    @map("expires")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  updatedAt         DateTime    @updatedAt @map("updated_at")
-  absoluteExpiresAt DateTime?   @map("absolute_expires_at")
-  clientType        ClientType  @default(web) @map("client_type")
-  deviceName        String?     @map("device_name")
-  ipAddress         String?     @map("ip_address")
-  kind              SessionKind @default(default)
-  lastUsedAt        DateTime?   @map("last_used_at")
-  mfaLevel          MfaLevel    @default(none) @map("mfa_level")
-  revokedAt         DateTime?   @map("revoked_at")
-  userAgent         String?     @map("user_agent")
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokens            Token[]
-
-  @@index([userId])
-  @@index([tokenId])
-  @@map("sessions")
-}
-
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model VerificationToken {
-  id         String   @id @default(uuid()) @db.Uuid
+  id         String                @id @default(uuid()) @db.Uuid
   identifier String
-  tokenId    String   @map("token_id") @db.Uuid
-  tokenHash  Json     @map("token_hash")
-  expires    DateTime
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  tokenId    String                @map("token_id")
+  hashEnvelope Json                @map("hash_envelope")
+  type       VerificationTokenType
+  expiresAt  DateTime              @map("expires_at")
+  consumedAt DateTime?             @map("consumed_at")
+  createdAt  DateTime              @default(now()) @map("created_at")
+  updatedAt  DateTime              @updatedAt @map("updated_at")
 
   @@index([identifier])
+  @@index([expiresAt])
+  @@index([consumedAt])
   @@map("verification_tokens")
 }
 
-model Token {
-  id          String     @id @default(uuid()) @db.Uuid
-  userId      String     @map("user_id") @db.Uuid
-  sessionId   String?    @map("session_id") @db.Uuid
-  workspaceId String?    @map("workspace_id") @db.Uuid
-  type        TokenType  @map("token_type")
-  tokenHash   Json       @map("token_hash")
-  scopes      String[]   @default([])
-  name        String?
-  familyId    String?    @map("family_id") @db.Uuid
-  metadata    Json?
-  lastUsedAt  DateTime?  @map("last_used_at")
-  expiresAt   DateTime?  @map("expires_at")
-  revokedAt   DateTime?  @map("revoked_at")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  session     Session?   @relation(fields: [sessionId], references: [id])
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+model AuthSession {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  expiresAt      DateTime  @map("expires_at")
+  lastActivityAt DateTime? @map("last_activity_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  mfaLevel       MfaLevel  @default(none) @map("mfa_level")
+  mfaCompletedAt DateTime? @map("mfa_completed_at")
+  clientInfo     Json?     @map("client_info")
+  ipAddress      String?   @map("ip_address")
+  revokedAt      DateTime? @map("revoked_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId])
+  @@index([revokedAt])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+}
+
+model RefreshToken {
+  id            String    @id
+  userId        String    @map("user_id") @db.Uuid
+  sessionId     String    @map("session_id") @db.Uuid
+  familyId      String    @default(uuid()) @map("family_id") @db.Uuid
+  hashEnvelope  Json      @map("hash_envelope")
+  last4         String?
+  issuedAt      DateTime  @default(now()) @map("issued_at")
+  lastUsedAt    DateTime? @map("last_used_at")
+  expiresAt     DateTime  @map("expires_at")
+  revokedAt     DateTime? @map("revoked_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdByIp   String?   @map("created_by_ip")
+  lastUsedIp    String?   @map("last_used_ip")
+  userAgent     String?   @map("user_agent")
+  rotatedFromId String?   @map("rotated_from_id")
+
+  session     AuthSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rotatedFrom RefreshToken? @relation("RefreshTokenRotation", fields: [rotatedFromId], references: [id])
+  rotatedTo   RefreshToken[] @relation("RefreshTokenRotation")
 
   @@index([userId])
   @@index([sessionId])
-  @@index([workspaceId])
   @@index([familyId])
   @@index([revokedAt])
-  @@map("tokens")
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
+model ApiKey {
+  id           String   @id
+  userId       String   @map("user_id") @db.Uuid
+  workspaceId  String?  @map("workspace_id") @db.Uuid
+  keyHash      Json     @map("key_hash")
+  last4        String?
+  scopes       String[] @default([])
+  name         String?
+  issuedAt     DateTime @default(now()) @map("issued_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  createdByIp  String?   @map("created_by_ip")
+  lastUsedIp   String?   @map("last_used_ip")
+  userAgent    String?   @map("user_agent")
+  metadata     Json?
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([revokedAt])
+  @@index([expiresAt])
+  @@map("api_keys")
+}
+
+// =============================================================================
+// SERVICE IDENTITIES (NEW)
+// =============================================================================
+
+model ServiceIdentity {
+  id                String      @id @default(uuid()) @db.Uuid
+  name              String
+  serviceType       ServiceType @default(internal)
+  allowedWorkspaces Json?       @default("[]") @map("allowed_workspaces")
+  clientId          String?     @unique @map("client_id")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+  disabledAt        DateTime?   @map("disabled_at")
+
+  client         OAuthClient?    @relation(fields: [clientId], references: [clientId])
+  clientSecrets  ClientSecret[]
+  securityEvents SecurityEvent[]
+
+  @@index([serviceType])
+  @@index([disabledAt])
+  @@map("service_identities")
+}
+
+model ClientSecret {
+  id                String    @id @default(uuid()) @db.Uuid
+  serviceIdentityId String    @map("service_identity_id") @db.Uuid
+  secretHash        Json      @map("secret_hash")
+  last4             String?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  expiresAt         DateTime? @map("expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+
+  serviceIdentity ServiceIdentity @relation(fields: [serviceIdentityId], references: [id], onDelete: Cascade)
+
+  @@index([serviceIdentityId])
+  @@index([revokedAt])
+  @@index([expiresAt])
+  @@map("client_secrets")
+}
+
+// =============================================================================
+// SECURITY & AUDIT (NEW)
+// =============================================================================
+
+model SecurityEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String?  @map("user_id") @db.Uuid
+  workspaceId String?  @map("workspace_id") @db.Uuid
+  serviceId   String?  @map("service_id") @db.Uuid
+  eventType   String   @map("event_type")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user            User?            @relation(fields: [userId], references: [id])
+  workspace       Workspace?       @relation(fields: [workspaceId], references: [id])
+  serviceIdentity ServiceIdentity? @relation(fields: [serviceId], references: [id])
+
+  @@index([userId])
+  @@index([workspaceId])
+  @@index([serviceId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("security_events")
+}
+
+// =============================================================================
+// WORKSPACE & TENANCY
+// =============================================================================
+
+model Workspace {
+  id            String        @id @default(uuid()) @db.Uuid
+  ownerUserId   String?       @map("owner_user_id") @db.Uuid
+  name          String
+  slug          String        @unique
+  workspaceType WorkspaceType @default(personal) @map("workspace_type")
+  settings      Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+  deletedAt     DateTime?     @map("deleted_at")
+
+  members                              WorkspaceMember[]
+  apiKeys                              ApiKey[]
+  securityEvents                       SecurityEvent[]
+  accountGroups                        AccountGroup[]
+  budgetActuals                        BudgetActual[]
+  budgetPlans                          BudgetPlan[]
+  profileTransactionAccessCacheEntries ProfileTransactionAccessCache[]
+  savedViews                           SavedView[]
+  connectionAccessCacheEntries         UserConnectionAccessCache[]
+  workspaceAllowedAccounts             WorkspaceAllowedAccount[]
+  workspaceCategories                  WorkspaceCategory[]
+  workspaceCategoryOverrides           WorkspaceCategoryOverride[]
+  workspaceConnectionLinks             WorkspaceConnectionLink[]
+
+  @@index([ownerUserId])
+  @@index([workspaceType])
+  @@index([deletedAt])
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid()) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  invitedAt   DateTime?     @map("invited_at")
+  acceptedAt  DateTime?     @map("accepted_at")
+  revokedAt   DateTime?     @map("revoked_at")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, revokedAt])
+  @@index([userId])
+  @@index([revokedAt])
+  @@map("workspace_memberships")
+}
+
+// =============================================================================
+// OAUTH 2.1 / OIDC
+// =============================================================================
+
+model OAuthClient {
+  id                      String           @id @default(uuid()) @db.Uuid
+  clientId                String           @unique @map("client_id")
+  clientType              OAuthClientType  @map("client_type")
+  name                    String
+  redirectUris            String[]         @map("redirect_uris")
+  allowedGrantTypes       OAuthGrantType[] @default([]) @map("allowed_grant_types")
+  allowedScopes           String[]         @default([]) @map("allowed_scopes")
+  tokenEndpointAuthMethod AuthMethod       @default(none) @map("token_endpoint_auth_method")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+  disabledAt              DateTime?        @map("disabled_at")
+
+  authorizationCodes OAuthAuthorizationCode[]
+  serviceIdentity    ServiceIdentity?
+
+  @@index([disabledAt])
+  @@map("oauth_clients")
+}
+
+model OAuthAuthorizationCode {
+  id                  String              @id @default(uuid()) @db.Uuid
+  userId              String              @map("user_id") @db.Uuid
+  clientId            String              @map("client_id")
+  redirectUri         String              @map("redirect_uri")
+  codeHash            Json                @map("code_hash")
+  codeChallenge       String              @map("code_challenge")
+  codeChallengeMethod PkceChallengeMethod @default(S256) @map("code_challenge_method")
+  scopes              String[]            @default([])
+  expiresAt           DateTime            @map("expires_at")
+  consumedAt          DateTime?           @map("consumed_at")
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  client OAuthClient @relation(fields: [clientId], references: [clientId])
+
+  @@index([clientId])
+  @@index([expiresAt])
+  @@index([consumedAt])
+  @@map("oauth_authorization_codes")
+}
+
+// =============================================================================
+// APPLICATION MODELS
+// =============================================================================
+// These models belong to the application domain, not auth.
+// They reference Profile (application) rather than User (auth).
+// =============================================================================
+
 model Profile {
-  id                            String                          @id @default(uuid()) @db.Uuid
-  userId                        String                          @unique @map("user_id") @db.Uuid
-  timezone                      String                          @default("UTC")
-  currency                      String                          @default("USD") @db.VarChar(3)
-  settings                      Json?
-  createdAt                     DateTime                        @default(now()) @map("created_at")
-  updatedAt                     DateTime                        @updatedAt @map("updated_at")
-  apiKeys                       ApiKey[]
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  timezone  String   @default("UTC")
+  currency  String   @default("USD") @db.VarChar(3)
+  settings  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user                          User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
   ownedBudgetPlans              BudgetPlan[]
   categories                    Category[]
   sponsorHistoryFrom            ConnectionSponsorHistory[]      @relation("ConnectionSponsorFrom")
@@ -153,7 +364,6 @@ model Profile {
   connections                   Connection[]
   profileCategoryOverrides      ProfileCategoryOverride[]
   transactionAccessCacheEntries ProfileTransactionAccessCache[]
-  user                          User                            @relation(fields: [userId], references: [id], onDelete: Cascade)
   subscriptions                 Subscription[]
   syncAuditLogs                 SyncAuditLog[]                  @relation("SyncAuditInitiator")
   syncSessions                  SyncSession[]                   @relation("SyncInitiator")
@@ -163,8 +373,6 @@ model Profile {
   viewShares                    ViewShare[]
   workspaceAllowedAccounts      WorkspaceAllowedAccount[]
   workspaceConnectionLinks      WorkspaceConnectionLink[]       @relation("WorkspaceConnectionGrantor")
-  workspaceMemberships          WorkspaceMember[]
-  ownedWorkspaces               Workspace[]                     @relation("WorkspaceOwner")
 
   @@map("profiles")
 }
@@ -182,109 +390,6 @@ model Subscription {
 
   @@index([profileId])
   @@map("subscriptions")
-}
-
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
-model ApiKey {
-  id          String     @id @default(uuid()) @db.Uuid
-  userId      String     @map("user_id") @db.Uuid
-  profileId   String     @map("profile_id") @db.Uuid
-  workspaceId String?    @map("workspace_id") @db.Uuid
-  name        String
-  keyHash     Json       @map("key_hash")
-  last4       String     @map("last4")
-  scopes      Json       @default("[]")
-  lastUsedAt  DateTime?  @map("last_used_at")
-  expiresAt   DateTime?  @map("expires_at")
-  revokedAt   DateTime?  @map("revoked_at")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  profile     Profile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
-
-  @@index([userId])
-  @@index([profileId])
-  @@index([workspaceId])
-  @@index([revokedAt])
-  @@map("api_keys")
-}
-
-model Workspace {
-  id                                   String                          @id @default(uuid()) @db.Uuid
-  ownerProfileId                       String                          @map("owner_profile_id") @db.Uuid
-  name                                 String?
-  settings                             Json?
-  createdAt                            DateTime                        @default(now()) @map("created_at")
-  updatedAt                            DateTime                        @updatedAt @map("updated_at")
-  deletedAt                            DateTime?                       @map("deleted_at")
-  accountGroups                        AccountGroup[]
-  workspaceApiKeys                     ApiKey[]
-  budgetActuals                        BudgetActual[]
-  budgetPlans                          BudgetPlan[]
-  profileTransactionAccessCacheEntries ProfileTransactionAccessCache[]
-  savedViews                           SavedView[]
-  tokens                               Token[]
-  connectionAccessCacheEntries         UserConnectionAccessCache[]
-  workspaceAllowedAccounts             WorkspaceAllowedAccount[]
-  workspaceCategories                  WorkspaceCategory[]
-  workspaceCategoryOverrides           WorkspaceCategoryOverride[]
-  workspaceConnectionLinks             WorkspaceConnectionLink[]
-  members                              WorkspaceMember[]
-  owner                                Profile                         @relation("WorkspaceOwner", fields: [ownerProfileId], references: [id])
-
-  @@map("workspaces")
-}
-
-model WorkspaceMember {
-  id              String    @id @default(uuid()) @db.Uuid
-  workspaceId     String    @map("workspace_id") @db.Uuid
-  memberProfileId String    @map("member_profile_id") @db.Uuid
-  role            String
-  scopeJson       Json?     @map("scope_json")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
-  profile         Profile   @relation(fields: [memberProfileId], references: [id], onDelete: Cascade)
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId])
-  @@index([memberProfileId])
-  @@map("workspace_members")
-}
-
-model OAuthClient {
-  id           String          @id @default(uuid()) @db.Uuid
-  clientId     String          @unique @map("client_id")
-  type         OAuthClientType @map("client_type")
-  name         String
-  redirectUris String[]        @map("redirect_uris")
-  createdAt    DateTime        @default(now()) @map("created_at")
-  disabledAt   DateTime?       @map("disabled_at")
-  authorizationCodes OAuthAuthorizationCode[]
-
-  @@map("oauth_clients")
-  @@index([disabledAt])
-}
-
-model OAuthAuthorizationCode {
-  id                  String                @id @default(uuid()) @db.Uuid
-  userId              String                @map("user_id") @db.Uuid
-  clientId            String                @map("client_id")
-  redirectUri         String                @map("redirect_uri")
-  codeHash            Json                  @map("code_hash")
-  codeChallenge       String                @map("code_challenge")
-  codeChallengeMethod PkceChallengeMethod   @default(S256) @map("code_challenge_method")
-  scopes              String[]              @default([])
-  expiresAt           DateTime              @map("expires_at")
-  consumedAt          DateTime?             @map("consumed_at")
-  createdAt           DateTime              @default(now()) @map("created_at")
-  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  client              OAuthClient           @relation(fields: [clientId], references: [clientId])
-
-  @@map("oauth_authorization_codes")
-  @@index([clientId])
-  @@index([expiresAt])
-  @@index([consumedAt])
 }
 
 model SavedView {
@@ -398,7 +503,6 @@ model ViewShare {
   @@map("view_shares")
 }
 
-/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model ViewLink {
   id                 String    @id @default(uuid()) @db.Uuid
   viewId             String    @map("view_id") @db.Uuid
@@ -878,7 +982,6 @@ model UserConnectionAccessCache {
   connectionId String     @map("connection_id") @db.Uuid
   workspaceId  String?    @map("workspace_id") @db.Uuid
   accountScope Json?      @map("account_scope_json")
-  userId       String?    @map("user_id") @db.Uuid
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
   connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
@@ -910,24 +1013,34 @@ model ProfileTransactionAccessCache {
   @@map("profile_transaction_access_cache")
 }
 
-enum UserStatus {
+// =============================================================================
+// ENUMS
+// =============================================================================
+
+enum UserState {
   active
   disabled
   locked
 }
 
-enum ClientType {
-  web
-  mobile
-  cli
-  partner
-  other
+enum IdentityProvider {
+  google
+  github
+  auth0
+  local_password
+  local_magic_link
 }
 
-enum SessionKind {
-  default
-  persistent
-  short
+enum WorkspaceType {
+  personal
+  shared
+}
+
+enum WorkspaceRole {
+  owner
+  admin
+  member
+  viewer
 }
 
 enum MfaLevel {
@@ -936,9 +1049,16 @@ enum MfaLevel {
   phishing_resistant
 }
 
-enum TokenType {
-  refresh
-  personal_access
+enum VerificationTokenType {
+  email_verification
+  password_reset
+  magic_link
+  invite
+}
+
+enum ServiceType {
+  internal
+  external
 }
 
 enum OAuthClientType {
@@ -946,7 +1066,29 @@ enum OAuthClientType {
   confidential
 }
 
+enum OAuthGrantType {
+  authorization_code
+  refresh_token
+  client_credentials
+  device_code
+}
+
 enum PkceChallengeMethod {
   S256
   plain
+}
+
+enum AuthMethod {
+  none
+  client_secret_post
+  client_secret_basic
+  private_key_jwt
+}
+
+enum ClientType {
+  web
+  mobile
+  cli
+  service
+  other
 }

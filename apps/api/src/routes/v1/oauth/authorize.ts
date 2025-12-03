@@ -1,112 +1,108 @@
-import { zValidator } from '@hono/zod-validator';
-import {
-  AuthorizationError,
-  normalizePkceMethod,
-  requireOAuthClient,
-  type PermissionScope,
-} from '@repo/auth-core';
-import { prisma } from '@repo/database';
 import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { VALID_SCOPES } from '@repo/types';
-import { issueAuthorizationCode } from '../../../lib/oauth-authorization-codes.js';
-import type { AppBindings } from '../../../types/context.js';
+import { getCookie } from 'hono/cookie';
+import { prisma } from '@repo/database';
+import { normalizeRedirectUri, requireOAuthClient } from '@repo/auth-core';
+import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 
-const authorizeQuerySchema = z.object({
+const authorize = new Hono();
+
+const authorizeSchema = z.object({
+  client_id: z.string(),
+  redirect_uri: z.string().url(),
   response_type: z.literal('code'),
-  client_id: z.string().min(1),
-  redirect_uri: z.string().min(1),
-  code_challenge: z.string().min(1),
-  code_challenge_method: z.enum(['S256', 'plain']).optional(),
-  scope: z.string().optional(),
   state: z.string().optional(),
+  code_challenge: z.string(),
+  code_challenge_method: z.enum(['S256', 'plain']).optional().default('S256'),
+  scope: z.string().optional(),
 });
 
-const authorizeRoute = new Hono<AppBindings>();
+const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
-authorizeRoute.get(
-  '/authorize',
-  zValidator('query', authorizeQuerySchema, (result, c) => {
-    if (!result.success) {
-      return c.json(
-        {
-          error: 'invalid_request',
-          message: 'Invalid request parameters',
-          issues: 'error' in result ? result.error.issues : [],
-        },
-        400
-      );
+authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
+  const {
+    client_id,
+    redirect_uri,
+    state,
+    code_challenge,
+    code_challenge_method,
+    scope,
+  } = c.req.valid('query');
+
+  try {
+    // 1. Validate Client & Redirect URI
+    await requireOAuthClient({
+      prisma,
+      clientId: client_id,
+      redirectUri: redirect_uri,
+    });
+
+    // 2. Check for existing session
+    const sessionToken = getCookie(c, 'authjs.session-token');
+
+    if (!sessionToken) {
+      // No session - redirect to login
+      const loginUrl = new URL('/login', WEB_APP_URL);
+      loginUrl.searchParams.set('returnTo', c.req.url);
+      return c.redirect(loginUrl.toString());
     }
-  }),
-  async (c) => {
-    const auth = c.get('auth');
-    if (!auth) {
-      return c.json({ error: 'Unauthorized' }, 401);
+
+    // 3. Look up session to get userId
+    const session = await prisma.session.findFirst({
+      where: {
+        tokenId: sessionToken,
+        expiresAt: { gt: new Date() },
+        revokedAt: null,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!session) {
+      // Invalid session - redirect to login
+      const loginUrl = new URL('/login', WEB_APP_URL);
+      loginUrl.searchParams.set('returnTo', c.req.url);
+      return c.redirect(loginUrl.toString());
     }
 
-    const params = c.req.valid('query');
+    // 4. Generate Authorization Code
+    const opaque = createOpaqueToken();
+    const codeHash = createTokenHashEnvelope(opaque.tokenSecret);
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    try {
-      const redirectUri = params.redirect_uri.trim();
-      const codeChallenge = params.code_challenge.trim();
-      const codeChallengeMethod = normalizePkceMethod(params.code_challenge_method);
+    await prisma.oAuthAuthorizationCode.create({
+      data: {
+        userId: session.userId,
+        clientId: client_id,
+        redirectUri: normalizeRedirectUri(redirect_uri),
+        codeHash,
+        codeChallenge: code_challenge,
+        codeChallengeMethod: code_challenge_method,
+        scopes: scope ? scope.split(' ') : [],
+        expiresAt,
+      },
+    });
 
-      const client = await requireOAuthClient({
-        prisma,
-        clientId: params.client_id,
-        redirectUri,
-      });
-
-      const scopes = parseScopes(params.scope);
-
-      const { code } = await issueAuthorizationCode({
-        userId: auth.userId,
-        clientId: client.clientId,
-        redirectUri,
-        codeChallenge,
-        codeChallengeMethod,
-        scopes,
-      });
-
-      let redirectTarget: URL;
-      try {
-        redirectTarget = new URL(redirectUri);
-      } catch (urlError) {
-        throw new AuthorizationError('redirect_uri is invalid');
-      }
-
-      redirectTarget.searchParams.set('code', code);
-      if (params.state) {
-        redirectTarget.searchParams.set('state', params.state);
-      }
-
-      return c.redirect(redirectTarget.toString(), 302);
-    } catch (error) {
-      if (error instanceof AuthorizationError) {
-        return c.json({ error: 'invalid_request', message: error.message }, 400);
-      }
-      console.error('[oauth/authorize] Failed to issue authorization code', error);
-      return c.json(
-        { error: 'server_error', message: 'Unable to complete authorization request' },
-        500
-      );
+    // 5. Redirect back to client with code
+    const callbackUrl = new URL(redirect_uri);
+    callbackUrl.searchParams.set('code', opaque.value);
+    if (state) {
+      callbackUrl.searchParams.set('state', state);
     }
+
+    return c.redirect(callbackUrl.toString());
+  } catch (error) {
+    // Redirect to redirect_uri with error
+    const errorUrl = new URL(redirect_uri);
+    errorUrl.searchParams.set('error', 'server_error');
+    errorUrl.searchParams.set('error_description', error instanceof Error ? error.message : 'Unknown error');
+    if (state) {
+      errorUrl.searchParams.set('state', state);
+    }
+    return c.redirect(errorUrl.toString());
   }
-);
+});
 
-function parseScopes(scope: string | undefined): PermissionScope[] {
-  if (!scope) {
-    return [];
-  }
-  const allowed = new Set<PermissionScope>(VALID_SCOPES);
-  return Array.from(
-    new Set(
-      scope
-        .split(/\s+/)
-        .map((value) => value.trim())
-        .filter((value): value is PermissionScope => value.length > 0 && allowed.has(value as PermissionScope))
-    )
-  );
-}
-
-export { authorizeRoute };
+export { authorize };

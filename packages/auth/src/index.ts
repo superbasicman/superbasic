@@ -8,7 +8,7 @@
  */
 
 // Auth.js configuration
-export { authConfig } from "./config.js";
+
 
 // Password utilities
 export { hashPassword, verifyPassword } from "./password.js";

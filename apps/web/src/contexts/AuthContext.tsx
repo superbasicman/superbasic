@@ -9,11 +9,12 @@ import {
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
 import { authApi, ApiError } from '../lib/api';
-import { getStoredTokens, clearTokens as clearStoredTokens } from '../lib/tokenStorage';
+import { getStoredTokens, clearTokens as clearStoredTokens, saveTokens } from '../lib/tokenStorage';
+import { generateCodeVerifier, generateCodeChallenge, generateState } from '../lib/pkce';
 
 interface AuthContextType {
   user: UserResponse | null;
-  login: (credentials: LoginInput) => Promise<void>;
+  login: (credentials: LoginInput) => Promise<void>; // Kept for backward compat, but now initiates OAuth
   loginWithGoogle: () => Promise<void>;
   requestMagicLink: (email: string) => Promise<void>;
   completeProviderLogin: () => Promise<void>;
@@ -29,6 +30,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+// TODO: Move to config
+const CLIENT_ID = 'web-dashboard';
+const REDIRECT_URI = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '';
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserResponse | null>(null);
@@ -53,6 +58,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Runs on app initialization using stored access token
    */
   async function checkAuthStatus() {
+    // If we are in the callback flow, handle it
+    if (location.pathname === '/auth/callback') {
+      await handleCallback();
+      return;
+    }
+
     setIsLoading(true);
 
     const tokens = getStoredTokens();
@@ -60,10 +71,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       !!tokens && typeof tokens.accessTokenExpiresAt === 'number' && tokens.accessTokenExpiresAt > Date.now();
 
     if (!hasValidAccessToken) {
-      clearStoredTokens();
-      setUser(null);
-      setIsLoading(false);
-      return;
+      try {
+        // Try to refresh token using cookie (e.g. after OAuth redirect or page reload)
+        await authApi.completeProviderLogin();
+      } catch {
+        clearStoredTokens();
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
@@ -82,6 +98,80 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /**
+   * Handle OAuth Callback
+   * Exchanges authorization code for tokens
+   */
+  async function handleCallback() {
+    setIsLoading(true);
+    const code = searchParams.get('code');
+    const state = searchParams.get('state');
+    const storedState = sessionStorage.getItem('pkce_state');
+    const verifier = sessionStorage.getItem('pkce_verifier');
+
+    if (!code || !state || !verifier) {
+      setAuthError('Invalid callback parameters');
+      setIsLoading(false);
+      navigate('/login');
+      return;
+    }
+
+    if (state !== storedState) {
+      setAuthError('Invalid state parameter');
+      setIsLoading(false);
+      navigate('/login');
+      return;
+    }
+
+    try {
+      // Exchange code for tokens
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      const response = await fetch(`${apiUrl}/v1/oauth/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: CLIENT_ID,
+          code,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: verifier,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.message || 'Token exchange failed');
+      }
+
+      const data = await response.json();
+
+      // Store access token
+      saveTokens({
+        accessToken: data.access_token,
+        expiresIn: data.expires_in,
+      });
+
+      // Clear PKCE storage
+      sessionStorage.removeItem('pkce_state');
+      sessionStorage.removeItem('pkce_verifier');
+
+      // Fetch user profile
+      const { user: currentUser } = await authApi.me();
+      setUser(currentUser);
+
+      // Redirect to home
+      navigate('/');
+    } catch (error) {
+      console.error('Callback error:', error);
+      setAuthError('Failed to complete login');
+      navigate('/login');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  /**
    * Handle authentication errors from query params
    * Auth.js redirects with ?error=... on OAuth failures
    */
@@ -92,7 +182,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const errorDescription = searchParams.get('error_description') || 'Authentication failed';
       console.log('[AuthContext] Auth error detected:', error, errorDescription);
       setAuthError(errorDescription);
-      
+
       // Clear error params after showing message
       setTimeout(() => {
         setSearchParams({});
@@ -102,15 +192,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /**
+   * Initiate OAuth 2.1 Authorization Code Flow with PKCE
+   */
+  async function initiateOAuthFlow() {
+    const verifier = generateCodeVerifier();
+    const challenge = await generateCodeChallenge(verifier);
+    const state = generateState();
+
+    // Store verifier in sessionStorage to verify later
+    sessionStorage.setItem('pkce_verifier', verifier);
+    sessionStorage.setItem('pkce_state', state);
+
+    const params = new URLSearchParams({
+      client_id: CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      response_type: 'code',
+      code_challenge: challenge,
+      code_challenge_method: 'S256',
+      state: state,
+      scope: 'openid profile email',
+    });
+
+    // Redirect to API authorize endpoint
+    // Note: In a real app, API_URL should be from env
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    window.location.href = `${apiUrl}/v1/oauth/authorize?${params.toString()}`;
+  }
+
+  /**
    * Login with email and password
-   * Sets httpOnly cookie and updates user state
+   * Now initiates OAuth flow because direct login is deprecated for the dashboard
    */
   async function login(credentials: LoginInput): Promise<void> {
+    // For now, we can still use the direct login API to establish the session, 
+    // THEN initiate the OAuth flow to get the tokens.
+    // This is a hybrid approach because our /authorize endpoint checks for session cookie.
     try {
-      const { user: loggedInUser } = await authApi.login(credentials);
-      setUser(loggedInUser);
+      await authApi.login(credentials);
+      // After successful login (session cookie set), start OAuth flow
+      await initiateOAuthFlow();
     } catch (error) {
-      // Re-throw to allow UI to handle error display
       throw error;
     }
   }
@@ -135,65 +256,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Register a new user then automatically log them in
-   * Registration endpoint doesn't set session cookie, so we call login after
    */
   async function register(data: RegisterInput): Promise<void> {
     try {
-      // Step 1: Register the user
       await authApi.register(data);
-
-      // Step 2: Automatically log them in with the same credentials
       await login({
         email: data.email,
         password: data.password,
       });
     } catch (error) {
-      // Re-throw to allow UI to handle error display
       throw error;
     }
   }
 
   /**
-   * Login with Google OAuth (currently disabled in AuthCore SPA flow)
+   * Login with Google OAuth
    */
   async function loginWithGoogle(): Promise<void> {
     try {
       await authApi.loginWithGoogle();
     } catch (error) {
-      const message =
-        error instanceof ApiError
-          ? error.message
-          : 'Google login is not available right now.';
-      setAuthError(message);
+      setAuthError('Google login failed');
     }
   }
 
   /**
    * Request magic link via email
-   * Sends email with sign-in link
    */
   async function requestMagicLink(email: string): Promise<void> {
     try {
       await authApi.requestMagicLink(email);
     } catch (error) {
-      // Re-throw to allow UI to handle error display
       throw error;
     }
   }
 
   /**
    * Logout - clears httpOnly cookie and local state
-   * Redirects to login page
    */
   async function logout(): Promise<void> {
     try {
-      await authApi.logout();
+      // Call revoke endpoint
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      await fetch(`${apiUrl}/v1/oauth/revoke`, { method: 'POST' });
     } catch (error) {
-      // Log error but still clear local state
       console.error('Logout error:', error);
     } finally {
       clearStoredTokens();
-      // Always clear local state and redirect
       setUser(null);
       navigate('/login');
     }
@@ -215,10 +324,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-/**
- * Hook to access auth context
- * Throws error if used outside AuthProvider
- */
 export function useAuth(): AuthContextType {
   const context = useContext(AuthContext);
   if (context === undefined) {
