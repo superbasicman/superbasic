@@ -80,8 +80,9 @@ export async function resetDatabase(): Promise<void> {
   await testPrisma.oAuthClient.deleteMany();
   // Delete API keys first (child of users and profiles)
   await testPrisma.apiKey.deleteMany();
+  await testPrisma.refreshToken.deleteMany();
   // Delete sessions before users to avoid orphaned records
-  await testPrisma.session.deleteMany();
+  await testPrisma.authSession.deleteMany();
   // Clean up workspace-related tables before removing profiles
   await testPrisma.workspaceMember.deleteMany();
   await testPrisma.workspace.deleteMany();

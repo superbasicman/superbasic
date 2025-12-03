@@ -4,14 +4,7 @@
  */
 
 import type { Hono } from 'hono';
-import {
-  hashPassword,
-  createTokenHashEnvelope,
-  createOpaqueToken,
-  SESSION_MAX_AGE_SECONDS,
-  SESSION_ABSOLUTE_MAX_AGE_SECONDS,
-
-} from '@repo/auth';
+import { createOpaqueToken, hashPassword, SESSION_MAX_AGE_SECONDS } from '@repo/auth';
 import type { PermissionScope } from '@repo/auth-core';
 import { generateAccessToken } from '@repo/auth-core';
 import { authService } from '../lib/auth-service.js';
@@ -155,15 +148,18 @@ export async function createTestUser(
   const prisma = getTestPrisma();
 
   const hashedPassword = await hashPassword(credentials.password);
-  const normalizedEmail = credentials.email.toLowerCase();
 
   // Create user and profile sequentially (avoid long-running interactive transactions in tests)
   const newUser = await prisma.user.create({
     data: {
-      email: credentials.email,
-      emailLower: normalizedEmail,
-      password: hashedPassword,
-      name: credentials.name || null,
+      primaryEmail: credentials.email,
+      displayName: credentials.name || null,
+      userState: 'active',
+      password: {
+        create: {
+          passwordHash: hashedPassword,
+        },
+      },
     },
   });
 
@@ -176,7 +172,7 @@ export async function createTestUser(
   });
 
   return {
-    user: { ...newUser, profile: newProfile },
+    user: { ...newUser, profile: newProfile, email: newUser.primaryEmail },
     credentials, // Return plaintext password for testing login
   };
 }
@@ -203,10 +199,7 @@ function ensureTokenHashKeys() {
 function computeSessionTimestamps(expiresInSeconds: number) {
   const now = new Date();
   const expiresAt = new Date(Date.now() + expiresInSeconds * 1000);
-  const absoluteExpiresAt = new Date(
-    now.getTime() + SESSION_ABSOLUTE_MAX_AGE_SECONDS * 1000
-  );
-  return { now, expiresAt, absoluteExpiresAt };
+  return { now, expiresAt };
 }
 
 export async function createSessionToken(
@@ -216,22 +209,17 @@ export async function createSessionToken(
 ) {
   ensureTokenHashKeys();
   const prisma = getTestPrisma();
-  const opaqueToken = createOpaqueToken();
   const expiresInSeconds = options.expiresInSeconds ?? SESSION_MAX_AGE_SECONDS;
-  const { now, expiresAt, absoluteExpiresAt } = computeSessionTimestamps(
-    expiresInSeconds
-  );
+  const { now, expiresAt } = computeSessionTimestamps(expiresInSeconds);
+  const opaqueToken = createOpaqueToken();
 
-  await prisma.session.create({
+  await prisma.authSession.create({
     data: {
       userId,
-      tokenId: opaqueToken.tokenId,
-      sessionTokenHash: createTokenHashEnvelope(opaqueToken.tokenSecret),
       expiresAt,
-      clientType: 'web',
-      kind: 'default',
-      lastUsedAt: now,
-      absoluteExpiresAt,
+      clientInfo: { type: 'web' },
+      lastActivityAt: now,
+      mfaLevel: 'none',
     },
   });
 
@@ -245,21 +233,15 @@ export async function createSessionRecord(
   ensureTokenHashKeys();
   const prisma = getTestPrisma();
   const expiresInSeconds = options.expiresInSeconds ?? SESSION_MAX_AGE_SECONDS;
-  const { now, expiresAt, absoluteExpiresAt } = computeSessionTimestamps(
-    expiresInSeconds
-  );
-  const opaqueToken = createOpaqueToken();
+  const { now, expiresAt } = computeSessionTimestamps(expiresInSeconds);
 
-  return prisma.session.create({
+  return prisma.authSession.create({
     data: {
       userId,
-      tokenId: opaqueToken.tokenId,
-      sessionTokenHash: createTokenHashEnvelope(opaqueToken.tokenSecret),
       expiresAt,
-      clientType: 'web',
-      kind: 'default',
-      lastUsedAt: now,
-      absoluteExpiresAt,
+      clientInfo: { type: 'web' },
+      lastActivityAt: now,
+      mfaLevel: 'none',
     },
   });
 }
@@ -272,7 +254,7 @@ export async function createAccessToken(
   const { token } = await generateAccessToken({
     userId,
     sessionId: session.id,
-    clientType: session.clientType,
+    clientType: (session.clientInfo as any)?.type ?? 'web',
   });
 
   return { token, session };
@@ -301,9 +283,8 @@ export async function createPersonalAccessToken(options: {
       await authPrisma.user.create({
         data: {
           id: options.userId,
-          email,
-          emailLower: email.toLowerCase(),
-          status: 'active',
+          primaryEmail: email,
+          userState: 'active',
         },
       });
     }
@@ -326,28 +307,30 @@ export async function createPersonalAccessToken(options: {
         where: { id: options.workspaceId },
       });
       if (!workspaceExists) {
-        const ownerProfileId =
-          profileId ??
-          (
-            await authPrisma.profile.create({
-              data: {
-                userId: options.userId,
-                timezone: 'UTC',
-                currency: 'USD',
-              },
-            })
-          ).id;
+        const ownerProfile =
+          profileId !== null
+            ? await authPrisma.profile.findUnique({ where: { id: profileId } })
+            : null;
+        const ensuredProfile =
+          ownerProfile ??
+          (await authPrisma.profile.create({
+            data: {
+              userId: options.userId,
+              timezone: 'UTC',
+              currency: 'USD',
+            },
+          }));
         await (authPrisma as any).workspace.create({
           data: {
             id: options.workspaceId,
             name: 'Workspace Token',
-            ownerProfileId,
+            ownerUserId: options.userId,
           },
         });
         await authPrisma.workspaceMember.create({
           data: {
             workspaceId: options.workspaceId,
-            memberProfileId: ownerProfileId,
+            userId: ensuredProfile.userId,
             role: 'owner',
           },
         });
@@ -355,7 +338,7 @@ export async function createPersonalAccessToken(options: {
         await authPrisma.workspaceMember.create({
           data: {
             workspaceId: options.workspaceId,
-            memberProfileId: profileId,
+            userId: options.userId,
             role: 'owner',
           },
         });
@@ -372,35 +355,6 @@ export async function createPersonalAccessToken(options: {
     name: options.name ?? 'Test PAT',
     expiresAt: options.expiresAt ?? null,
   });
-  // Ensure scopes are persisted for tests even if mocks/prisma layers diverge
-  try {
-    const prisma = getTestPrisma();
-    const requestedScopes = options.scopes as PermissionScope[];
-    const stored = await prisma.token.findUnique({
-      where: { id: issued.tokenId },
-      select: { scopes: true },
-    });
-    const scopesMatch =
-      stored?.scopes?.length === requestedScopes.length &&
-      requestedScopes.every((scope) => stored?.scopes?.includes(scope));
-    if (!scopesMatch) {
-      await prisma.token.update({
-        where: { id: issued.tokenId },
-        data: { scopes: requestedScopes },
-      });
-    }
-  } catch {
-    // best-effort; if test prisma not available, fall back to the auth prisma
-    try {
-      const { prisma } = await import('@repo/database');
-      await prisma.token.update({
-        where: { id: issued.tokenId },
-        data: { scopes: options.scopes as PermissionScope[] },
-      });
-    } catch {
-      // ignore if unreachable
-    }
-  }
   // Optional debug trace for PAT issuance when running with VITEST_DEBUG_PAT
   // Intentionally silent during normal runs.
 
@@ -408,11 +362,11 @@ export async function createPersonalAccessToken(options: {
     const updateData = { where: { id: issued.tokenId }, data: { revokedAt: options.revokedAt } };
     try {
       const prisma = getTestPrisma();
-      await prisma.token.update(updateData);
+      await prisma.apiKey.update(updateData);
     } catch {
       try {
         const { prisma } = await import('@repo/database');
-        await prisma.token.update(updateData as any);
+        await prisma.apiKey.update(updateData as any);
       } catch {
         // If neither real nor mocked Prisma is available, skip the revocation stamp
       }

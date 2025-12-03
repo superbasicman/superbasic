@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
-import { normalizeRedirectUri, requireOAuthClient } from '@repo/auth-core';
+import { normalizeRedirectUri, requireOAuthClient, AuthorizationError } from '@repo/auth-core';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 
 const authorize = new Hono();
@@ -37,72 +37,73 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
       clientId: client_id,
       redirectUri: redirect_uri,
     });
-
-    // 2. Check for existing session
-    const sessionToken = getCookie(c, 'authjs.session-token');
-
-    if (!sessionToken) {
-      // No session - redirect to login
-      const loginUrl = new URL('/login', WEB_APP_URL);
-      loginUrl.searchParams.set('returnTo', c.req.url);
-      return c.redirect(loginUrl.toString());
-    }
-
-    // 3. Look up session to get userId
-    const session = await prisma.session.findFirst({
-      where: {
-        tokenId: sessionToken,
-        expiresAt: { gt: new Date() },
-        revokedAt: null,
-      },
-      select: {
-        userId: true,
-      },
-    });
-
-    if (!session) {
-      // Invalid session - redirect to login
-      const loginUrl = new URL('/login', WEB_APP_URL);
-      loginUrl.searchParams.set('returnTo', c.req.url);
-      return c.redirect(loginUrl.toString());
-    }
-
-    // 4. Generate Authorization Code
-    const opaque = createOpaqueToken();
-    const codeHash = createTokenHashEnvelope(opaque.tokenSecret);
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    await prisma.oAuthAuthorizationCode.create({
-      data: {
-        userId: session.userId,
-        clientId: client_id,
-        redirectUri: normalizeRedirectUri(redirect_uri),
-        codeHash,
-        codeChallenge: code_challenge,
-        codeChallengeMethod: code_challenge_method,
-        scopes: scope ? scope.split(' ') : [],
-        expiresAt,
-      },
-    });
-
-    // 5. Redirect back to client with code
-    const callbackUrl = new URL(redirect_uri);
-    callbackUrl.searchParams.set('code', opaque.value);
-    if (state) {
-      callbackUrl.searchParams.set('state', state);
-    }
-
-    return c.redirect(callbackUrl.toString());
   } catch (error) {
-    // Redirect to redirect_uri with error
     const errorUrl = new URL(redirect_uri);
-    errorUrl.searchParams.set('error', 'server_error');
-    errorUrl.searchParams.set('error_description', error instanceof Error ? error.message : 'Unknown error');
+    const description =
+      error instanceof AuthorizationError ? error.message : error instanceof Error ? error.message : 'Unknown error';
+    errorUrl.searchParams.set('error', 'invalid_request');
+    errorUrl.searchParams.set('error_description', description);
     if (state) {
       errorUrl.searchParams.set('state', state);
     }
     return c.redirect(errorUrl.toString());
   }
+
+  // 2. Check for existing session
+  const sessionToken = getCookie(c, 'authjs.session-token');
+
+  if (!sessionToken) {
+    // No session - redirect to login
+    const loginUrl = new URL('/login', WEB_APP_URL);
+    loginUrl.searchParams.set('returnTo', c.req.url);
+    return c.redirect(loginUrl.toString());
+  }
+
+  // 3. Look up session to get userId
+  const session = await prisma.authSession.findFirst({
+    where: {
+      id: sessionToken,
+      expiresAt: { gt: new Date() },
+      revokedAt: null,
+    },
+    select: {
+      userId: true,
+    },
+  });
+
+  if (!session) {
+    // Invalid session - redirect to login
+    const loginUrl = new URL('/login', WEB_APP_URL);
+    loginUrl.searchParams.set('returnTo', c.req.url);
+    return c.redirect(loginUrl.toString());
+  }
+
+  // 4. Generate Authorization Code
+  const opaque = createOpaqueToken();
+  const codeHash = createTokenHashEnvelope(opaque.tokenSecret);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await prisma.oAuthAuthorizationCode.create({
+    data: {
+      userId: session.userId,
+      clientId: client_id,
+      redirectUri: normalizeRedirectUri(redirect_uri),
+      codeHash,
+      codeChallenge: code_challenge,
+      codeChallengeMethod: code_challenge_method,
+      scopes: scope ? scope.split(' ') : [],
+      expiresAt,
+    },
+  });
+
+  // 5. Redirect back to client with code
+  const callbackUrl = new URL(redirect_uri);
+  callbackUrl.searchParams.set('code', opaque.value);
+  if (state) {
+    callbackUrl.searchParams.set('state', state);
+  }
+
+  return c.redirect(callbackUrl.toString());
 });
 
 export { authorize };

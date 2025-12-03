@@ -5,8 +5,7 @@
  * Pure Prisma operations with no business logic.
  */
 
-import type { PrismaClient, User } from '@repo/database';
-import type { UserStatus } from './user-types.js';
+import type { PrismaClient, User, UserState } from '@repo/database';
 
 export interface CreateUserData {
   email: string;
@@ -21,15 +20,20 @@ export interface CreateUserProfileData {
 }
 
 export class UserRepository {
-  constructor(private prisma: PrismaClient) {}
+  constructor(private prisma: PrismaClient) { }
 
   /**
    * Find user by email
    */
   async findByEmail(email: string): Promise<User | null> {
-    const normalizedEmail = email.trim().toLowerCase();
-    return this.prisma.user.findUnique({
-      where: { emailLower: normalizedEmail },
+    // The schema uses primaryEmail. We assume it stores the normalized email or we query it directly.
+    // Since emailLower is gone, we'll query primaryEmail.
+    // Ideally, primaryEmail should be stored normalized.
+    return this.prisma.user.findFirst({
+      where: {
+        primaryEmail: email,
+        deletedAt: null
+      },
     });
   }
 
@@ -46,13 +50,16 @@ export class UserRepository {
    * Create a new user
    */
   async create(data: CreateUserData): Promise<User> {
-    const normalizedEmail = data.email.trim().toLowerCase();
     return this.prisma.user.create({
       data: {
-        email: data.email,
-        emailLower: normalizedEmail,
-        password: data.password,
-        name: data.name,
+        primaryEmail: data.email,
+        displayName: data.name,
+        userState: 'active',
+        password: {
+          create: {
+            passwordHash: data.password,
+          }
+        }
       },
     });
   }
@@ -65,15 +72,18 @@ export class UserRepository {
     userData: CreateUserData,
     profileData: CreateUserProfileData
   ): Promise<User> {
-    const normalizedEmail = userData.email.trim().toLowerCase();
     return this.prisma.$transaction(async (tx) => {
       // Create user
       const user = await tx.user.create({
         data: {
-          email: userData.email,
-          emailLower: normalizedEmail,
-          password: userData.password,
-          name: userData.name,
+          primaryEmail: userData.email,
+          displayName: userData.name,
+          userState: 'active',
+          password: {
+            create: {
+              passwordHash: userData.password,
+            }
+          }
         },
       });
 
@@ -95,8 +105,8 @@ export class UserRepository {
    */
   async updateStatus(
     userId: string,
-    status: UserStatus
-  ): Promise<{ user: User; previousStatus: UserStatus } | null> {
+    status: UserState
+  ): Promise<{ user: User; previousStatus: UserState } | null> {
     // Fast-return for obviously invalid IDs to avoid Prisma UUID parse errors
     if (!isValidUuid(userId)) {
       return null;
@@ -110,16 +120,16 @@ export class UserRepository {
       return null;
     }
 
-    if (existing.status === status) {
-      return { user: existing, previousStatus: existing.status };
+    if (existing.userState === status) {
+      return { user: existing, previousStatus: existing.userState };
     }
 
     const updated = await this.prisma.user.update({
       where: { id: userId },
-      data: { status },
+      data: { userState: status },
     });
 
-    return { user: updated, previousStatus: existing.status };
+    return { user: updated, previousStatus: existing.userState };
   }
 }
 

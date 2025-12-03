@@ -15,7 +15,7 @@ import {
   createTestUser,
   createAccessToken,
 } from "../../../../test/helpers.js";
-import { generateToken, createTokenHashEnvelope } from "@repo/auth";
+import { createOpaqueToken, createTokenHashEnvelope } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
 import { corsMiddleware } from "../../../../middleware/cors.js";
@@ -42,25 +42,26 @@ async function createApiToken(
   }
 ) {
   const prisma = getTestPrisma();
-  const token = generateToken();
+  const opaque = createOpaqueToken();
+  const token = opaque.value;
   const last4 = token.slice(-4);
-  const tokenHash = createTokenHashEnvelope(token);
+  const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
 
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + (options.expiresInDays || 90));
 
-  const created = await prisma.token.create({
+  const created = await prisma.apiKey.create({
     data: {
+      id: opaque.tokenId,
       userId,
-      sessionId: null,
       name: options.name,
-      tokenHash,
+      keyHash: tokenHash,
       scopes: options.scopes,
       expiresAt,
       lastUsedAt: options.lastUsedAt || null,
       revokedAt: options.revokedAt || null,
-      type: 'personal_access',
       metadata: { last4 },
+      last4,
     },
   });
 
@@ -156,7 +157,7 @@ describe("GET /v1/tokens - Token Listing", () => {
 
       // Verify masked token format
       expect(returnedToken.maskedToken).toMatch(/^sbf_\*\*\*\*[A-Za-z0-9_-]{4}$/);
-      const last4 = (tokenRecord.metadata as any)?.last4;
+      const last4 = tokenRecord.last4 ?? (tokenRecord.metadata as any)?.last4;
       expect(returnedToken.maskedToken).toBe(`sbf_****${last4}`);
       expect(returnedToken.maskedToken.slice(-4)).toBe(plaintextToken.slice(-4));
     });

@@ -1,11 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
-import { type PrismaClient, type Token as PrismaToken, prisma } from '@repo/database';
-import { toJsonInput } from './json.js';
+import { type PrismaClient, type RefreshToken as PrismaRefreshToken, prisma } from '@repo/database';
 import type {
   IssueRefreshTokenInput,
   IssueRefreshTokenResult,
-  PermissionScope,
   RefreshTokenRecord,
   TokenHashEnvelope,
 } from './types.js';
@@ -39,20 +37,21 @@ export class TokenService {
     const opaque = this.tokenFactory();
     const tokenHash = this.hashFactory(opaque.tokenSecret);
 
-    const refreshMetadata = input.metadata !== undefined ? toJsonInput(input.metadata) : undefined;
+    // const refreshMetadata = input.metadata !== undefined ? toJsonInput(input.metadata) : undefined;
 
-    const created = await this.prisma.token.create({
+    const created = await this.prisma.refreshToken.create({
       data: {
         id: opaque.tokenId,
         userId: input.userId,
         sessionId: input.sessionId,
-        workspaceId: null,
-        type: 'refresh',
-        tokenHash,
-        scopes: [],
-        name: null,
+        // workspaceId: null, // Not in RefreshToken
+        // type: 'refresh', // Not in RefreshToken
+        hashEnvelope: tokenHash, // Mapped from tokenHash
+        // scopes: [], // Not in RefreshToken
+        // name: null, // Not in RefreshToken
         familyId,
-        ...(refreshMetadata !== undefined ? { metadata: refreshMetadata } : {}),
+        // ...(refreshMetadata !== undefined ? { metadata: refreshMetadata } : {}), // Not in RefreshToken
+        last4: opaque.value.slice(-4),
         lastUsedAt: null,
         expiresAt: input.expiresAt,
         revokedAt: null,
@@ -66,10 +65,10 @@ export class TokenService {
   }
 }
 
-function mapRefreshToken(record: PrismaToken): RefreshTokenRecord {
-  if (record.type !== 'refresh') {
-    throw new Error(`Token ${record.id} is not a refresh token`);
-  }
+function mapRefreshToken(record: PrismaRefreshToken): RefreshTokenRecord {
+  // if (record.type !== 'refresh') {
+  //   throw new Error(`Token ${record.id} is not a refresh token`);
+  // }
 
   if (!record.sessionId) {
     throw new Error(`Refresh token ${record.id} is missing sessionId`);
@@ -83,13 +82,13 @@ function mapRefreshToken(record: PrismaToken): RefreshTokenRecord {
     id: record.id,
     userId: record.userId,
     sessionId: record.sessionId,
-    workspaceId: record.workspaceId,
+    workspaceId: null, // record.workspaceId,
     type: 'refresh',
-    tokenHash: record.tokenHash as TokenHashEnvelope,
-    scopes: record.scopes as PermissionScope[],
-    name: record.name,
+    tokenHash: record.hashEnvelope as TokenHashEnvelope,
+    scopes: [], // record.scopes as PermissionScope[],
+    name: null, // record.name,
     familyId: record.familyId ?? null,
-    metadata: (record.metadata as Record<string, unknown> | null) ?? null,
+    metadata: null, // (record.metadata as Record<string, unknown> | null) ?? null,
     lastUsedAt: record.lastUsedAt,
     expiresAt: record.expiresAt,
     revokedAt: record.revokedAt,

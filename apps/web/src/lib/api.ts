@@ -170,20 +170,15 @@ async function performAccessTokenRefresh() {
   });
 }
 
-async function refreshAfterProviderCallback() {
-  await performAccessTokenRefresh();
-  return authApi.me();
-}
-
 /**
  * Authentication API methods
  */
 export const authApi = {
   /**
    * Login with email and password (AuthCore-backed)
-   * Hits Auth.js credentials callback, then refreshes tokens from the auth-core flow.
+   * Hits Auth.js credentials callback; OAuth flow will follow to obtain tokens.
    */
-  async login(credentials: LoginInput): Promise<{ user: UserResponse }> {
+  async login(credentials: LoginInput): Promise<void> {
     const response = await fetch(`${API_URL}/v1/auth/signin/password`, {
       method: "POST",
       credentials: "include",
@@ -198,43 +193,6 @@ export const authApi = {
 
     if (!response.ok) {
       throw new ApiError("Invalid email or password", response.status || 401);
-    }
-
-    // We don't need to refresh immediately if the cookie is set, but we might want to fetch the user.
-    // However, the previous logic did refreshAfterProviderCallback().
-    // Let's assume the cookie is set and we can just fetch 'me'.
-    // But if we use access tokens (JWT header), we might need to get it?
-    // The new signin/password sets a cookie.
-    // If the frontend expects an access token in memory, we might need to hit refresh endpoint?
-    // The previous logic called refreshAfterProviderCallback() which calls /v1/auth/refresh.
-    // Let's keep that pattern if we want to maintain the "access token in memory" architecture.
-
-    // Wait, my signin/password implementation ONLY sets a cookie. It doesn't return an access token in the body.
-    // So we MUST call refresh to get the access token if the app relies on it.
-
-    await refreshAfterProviderCallback();
-    return this.me();
-  },
-
-  /**
-   * Login with Google OAuth
-   * Starts Auth.js OAuth; AuthCore session is minted in callback
-   */
-  async loginWithGoogle(): Promise<void> {
-    const response = await fetch(`${API_URL}/v1/auth/signin/google`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      throw new ApiError("Failed to initialize Google login", response.status);
-    }
-
-    const data = await response.json();
-    if (data.url) {
-      window.location.href = data.url;
     }
   },
 
@@ -265,20 +223,10 @@ export const authApi = {
 
   /**
    * Request magic link via email
-   * Sends magic link to user's email address (Auth.js email provider)
+   * Removed legacy magic link flow in favor of OAuth-only login.
    */
-  async requestMagicLink(email: string): Promise<void> {
-    const response = await fetch(`${API_URL}/v1/auth/signin/email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email }),
-    });
-
-    if (!response.ok) {
-      throw new ApiError("Failed to send magic link", response.status);
-    }
+  async requestMagicLink(): Promise<void> {
+    throw new ApiError("Magic link sign-in is no longer supported", 400);
   },
 
   /**
@@ -313,13 +261,6 @@ export const authApi = {
     };
   },
 
-  /**
-   * Complete OAuth/magic-link callback using the refresh cookie to obtain an access token
-   */
-  async completeProviderLogin(): Promise<{ user: UserResponse }> {
-    const result = await refreshAfterProviderCallback();
-    return result;
-  },
 };
 
 /**

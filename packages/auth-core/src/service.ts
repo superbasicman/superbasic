@@ -1,12 +1,17 @@
 import {
-  SESSION_ABSOLUTE_MAX_AGE_SECONDS,
   SESSION_MAX_AGE_SECONDS,
   createOpaqueToken,
   createTokenHashEnvelope,
   parseOpaqueToken,
   verifyTokenSecret,
 } from '@repo/auth';
-import { Prisma, type PrismaClient, prisma, setPostgresContext } from '@repo/database';
+import {
+  type IdentityProvider,
+  Prisma,
+  type PrismaClient,
+  prisma,
+  setPostgresContext,
+} from '@repo/database';
 import { jwtVerify } from 'jose';
 import { GLOBAL_PERMISSION_SCOPES, deriveScopesFromRoles, isWorkspaceRole } from './authz.js';
 import { type AuthCoreEnvironment, loadAuthCoreConfig } from './config.js';
@@ -206,9 +211,8 @@ export class AuthCoreService implements AuthService {
       where: { id: input.userId },
       select: {
         id: true,
-        status: true,
-        email: true,
-        emailLower: true,
+        userState: true,
+        primaryEmail: true,
       },
     });
 
@@ -216,48 +220,41 @@ export class AuthCoreService implements AuthService {
       throw new UnauthorizedError('User not found');
     }
 
-    if (user.status !== 'active') {
+    if (user.userState !== 'active') {
       throw new InactiveUserError();
     }
 
     const clientType = normalizeClientType(input.clientType);
     const now = new Date();
-    const slidingWindowSeconds = input.rememberMe ? SESSION_MAX_AGE_SECONDS : 7 * 24 * 60 * 60;
-    const absoluteWindow = SESSION_ABSOLUTE_MAX_AGE_SECONDS;
-    const computedExpiresAt = new Date(now.getTime() + slidingWindowSeconds * 1000);
-    const absoluteExpiresAt = new Date(now.getTime() + absoluteWindow * 1000);
-    const expiresAt =
-      computedExpiresAt.getTime() > absoluteExpiresAt.getTime()
-        ? absoluteExpiresAt
-        : computedExpiresAt;
+    const ttlSeconds = input.rememberMe ? SESSION_MAX_AGE_SECONDS : 7 * 24 * 60 * 60;
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+
+    // Build client_info JSONB per end-auth-goal.md spec
+    const clientInfo = {
+      type: clientType,
+      userAgent: input.userAgent ?? null,
+    };
 
     const created = await this.prisma.$transaction(async (tx) => {
       await this.ensureIdentityLink(
         tx,
         {
           id: user.id,
-          email: user.email,
-          emailLower: user.emailLower,
+          email: user.primaryEmail,
         },
         input.identity
       );
 
-      const opaque = createOpaqueToken();
-      const sessionTokenHash = createTokenHashEnvelope(opaque.tokenSecret);
-
-      const session = await tx.session.create({
+      // Per end-auth-goal.md: sessions don't have their own tokens
+      // Refresh tokens are created separately and have the token/hash
+      const session = await tx.authSession.create({
         data: {
           userId: user.id,
-          tokenId: opaque.tokenId,
-          sessionTokenHash,
           expiresAt,
-          absoluteExpiresAt,
-          clientType,
-          kind: input.rememberMe ? 'persistent' : 'default',
-          lastUsedAt: now,
+          lastActivityAt: now,
           mfaLevel: input.mfaLevel ?? 'none',
           ipAddress: input.ipAddress ?? null,
-          userAgent: input.userAgent ?? null,
+          clientInfo,
         },
       });
 
@@ -269,7 +266,7 @@ export class AuthCoreService implements AuthService {
         id: created.id,
         userId: created.userId,
         ipAddress: created.ipAddress,
-        userAgent: created.userAgent,
+        userAgent: (created.clientInfo as any)?.userAgent ?? null,
       });
     }
 
@@ -280,7 +277,6 @@ export class AuthCoreService implements AuthService {
       activeWorkspaceId: input.workspaceId ?? null,
       createdAt: created.createdAt,
       expiresAt: created.expiresAt,
-      absoluteExpiresAt: created.absoluteExpiresAt,
       mfaLevel: created.mfaLevel,
     };
   }
@@ -295,22 +291,19 @@ export class AuthCoreService implements AuthService {
     }
 
     const opaque = createOpaqueToken();
-    const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
+    const envelope = createTokenHashEnvelope(opaque.tokenSecret);
 
-    const created = await this.prisma.token.create({
+    const created = await this.prisma.apiKey.create({
       data: {
         id: opaque.tokenId,
         userId: input.userId,
-        sessionId: null,
-        workspaceId: input.workspaceId ?? null,
-        type: 'personal_access',
-        tokenHash,
-        scopes: input.scopes,
         name: input.name,
-        familyId: null,
-        metadata: Prisma.DbNull,
-        lastUsedAt: null,
-        expiresAt: input.expiresAt ?? null,
+        keyHash: toJsonInput(envelope),
+        last4: opaque.value.slice(-4),
+        scopes: input.scopes,
+        // No metadata field in ApiKey schema
+        ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
+        expiresAt: input.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Default 1 year
         revokedAt: null,
       },
     });
@@ -318,7 +311,7 @@ export class AuthCoreService implements AuthService {
     return {
       tokenId: created.id,
       secret: opaque.value,
-      type: created.type,
+      type: 'personal_access', // Hardcoded for return type compatibility
       scopes: created.scopes as PermissionScope[],
       name: created.name ?? '',
       workspaceId: created.workspaceId,
@@ -327,12 +320,11 @@ export class AuthCoreService implements AuthService {
   }
 
   async revokeToken(input: RevokeTokenInput): Promise<void> {
-    const token = await this.prisma.token.findUnique({
+    const token = await this.prisma.apiKey.findUnique({
       where: { id: input.tokenId },
       select: {
         id: true,
         revokedAt: true,
-        metadata: true,
       },
     });
 
@@ -345,23 +337,11 @@ export class AuthCoreService implements AuthService {
     }
 
     const now = new Date();
-    const update: Prisma.TokenUpdateInput = {
-      revokedAt: now,
-    };
-
-    const metadata = buildRevocationMetadata(token.metadata, {
-      revokedAt: now.toISOString(),
-      reason: input.reason,
-      revokedBy: input.revokedBy,
-    });
-
-    if (metadata) {
-      update.metadata = toJsonInput(metadata);
-    }
-
-    await this.prisma.token.update({
+    await this.prisma.apiKey.update({
       where: { id: input.tokenId },
-      data: update,
+      data: {
+        revokedAt: now,
+      },
     });
   }
 
@@ -423,10 +403,7 @@ export class AuthCoreService implements AuthService {
       where: { id: options.userId },
       select: {
         id: true,
-        status: true,
-        profile: {
-          select: { id: true },
-        },
+        userState: true,
       },
     });
 
@@ -434,24 +411,23 @@ export class AuthCoreService implements AuthService {
       throw new UnauthorizedError('User not found');
     }
 
-    if (user.status !== 'active') {
+    if (user.userState !== 'active') {
       throw new InactiveUserError();
     }
 
-    const profileId = user.profile?.id ?? null;
+    // const profileId = user.profile?.id ?? null; // Removed profileId usage
 
     const session = options.sessionId
-      ? await this.prisma.session.findUnique({
+      ? await this.prisma.authSession.findUnique({
           where: { id: options.sessionId },
           select: {
             id: true,
             userId: true,
-            clientType: true,
             expiresAt: true,
-            absoluteExpiresAt: true,
             revokedAt: true,
             mfaLevel: true,
-            lastUsedAt: true,
+            lastActivityAt: true,
+            clientInfo: true,
           },
         })
       : null;
@@ -469,17 +445,16 @@ export class AuthCoreService implements AuthService {
       if (session.expiresAt < now) {
         throw new UnauthorizedError('Session expired');
       }
-
-      if (session.absoluteExpiresAt && session.absoluteExpiresAt < now) {
-        throw new UnauthorizedError('Session lifetime exceeded');
-      }
     }
 
-    const clientType = normalizeClientType(session?.clientType ?? options.clientTypeClaim);
+    // Extract clientType from client_info JSONB
+    const clientType = session?.clientInfo
+      ? normalizeClientType((session.clientInfo as any)?.type)
+      : normalizeClientType(options.clientTypeClaim);
     const mfaLevel = session?.mfaLevel ?? 'none';
 
     const workspaceResolution = await this.resolveWorkspaceContext({
-      profileId,
+      userId: user.id,
       workspaceHint: options.workspaceHint ?? null,
       workspaceHeader: options.workspaceHeader ?? null,
       workspacePathParam: options.workspacePathParam ?? null,
@@ -487,14 +462,13 @@ export class AuthCoreService implements AuthService {
 
     await this.setContext(this.prisma, {
       userId: user.id,
-      profileId,
+      profileId: null, // Removed profileId from context
       workspaceId: workspaceResolution.workspaceId,
       mfaLevel,
     });
 
-    // Default to "now" when no explicit recent-auth signal is available so baseline
-    // session actions (e.g., session deletion) are not blocked by missing timestamps.
-    const recentAuthAt = options.recentlyAuthenticatedAt ?? session?.lastUsedAt ?? new Date();
+    // Default to "now" when no explicit recent-auth signal is available
+    const recentAuthAt = options.recentlyAuthenticatedAt ?? session?.lastActivityAt ?? new Date();
 
     const authContext: AuthContext = {
       userId: user.id,
@@ -503,7 +477,7 @@ export class AuthCoreService implements AuthService {
       activeWorkspaceId: workspaceResolution.workspaceId,
       scopes: workspaceResolution.scopes,
       roles: workspaceResolution.roles,
-      profileId,
+      profileId: null,
       mfaLevel,
       recentlyAuthenticatedAt: recentAuthAt,
     };
@@ -520,35 +494,36 @@ export class AuthCoreService implements AuthService {
     tokenSecret: string;
     request: VerifyRequestInput;
   }): Promise<AuthContext> {
-    const token = await this.prisma.token.findUnique({
+    const token = await this.prisma.apiKey.findUnique({
       where: { id: options.tokenId },
       select: {
         id: true,
         userId: true,
-        type: true,
-        tokenHash: true,
-        scopes: true,
         name: true,
-        workspaceId: true,
+        keyHash: true,
+        last4: true,
+        scopes: true,
+        // No metadata field in ApiKey schema
         expiresAt: true,
         revokedAt: true,
+        createdAt: true,
+        lastUsedAt: true,
+        workspaceId: true,
         user: {
           select: {
             id: true,
-            status: true,
-            profile: {
-              select: { id: true },
-            },
+            userState: true,
           },
         },
       },
     });
 
-    if (!token || token.type !== 'personal_access') {
+    if (!token) {
+      // || token.type !== 'personal_access') {
       throw new UnauthorizedError('Invalid personal access token');
     }
 
-    if (!verifyTokenSecret(options.tokenSecret, token.tokenHash)) {
+    if (!verifyTokenSecret(options.tokenSecret, token.keyHash)) {
       throw new UnauthorizedError('Invalid personal access token');
     }
 
@@ -560,18 +535,18 @@ export class AuthCoreService implements AuthService {
       throw new UnauthorizedError('Token has expired');
     }
 
-    if (token.user.status !== 'active') {
+    if (token.user.userState !== 'active') {
       throw new InactiveUserError();
     }
 
-    const profileId = token.user.profile?.id ?? null;
+    // const profileId = token.user.profile?.id ?? null;
     const forcedWorkspaceId = token.workspaceId ?? null;
     const workspaceHeader = forcedWorkspaceId ?? options.request.workspaceHeader ?? null;
     const workspacePathParam = forcedWorkspaceId
       ? null
       : (options.request.workspacePathParam ?? null);
     const workspaceResolution = await this.resolveWorkspaceContext({
-      profileId,
+      userId: token.userId,
       workspaceHint: forcedWorkspaceId,
       workspaceHeader,
       workspacePathParam,
@@ -598,7 +573,7 @@ export class AuthCoreService implements AuthService {
       activeWorkspaceId: workspaceResolution.workspaceId,
       scopes,
       roles: workspaceResolution.roles,
-      profileId,
+      profileId: null,
       mfaLevel: 'none',
     };
 
@@ -608,7 +583,7 @@ export class AuthCoreService implements AuthService {
 
     await this.setContext(this.prisma, {
       userId: token.userId,
-      profileId,
+      profileId: null,
       workspaceId: workspaceResolution.workspaceId,
       mfaLevel: 'none',
     });
@@ -637,14 +612,14 @@ export class AuthCoreService implements AuthService {
   }
 
   private async resolveWorkspaceContext(options: {
-    profileId: string | null;
+    userId: string;
     workspaceHint: string | null;
     workspaceHeader: string | null;
     workspacePathParam: string | null;
   }): Promise<WorkspaceResolution> {
     const baseScopes = new Set<PermissionScope>(GLOBAL_PERMISSION_SCOPES);
 
-    if (!options.profileId) {
+    if (!options.userId) {
       return {
         workspaceId: null,
         roles: [],
@@ -664,7 +639,7 @@ export class AuthCoreService implements AuthService {
         continue;
       }
 
-      const membership = await this.findWorkspaceMembership(options.profileId, normalized);
+      const membership = await this.findWorkspaceMembership(options.userId, normalized);
       if (membership) {
         return this.resolveWorkspaceFromMembership(membership, baseScopes);
       }
@@ -674,7 +649,7 @@ export class AuthCoreService implements AuthService {
       }
     }
 
-    const fallbackMembership = await this.findDefaultWorkspaceMembership(options.profileId);
+    const fallbackMembership = await this.findDefaultWorkspaceMembership(options.userId);
     if (fallbackMembership) {
       return this.resolveWorkspaceFromMembership(fallbackMembership, baseScopes);
     }
@@ -686,10 +661,10 @@ export class AuthCoreService implements AuthService {
     };
   }
 
-  private async findWorkspaceMembership(profileId: string, workspaceId: string) {
+  private async findWorkspaceMembership(userId: string, workspaceId: string) {
     return this.prisma.workspaceMember.findFirst({
       where: {
-        memberProfileId: profileId,
+        userId,
         workspaceId,
         workspace: {
           deletedAt: null,
@@ -702,10 +677,10 @@ export class AuthCoreService implements AuthService {
     });
   }
 
-  private async findDefaultWorkspaceMembership(profileId: string) {
+  private async findDefaultWorkspaceMembership(userId: string) {
     return this.prisma.workspaceMember.findFirst({
       where: {
-        memberProfileId: profileId,
+        userId,
         workspace: {
           deletedAt: null,
         },
@@ -756,7 +731,7 @@ export class AuthCoreService implements AuthService {
 
   private async ensureIdentityLink(
     tx: Pick<PrismaClient, 'user' | 'userIdentity'>,
-    user: { id: string; email: string | null; emailLower: string | null },
+    user: { id: string; email: string | null },
     identity: CreateSessionInput['identity']
   ) {
     if (!identity.provider || !identity.providerUserId) {
@@ -768,9 +743,9 @@ export class AuthCoreService implements AuthService {
 
       const existing = await tx.userIdentity.findUnique({
         where: {
-          provider_providerUserId: {
-            provider: identity.provider,
-            providerUserId: identity.providerUserId,
+          provider_providerSubject: {
+            provider: identity.provider as IdentityProvider,
+            providerSubject: identity.providerUserId,
           },
         },
       });
@@ -787,11 +762,11 @@ export class AuthCoreService implements AuthService {
         await tx.userIdentity.update({
           where: { id: existing.id },
           data: {
-            email: normalizedEmail ?? existing.email,
-            emailVerified:
+            emailAtProvider: normalizedEmail ?? existing.emailAtProvider,
+            emailVerifiedAtProvider:
               typeof identity.emailVerified === 'boolean'
                 ? identity.emailVerified
-                : existing.emailVerified,
+                : existing.emailVerifiedAtProvider,
             ...(metadataUpdate ?? {}),
           },
         });
@@ -803,11 +778,10 @@ export class AuthCoreService implements AuthService {
         await tx.userIdentity.create({
           data: {
             userId: user.id,
-            provider: identity.provider,
-            providerUserId: identity.providerUserId,
-            email: normalizedEmail,
-            emailVerified:
-              typeof identity.emailVerified === 'boolean' ? identity.emailVerified : null,
+            provider: identity.provider as IdentityProvider,
+            providerSubject: identity.providerUserId,
+            emailAtProvider: normalizedEmail,
+            emailVerifiedAtProvider: identity.emailVerified ?? false,
             ...(metadataCreate ?? {}),
           },
         });
@@ -815,10 +789,10 @@ export class AuthCoreService implements AuthService {
 
       if (identity.email && identity.emailVerified) {
         const normalized = identity.email.trim().toLowerCase();
-        if (!user.emailLower || user.emailLower !== normalized) {
+        if (!user.email || user.email.toLowerCase() !== normalized) {
           const conflicting = await tx.user.findFirst({
             where: {
-              emailLower: normalized,
+              primaryEmail: normalized,
               NOT: { id: user.id },
             },
           });
@@ -826,8 +800,8 @@ export class AuthCoreService implements AuthService {
             await tx.user.update({
               where: { id: user.id },
               data: {
-                email: identity.email.trim(),
-                emailLower: normalized,
+                // email: identity.email.trim(), // Don't update user email from identity automatically
+                // emailLower: normalized,
               },
             });
           }
@@ -887,39 +861,6 @@ export async function generateAccessToken(params: SignAccessTokenParams) {
 
 function isValidDate(value: unknown): value is Date {
   return value instanceof Date && !Number.isNaN(value.valueOf());
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
-}
-
-function buildRevocationMetadata(
-  currentMetadata: unknown,
-  revocation: { revokedAt: string; reason?: string | undefined; revokedBy?: string | undefined }
-): Record<string, unknown> | null {
-  const base = isPlainObject(currentMetadata) ? { ...currentMetadata } : {};
-  const revocationValue =
-    'revocation' in base && isPlainObject((base as Record<string, unknown>).revocation)
-      ? ((base as Record<string, unknown>).revocation as Record<string, unknown>)
-      : null;
-  const existingRevocation = revocationValue ? { ...revocationValue } : {};
-
-  const mergedRevocation: Record<string, unknown> = {
-    ...existingRevocation,
-    revokedAt: revocation.revokedAt,
-  };
-
-  if (revocation.reason) {
-    mergedRevocation.reason = revocation.reason;
-  }
-  if (revocation.revokedBy) {
-    mergedRevocation.revokedBy = revocation.revokedBy;
-  }
-
-  return {
-    ...base,
-    revocation: mergedRevocation,
-  };
 }
 
 function intersectScopes(

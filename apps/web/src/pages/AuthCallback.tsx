@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ApiError } from '../lib/api';
-import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<'pending' | 'success' | 'redirect'>('pending');
-  const { completeProviderLogin } = useAuth();
   const ranRef = useRef(false);
 
   useEffect(() => {
@@ -17,33 +13,14 @@ export default function AuthCallback() {
     }
     ranRef.current = true;
 
-    const provider = searchParams.get('provider');
-
-    async function complete() {
-      if (!provider) {
-        navigate('/login', { replace: true });
-        return;
-      }
-
-      try {
-        await completeProviderLogin();
-        setStatus('success');
-        navigate('/', { replace: true });
-      } catch (err) {
-        const message =
-          err instanceof ApiError
-            ? err.message
-            : 'Unable to complete sign-in. Please try again.';
-        setError(message);
-        setStatus('redirect');
-        setTimeout(() => {
-          navigate('/login', { replace: true });
-        }, 1200);
-      }
-    }
-
-    complete();
-  }, [navigate, searchParams, completeProviderLogin]);
+    const message =
+      'Legacy provider callback is no longer supported. Please restart login from the dashboard.';
+    setError(message);
+    setStatus('redirect');
+    setTimeout(() => {
+      navigate('/login', { replace: true });
+    }, 1200);
+  }, [navigate]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">

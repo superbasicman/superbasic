@@ -14,9 +14,9 @@ import { generateCodeVerifier, generateCodeChallenge, generateState } from '../l
 
 interface AuthContextType {
   user: UserResponse | null;
-  login: (credentials: LoginInput) => Promise<void>; // Kept for backward compat, but now initiates OAuth
+  login: (credentials?: LoginInput) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
-  requestMagicLink: (email: string) => Promise<void>;
+  requestMagicLink: () => Promise<void>;
   completeProviderLogin: () => Promise<void>;
   register: (data: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
@@ -71,15 +71,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       !!tokens && typeof tokens.accessTokenExpiresAt === 'number' && tokens.accessTokenExpiresAt > Date.now();
 
     if (!hasValidAccessToken) {
-      try {
-        // Try to refresh token using cookie (e.g. after OAuth redirect or page reload)
-        await authApi.completeProviderLogin();
-      } catch {
-        clearStoredTokens();
-        setUser(null);
-        setIsLoading(false);
-        return;
-      }
+      clearStoredTokens();
+      setUser(null);
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -105,20 +100,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
     const code = searchParams.get('code');
     const state = searchParams.get('state');
+    const errorParam = searchParams.get('error');
+    const errorDescription = searchParams.get('error_description');
     const storedState = sessionStorage.getItem('pkce_state');
     const verifier = sessionStorage.getItem('pkce_verifier');
+
+    if (errorParam) {
+      setAuthError(errorDescription || errorParam || 'Authentication failed');
+      setIsLoading(false);
+      navigate('/login', { replace: true });
+      return;
+    }
 
     if (!code || !state || !verifier) {
       setAuthError('Invalid callback parameters');
       setIsLoading(false);
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
     }
 
     if (state !== storedState) {
       setAuthError('Invalid state parameter');
       setIsLoading(false);
-      navigate('/login');
+      navigate('/login', { replace: true });
       return;
     }
 
@@ -140,8 +144,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.message || 'Token exchange failed');
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error_description || data.error || 'Token exchange failed');
       }
 
       const data = await response.json();
@@ -164,8 +168,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       navigate('/');
     } catch (error) {
       console.error('Callback error:', error);
-      setAuthError('Failed to complete login');
-      navigate('/login');
+      setAuthError(error instanceof Error ? error.message : 'Failed to complete login');
+      navigate('/login', { replace: true });
     } finally {
       setIsLoading(false);
     }
@@ -221,19 +225,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Login with email and password
-   * Now initiates OAuth flow because direct login is deprecated for the dashboard
+   * Now initiates OAuth flow as the single entry path
    */
-  async function login(credentials: LoginInput): Promise<void> {
-    // For now, we can still use the direct login API to establish the session, 
-    // THEN initiate the OAuth flow to get the tokens.
-    // This is a hybrid approach because our /authorize endpoint checks for session cookie.
-    try {
+  async function login(credentials?: LoginInput): Promise<void> {
+    const searchParams = new URLSearchParams(location.search);
+    const returnTo = searchParams.get('returnTo');
+
+    // When redirected from /v1/oauth/authorize without a session, complete credential login
+    // then bounce back to the authorize URL to continue the OAuth flow.
+    if (returnTo) {
+      if (!credentials) {
+        throw new Error('Credentials are required to sign in');
+      }
       await authApi.login(credentials);
-      // After successful login (session cookie set), start OAuth flow
-      await initiateOAuthFlow();
-    } catch (error) {
-      throw error;
+      window.location.href = returnTo;
+      return;
     }
+
+    await initiateOAuthFlow();
   }
 
   /**
@@ -241,17 +250,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * and hydrating the authenticated user in context.
    */
   const completeProviderLogin = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const { user: currentUser } = await authApi.completeProviderLogin();
-      setUser(currentUser);
-      setAuthError(null);
-    } catch (error) {
-      clearStoredTokens();
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
+    // Legacy bridge no longer used; rely on OAuth callback flow.
+    clearStoredTokens();
+    throw new Error('Legacy provider login is no longer supported. Please sign in again.');
   }, []);
 
   /**
@@ -260,10 +261,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function register(data: RegisterInput): Promise<void> {
     try {
       await authApi.register(data);
-      await login({
-        email: data.email,
-        password: data.password,
-      });
+      await login();
     } catch (error) {
       throw error;
     }
@@ -273,22 +271,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Login with Google OAuth
    */
   async function loginWithGoogle(): Promise<void> {
-    try {
-      await authApi.loginWithGoogle();
-    } catch (error) {
-      setAuthError('Google login failed');
-    }
+    await initiateOAuthFlow();
   }
 
   /**
    * Request magic link via email
    */
-  async function requestMagicLink(email: string): Promise<void> {
-    try {
-      await authApi.requestMagicLink(email);
-    } catch (error) {
-      throw error;
-    }
+  async function requestMagicLink(): Promise<void> {
+    console.warn('Magic link flow is deprecated; using OAuth authorize flow instead.');
+    await initiateOAuthFlow();
   }
 
   /**

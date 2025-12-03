@@ -81,7 +81,7 @@ Neon Database
 - GitHub repository with your code pushed
 - Neon database with branches configured (see below)
 - Upstash Redis account (for rate limiting)
-- Resend account (for magic links)
+- Resend account (legacy magic links; not used in OAuth-only flow)
 - Google OAuth credentials (for social login)
 
 ### Neon Database Branch Setup
@@ -443,7 +443,7 @@ Should return:
 2. You should see the login page
 3. Try signing in with credentials (if you have a test account)
 4. Try "Continue with Google" button
-5. Try requesting a magic link
+5. (Legacy) Try requesting a magic link (deprecated for OAuth-only flow)
 
 ---
 
@@ -765,7 +765,7 @@ pnpm db:migrate
 
 After successful deployment:
 
-1. Test all authentication flows (credentials, OAuth, magic links)
+1. Test OAuth authentication flow (authorization_code + refresh_token)
 2. Create a test user account
 3. Test API key creation (Phase 3 feature)
 4. Monitor Vercel logs for any errors

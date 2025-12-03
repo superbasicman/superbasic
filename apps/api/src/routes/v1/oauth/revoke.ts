@@ -10,9 +10,9 @@ revoke.post('/', async (c) => {
     if (sessionId) {
         try {
             // Revoke the session
-            await prisma.session.updateMany({
+            await prisma.authSession.updateMany({
                 where: {
-                    tokenId: sessionId,
+                    id: sessionId,
                     revokedAt: null,
                 },
                 data: {

@@ -41,8 +41,8 @@ export class ProfileService {
       where: { id: userId },
       select: {
         id: true,
-        email: true,
-        name: true,
+        primaryEmail: true,
+        displayName: true,
         createdAt: true,
         profile: {
           select: {
@@ -82,18 +82,18 @@ export class ProfileService {
     if (name !== undefined) {
       await this.prisma.user.update({
         where: { id: userId },
-        data: { name },
+        data: { displayName: name },
       });
     }
 
     // Update profile if provided and profileId exists
     if ((timezone !== undefined || currency !== undefined) && profileId) {
       const profileData: UpdateProfileData = {};
-      
+
       if (timezone !== undefined) {
         profileData.timezone = timezone;
       }
-      
+
       if (currency !== undefined) {
         profileData.currency = currency;
       }
@@ -106,8 +106,8 @@ export class ProfileService {
       where: { id: userId },
       select: {
         id: true,
-        email: true,
-        name: true,
+        primaryEmail: true,
+        displayName: true,
         createdAt: true,
         profile: {
           select: {
@@ -134,7 +134,7 @@ export class ProfileService {
    */
   private validateProfileData(data: UpdateProfileInput): void {
     const result = UpdateProfileSchema.safeParse(data);
-    
+
     if (!result.success) {
       const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
       throw new InvalidProfileDataError(`Validation failed: ${errors}`);
@@ -149,8 +149,8 @@ export class ProfileService {
    */
   private mapToProfileResponse(user: {
     id: string;
-    email: string;
-    name: string | null;
+    primaryEmail: string;
+    displayName: string | null;
     createdAt: Date;
     profile: {
       id: string;
@@ -161,15 +161,15 @@ export class ProfileService {
     return {
       user: {
         id: user.id,
-        email: user.email,
-        name: user.name,
+        email: user.primaryEmail,
+        name: user.displayName,
         createdAt: user.createdAt.toISOString(),
         profile: user.profile
           ? {
-              id: user.profile.id,
-              timezone: user.profile.timezone,
-              currency: user.profile.currency,
-            }
+            id: user.profile.id,
+            timezone: user.profile.timezone,
+            currency: user.profile.currency,
+          }
           : null,
       },
     };

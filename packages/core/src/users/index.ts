@@ -13,7 +13,7 @@ export type {
   RegisterUserResult,
   UserProfileData,
   UpdateUserStatusParams,
-  UserStatus,
+  UserState,
 } from './user-types.js';
 
 export {

@@ -16,7 +16,7 @@ Essential documentation for SuperBasic Finance.
 
 | Guide | Purpose |
 |-------|---------|
-| [API Authentication](api-authentication.md) | Complete authentication guide (sessions, OAuth, magic links, API keys) |
+| [OAuth 2.1 MVP](oauth-mvp.md) | Current OAuth 2.1 flow for the web dashboard |
 | [Starter Checklist](STARTER-TEMPLATE-CHECKLIST.md) | Template setup verification |
 
 ## Project Planning

@@ -16,10 +16,7 @@ import {
   createAccessToken,
   makeRequest,
 } from "../../test/helpers.js";
-import {
-  generateToken,
-  hashToken,
-} from "@repo/auth";
+import { createOpaqueToken, createTokenHashEnvelope } from "@repo/auth";
 import { tokensRoute } from "../../routes/v1/tokens/index.js";
 import { corsMiddleware } from "../../middleware/cors.js";
 import { patMiddleware } from "../../middleware/pat.js";
@@ -265,14 +262,15 @@ describe("Rate Limiting Integration Tests", () => {
         throw new Error("Test user must have a profile");
       }
 
-      const token = generateToken();
-      const keyHash = hashToken(token);
+      const opaque = createOpaqueToken();
+      const token = opaque.value;
+      const keyHash = createTokenHashEnvelope(opaque.tokenSecret);
 
       await prisma.apiKey.create({
         data: {
+          id: opaque.tokenId,
           userId: user.id,
-          profileId: user.profile.id,
-          name: "Test Token",
+                    name: "Test Token",
           keyHash,
           last4: token.slice(-4),
           scopes: ["read:transactions"],
@@ -348,14 +346,15 @@ describe("Rate Limiting Integration Tests", () => {
         throw new Error("Test user must have a profile");
       }
 
-      const token = generateToken();
-      const keyHash = hashToken(token);
+      const opaque = createOpaqueToken();
+      const token = opaque.value;
+      const keyHash = createTokenHashEnvelope(opaque.tokenSecret);
 
       await prisma.apiKey.create({
         data: {
+          id: opaque.tokenId,
           userId: user.id,
-          profileId: user.profile.id,
-          name: "Test Token",
+                    name: "Test Token",
           keyHash,
           last4: token.slice(-4),
           scopes: ["read:transactions"],
@@ -509,14 +508,15 @@ describe("Rate Limiting Integration Tests", () => {
         throw new Error("Test user must have a profile");
       }
 
-      const token = generateToken();
-      const keyHash = hashToken(token);
+      const opaque = createOpaqueToken();
+      const token = opaque.value;
+      const keyHash = createTokenHashEnvelope(opaque.tokenSecret);
 
       await prisma.apiKey.create({
         data: {
+          id: opaque.tokenId,
           userId: user.id,
-          profileId: user.profile.id,
-          name: "Test Token",
+                    name: "Test Token",
           keyHash,
           last4: token.slice(-4),
           scopes: ["read:transactions"],

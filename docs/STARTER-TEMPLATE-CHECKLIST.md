@@ -81,7 +81,7 @@ pnpm test
 
 ### ✅ Features
 
-- Auth.js authentication (credentials, OAuth, magic links)
+- Auth.js authentication (credentials, OAuth) — magic links deprecated
 - API key management with Bearer token auth
 - Rate limiting with Upstash Redis
 - Audit logging with Pino

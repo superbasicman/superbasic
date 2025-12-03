@@ -5,14 +5,14 @@ import type { OAuthClientRecord } from './types.js';
 function mapClient(record: {
   id: string;
   clientId: string;
-  type: 'public' | 'confidential';
+  clientType: 'public' | 'confidential';
   redirectUris: string[];
   disabledAt: Date | null;
 }): OAuthClientRecord {
   return {
     id: record.id,
     clientId: record.clientId,
-    type: record.type,
+    type: record.clientType, // Map clientType -> type per goal spec
     redirectUris: record.redirectUris,
     disabledAt: record.disabledAt,
   };

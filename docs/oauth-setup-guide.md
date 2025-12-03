@@ -307,7 +307,7 @@ After completing OAuth setup:
 1. ✅ Proceed to **Task 8**: Add OAuth Providers to Auth.js Config
 2. ✅ Implement profile creation helper (Task 9)
 3. ✅ Test OAuth flows end-to-end (Tasks 11-12)
-4. ✅ Set up magic link authentication (Tasks 14-18)
+4. ✅ (deprecated) Magic link authentication (Tasks 14-18)
 
 ---
 

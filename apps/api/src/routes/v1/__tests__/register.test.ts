@@ -75,14 +75,14 @@ describe('POST /v1/register', () => {
       });
 
       expect(user).toBeTruthy();
-      expect(user?.email).toBe(credentials.email);
+      expect(user?.primaryEmail).toBe(credentials.email.toLowerCase());
 
-      // Verify password is hashed (not plaintext)
-      expect(user?.password).not.toBe(credentials.password);
-      expect(user?.password).toMatch(/^\$2[aby]\$/); // bcrypt hash format
+      const passwordRecord = await prisma.userPassword.findUnique({ where: { userId } });
+      expect(passwordRecord?.passwordHash).toBeTruthy();
+      expect(passwordRecord?.passwordHash).not.toBe(credentials.password);
+      expect(passwordRecord?.passwordHash).toMatch(/^\$2[aby]\$/); // bcrypt hash format
 
-      // Verify password can be verified
-      const isValid = await verifyPassword(credentials.password, user!.password!);
+      const isValid = await verifyPassword(credentials.password, passwordRecord!.passwordHash);
       expect(isValid).toBe(true);
     });
 

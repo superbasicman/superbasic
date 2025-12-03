@@ -18,7 +18,6 @@ import { bulkRevokeSessions, bulkRevokeTokens } from './routes/v1/auth/bulk-revo
 import { oauthRoutes } from './routes/v1/oauth/index.js';
 import { handleSsoLogout, ssoLogoutValidator } from './routes/v1/auth/sso-logout.js';
 import { signin } from './routes/v1/auth/signin.js';
-import { callback } from './routes/v1/auth/callback.js';
 
 const app = new Hono<AppBindings>();
 
@@ -53,7 +52,6 @@ authRoutes.post('/logout', logout);
 authRoutes.post('/sso/logout', ssoLogoutValidator, handleSsoLogout);
 // Mount routes
 authRoutes.route('/signin', signin);
-authRoutes.route('/callback', callback);
 // Mount Auth.js handler (handles remaining /v1/auth/*)
 
 

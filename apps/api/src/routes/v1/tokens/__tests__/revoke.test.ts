@@ -17,7 +17,7 @@ import {
 } from "../../../../test/helpers.js";
 import {
   authEvents,
-  generateToken,
+  createOpaqueToken,
   createTokenHashEnvelope,
 } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
@@ -42,20 +42,21 @@ async function createTestApiKey(
 ) {
   const name = maybeName ?? profileIdOrName ?? "Test Token";
   const prisma = getTestPrisma();
-  const token = generateToken();
-  const tokenHash = createTokenHashEnvelope(token);
+  const opaque = createOpaqueToken();
+  const token = opaque.value;
+  const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
   const last4 = token.slice(-4);
 
-  const apiKey = await prisma.token.create({
+  const apiKey = await prisma.apiKey.create({
     data: {
+      id: opaque.tokenId,
       userId,
-      sessionId: null,
       name,
-      tokenHash,
+      keyHash: tokenHash,
       scopes: ["read:transactions"],
-      type: 'personal_access',
       expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
       metadata: { last4 },
+      last4,
     },
   });
 
@@ -95,7 +96,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(await response.text()).toBe("");
 
       // Verify token is soft-deleted (revokedAt is set)
-      const revokedToken = await prisma.token.findUnique({
+      const revokedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
@@ -171,15 +172,15 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       );
 
       // Verify token still exists in database (not hard deleted)
-      const revokedToken = await prisma.token.findUnique({
+      const revokedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
       expect(revokedToken).toBeTruthy();
       expect(revokedToken!.id).toBe(apiKey.id);
       expect(revokedToken!.name).toBe(apiKey.name);
-      expect((revokedToken!.tokenHash as { hash: string }).hash).toBe(
-        (apiKey.tokenHash as { hash: string }).hash
+      expect((revokedToken!.keyHash as { hash: string }).hash).toBe(
+        (apiKey.keyHash as { hash: string }).hash
       );
     });
   });
@@ -214,7 +215,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(data.error).toBe("Token not found");
 
       // Verify token is not revoked
-      const token = await prisma.token.findUnique({
+      const token = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
@@ -263,7 +264,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(response1.status).toBe(204);
 
       // Get the revokedAt timestamp from first revocation
-      const revokedToken1 = await prisma.token.findUnique({
+      const revokedToken1 = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
       const firstRevokedAt = revokedToken1!.revokedAt;
@@ -279,7 +280,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(response2.status).toBe(204);
 
       // Verify revokedAt timestamp hasn't changed
-      const revokedToken2 = await prisma.token.findUnique({
+      const revokedToken2 = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
@@ -474,7 +475,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       // Try to use revoked token for authentication
       // Note: This would require a PAT authentication middleware test
       // For now, we verify the token is marked as revoked in the database
-      const revokedToken = await prisma.token.findUnique({
+      const revokedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 

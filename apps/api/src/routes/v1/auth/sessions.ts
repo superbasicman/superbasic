@@ -13,27 +13,23 @@ export async function listSessions(c: Context<AppBindings>) {
   }
 
   const now = new Date();
-  const sessions = await prisma.session.findMany({
+  const sessions = await prisma.authSession.findMany({
     where: {
       userId: auth.userId,
       revokedAt: null,
       expiresAt: { gt: now },
     },
     orderBy: [
-      { lastUsedAt: 'desc' },
+      { lastActivityAt: 'desc' },
       { createdAt: 'desc' },
     ],
     select: {
       id: true,
-      clientType: true,
-      kind: true,
       createdAt: true,
-      lastUsedAt: true,
+      lastActivityAt: true,
       expiresAt: true,
-      absoluteExpiresAt: true,
       ipAddress: true,
-      deviceName: true,
-      userAgent: true,
+      clientInfo: true,
       mfaLevel: true,
     },
   });

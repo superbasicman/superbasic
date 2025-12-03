@@ -1,31 +1,33 @@
-import type { PrismaClient, Token as PrismaToken } from '@repo/database';
+import type { PrismaClient, RefreshToken as PrismaRefreshToken } from '@repo/database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TokenService } from '../token-service.js';
 import type { TokenHashEnvelope } from '../types.js';
 
-function buildToken(overrides: Partial<PrismaToken> = {}): PrismaToken {
+function buildToken(overrides: Partial<PrismaRefreshToken> = {}): PrismaRefreshToken {
   const now = new Date('2025-01-01T00:00:00.000Z');
   return {
     id: 'tok_123',
     userId: 'user_123',
     sessionId: 'sess_123',
-    workspaceId: null,
-    type: 'refresh',
-    tokenHash: {
+    hashEnvelope: {
       algo: 'hmac-sha256',
       keyId: 'v1',
       hash: 'hash-secret',
       issuedAt: now.toISOString(),
-    } satisfies TokenHashEnvelope,
-    scopes: [],
-    name: null,
+    } as any, // TokenHashEnvelope is compatible with JsonValue
+    last4: 'cret',
     familyId: 'family_123',
-    metadata: null,
     lastUsedAt: null,
     expiresAt: new Date('2025-02-01T00:00:00.000Z'),
     revokedAt: null,
     createdAt: now,
     updatedAt: now,
+    // Required RefreshToken schema fields
+    userAgent: null,
+    issuedAt: now,
+    createdByIp: null,
+    lastUsedIp: null,
+    rotatedFromId: null,
     ...overrides,
   };
 }
@@ -70,7 +72,6 @@ describe('TokenService.issueRefreshToken', () => {
     mockCreate.mockResolvedValue(
       buildToken({
         id: 'tok_abc',
-        familyId: null,
         expiresAt,
       })
     );

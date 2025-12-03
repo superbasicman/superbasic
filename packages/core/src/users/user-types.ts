@@ -4,7 +4,9 @@
  * Type definitions for user service operations.
  */
 
-export type UserStatus = 'active' | 'disabled' | 'locked';
+import type { UserState } from '@repo/database';
+
+export type { UserState };
 
 export interface RegisterUserParams {
   email: string;
@@ -36,7 +38,7 @@ export interface UserProfileData {
 
 export interface UpdateUserStatusParams {
   userId: string;
-  status: UserStatus;
+  status: UserState;
   reason?: string;
   changedBy?: string;
   requestId?: string | null;

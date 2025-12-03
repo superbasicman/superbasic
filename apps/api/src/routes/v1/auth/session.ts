@@ -13,9 +13,9 @@ export async function getCurrentSession(c: Context<AppBindings>) {
     where: { id: auth.userId },
     select: {
       id: true,
-      email: true,
-      name: true,
-      status: true,
+      primaryEmail: true,
+      displayName: true,
+      userState: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -26,16 +26,14 @@ export async function getCurrentSession(c: Context<AppBindings>) {
   }
 
   const session = auth.sessionId
-    ? await prisma.session.findUnique({
+    ? await prisma.authSession.findUnique({
         where: { id: auth.sessionId },
         select: {
           id: true,
-          clientType: true,
-          kind: true,
-          lastUsedAt: true,
+          clientInfo: true,
+          lastActivityAt: true,
           createdAt: true,
           expiresAt: true,
-          absoluteExpiresAt: true,
           mfaLevel: true,
         },
       })

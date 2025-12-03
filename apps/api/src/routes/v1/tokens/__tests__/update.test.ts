@@ -17,7 +17,7 @@ import {
 } from "../../../../test/helpers.js";
 import {
   authEvents,
-  generateToken,
+  createOpaqueToken,
   createTokenHashEnvelope,
 } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
@@ -42,20 +42,21 @@ async function createTestApiKey(
 ) {
   const name = maybeName ?? profileIdOrName ?? "Test Token";
   const prisma = getTestPrisma();
-  const token = generateToken();
-  const tokenHash = createTokenHashEnvelope(token);
+  const opaque = createOpaqueToken();
+  const token = opaque.value;
+  const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
   const last4 = token.slice(-4);
 
-  const tokenRecord = await prisma.token.create({
+  const tokenRecord = await prisma.apiKey.create({
     data: {
+      id: opaque.tokenId,
       userId,
-      sessionId: null,
       name,
-      tokenHash,
+      keyHash: tokenHash,
       scopes: ["read:transactions"],
-      type: 'personal_access',
       expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
       metadata: { last4 },
+      last4,
     },
   });
 
@@ -96,7 +97,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       expect(data.maskedToken).toBe(`sbf_****${last4}`);
 
       // Verify database was updated
-      const updatedToken = await prisma.token.findUnique({
+      const updatedToken = await prisma.apiKey.findUnique({
         where: { id: tokenRecord.id },
       });
 
@@ -123,18 +124,17 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       expect(response.status).toBe(200);
 
       // Verify all fields are preserved
-      const updatedToken = await prisma.token.findUnique({
+      const updatedToken = await prisma.apiKey.findUnique({
         where: { id: tokenRecord.id },
       });
 
-      const updatedHash = updatedToken!.tokenHash as { hash: string };
-      const originalHash = tokenRecord.tokenHash as { hash: string };
+      const updatedHash = updatedToken!.keyHash as { hash: string };
+      const originalHash = tokenRecord.keyHash as { hash: string };
       expect(updatedHash.hash).toBe(originalHash.hash);
       const updatedLast4 = (updatedToken!.metadata as any)?.last4;
       const originalLast4 = (tokenRecord.metadata as any)?.last4;
       expect(updatedLast4).toBe(originalLast4);
       expect(updatedToken!.userId).toBe(tokenRecord.userId);
-      expect(updatedToken!.sessionId).toBe(tokenRecord.sessionId);
       expect(updatedToken!.scopes).toEqual(tokenRecord.scopes);
       expect(updatedToken!.expiresAt).toEqual(tokenRecord.expiresAt);
       expect(updatedToken!.revokedAt).toBeNull();
@@ -249,7 +249,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
 
       // Verify token2 name was not changed
       const prisma = getTestPrisma();
-      const unchangedToken = await prisma.token.findUnique({
+      const unchangedToken = await prisma.apiKey.findUnique({
         where: { id: token2.id },
       });
 
@@ -356,7 +356,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       expect(data.error).toBe("Token not found");
 
       // Verify token name was not changed
-      const unchangedToken = await prisma.token.findUnique({
+      const unchangedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
@@ -394,7 +394,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       const { apiKey } = await createTestApiKey(user.id, profile!.id, "Revoked Token");
 
       // Revoke the token
-      await prisma.token.update({
+      await prisma.apiKey.update({
         where: { id: apiKey.id },
         data: { revokedAt: new Date() },
       });
@@ -441,18 +441,18 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       expect(updateResponse.status).toBe(200);
 
       // Verify token hash is unchanged
-      const updatedToken = await prisma.token.findUnique({
+      const updatedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
-      expect((updatedToken!.tokenHash as { hash: string }).hash).toBe(
-        (apiKey.tokenHash as { hash: string }).hash
+      expect((updatedToken!.keyHash as { hash: string }).hash).toBe(
+        (apiKey.keyHash as { hash: string }).hash
       );
       expect(updatedToken!.name).toBe("Updated Name");
 
       // Verify the plaintext token still hashes to the same value
       const tokenHash = createTokenHashEnvelope(token);
-      expect((updatedToken!.tokenHash as { hash: string }).hash).toBe(tokenHash.hash);
+      expect((updatedToken!.keyHash as { hash: string }).hash).toBe(tokenHash.hash);
     });
 
     it("should preserve token scopes after name change", async () => {
@@ -474,7 +474,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       );
 
       // Verify scopes are unchanged
-      const updatedToken = await prisma.token.findUnique({
+      const updatedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 
@@ -504,7 +504,7 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       );
 
       // Verify expiration is unchanged
-      const updatedToken = await prisma.token.findUnique({
+      const updatedToken = await prisma.apiKey.findUnique({
         where: { id: apiKey.id },
       });
 

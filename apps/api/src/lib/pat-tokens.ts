@@ -1,4 +1,4 @@
-import type { Token } from '@repo/database';
+import type { ApiKey } from '@repo/database';
 import { prisma, Prisma } from '@repo/database';
 import { authEvents, validateScopes } from '@repo/auth';
 import {
@@ -44,7 +44,7 @@ export async function issuePersonalAccessToken(options: {
   });
 
   const last4 = issued.secret.slice(-4);
-  await prisma.token.update({
+  await prisma.apiKey.update({
     where: { id: issued.tokenId },
     data: {
       metadata: mergeMetadata({ last4 }),
@@ -67,7 +67,7 @@ export async function issuePersonalAccessToken(options: {
     },
   });
 
-  const created = await prisma.token.findUniqueOrThrow({
+  const created = await prisma.apiKey.findUniqueOrThrow({
     where: { id: issued.tokenId },
   });
 
@@ -75,10 +75,9 @@ export async function issuePersonalAccessToken(options: {
 }
 
 export async function listPersonalAccessTokens(userId: string) {
-  const tokens = await prisma.token.findMany({
+  const tokens = await prisma.apiKey.findMany({
     where: {
       userId,
-      type: 'personal_access',
       revokedAt: null,
     },
     orderBy: { createdAt: 'desc' },
@@ -93,7 +92,7 @@ export async function renamePersonalAccessToken(options: {
   name: string;
   requestContext?: RequestContext;
 }) {
-  const token = await prisma.token.findUnique({
+  const token = await prisma.apiKey.findUnique({
     where: { id: options.tokenId },
   });
 
@@ -107,7 +106,7 @@ export async function renamePersonalAccessToken(options: {
     excludeId: options.tokenId,
   });
 
-  const updated = await prisma.token.update({
+  const updated = await prisma.apiKey.update({
     where: { id: options.tokenId },
     data: { name: options.name },
   });
@@ -134,12 +133,12 @@ export async function revokePersonalAccessToken(options: {
   userId: string;
   requestContext?: RequestContext;
 }) {
-  const token = await prisma.token.findUnique({
+  const token = await prisma.apiKey.findUnique({
     where: { id: options.tokenId },
-    select: { id: true, userId: true, revokedAt: true, type: true },
+    select: { id: true, userId: true, revokedAt: true },
   });
 
-  if (!token || token.userId !== options.userId || token.type !== 'personal_access') {
+  if (!token || token.userId !== options.userId) {
     throw new TokenNotFoundError(options.tokenId);
   }
 
@@ -176,11 +175,10 @@ function validateCreateParams(scopes: PermissionScope[], expiresInDays?: number)
 }
 
 async function assertNameIsUnique(options: { userId: string; name: string; excludeId?: string }) {
-  const existing = await prisma.token.findFirst({
+  const existing = await prisma.apiKey.findFirst({
     where: {
       userId: options.userId,
       name: options.name,
-      type: 'personal_access',
       revokedAt: null,
       ...(options.excludeId ? { NOT: { id: options.excludeId } } : {}),
     },
@@ -199,12 +197,8 @@ function calculateExpiresAt(expiresInDays?: number | null) {
   return expiresAt;
 }
 
-function mapToken(record: Token, secret?: string, last4Override?: string) {
-  const last4 =
-    last4Override ??
-    (record.metadata && typeof record.metadata === 'object' && 'last4' in (record.metadata as any)
-      ? (record.metadata as any).last4
-      : null);
+function mapToken(record: ApiKey, secret?: string, last4Override?: string) {
+  const last4 = last4Override ?? record.last4 ?? null;
   const maskedToken = `sbf_****${(last4 as string | null) ?? '????'}`;
 
   const base = {
@@ -229,11 +223,6 @@ function mergeMetadata(additions: Record<string, unknown>): Prisma.InputJsonValu
   return additions as Prisma.InputJsonValue;
 }
 
-function isOwnedActivePat(token: Token | null, userId: string) {
-  return (
-    token &&
-    token.userId === userId &&
-    token.type === 'personal_access' &&
-    token.revokedAt === null
-  );
+function isOwnedActivePat(token: ApiKey | null, userId: string) {
+  return token && token.userId === userId && token.revokedAt === null;
 }

@@ -26,7 +26,7 @@ describe('GET /v1/oauth/authorize', () => {
       data: {
         clientId: 'mobile',
         name: 'Mobile',
-        type: 'public',
+        clientType: 'public',
         redirectUris: ['sb://callback', 'http://localhost:3000/v1/auth/callback/mobile'],
       },
     });
@@ -96,7 +96,7 @@ describe('GET /v1/oauth/authorize', () => {
       data: {
         clientId: 'mobile',
         name: 'Mobile',
-        type: 'public',
+        clientType: 'public',
         redirectUris: ['sb://callback'],
       },
     });

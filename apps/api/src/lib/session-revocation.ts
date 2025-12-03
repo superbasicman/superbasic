@@ -34,7 +34,7 @@ function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClie
 export async function revokeSessionForUser(options: RevokeSessionOptions): Promise<RevokeSessionResult> {
   const client = options.client ?? prisma;
 
-  const session = await client.session.findFirst({
+  const session = await client.authSession.findFirst({
     where: {
       id: options.sessionId,
       userId: options.userId,
@@ -45,7 +45,7 @@ export async function revokeSessionForUser(options: RevokeSessionOptions): Promi
       revokedAt: true,
       user: {
         select: {
-          email: true,
+          primaryEmail: true,
         },
       },
     },
@@ -69,19 +69,18 @@ export async function revokeSessionForUser(options: RevokeSessionOptions): Promi
 
   await runInTransaction(async (tx) => {
     if (!session.revokedAt) {
-      await tx.session.update({
+      await tx.authSession.update({
         where: { id: session.id },
-        data: { revokedAt: now },
+        data: { revokedAt: now, lastActivityAt: now },
       });
     }
 
-    await tx.token.updateMany({
+    await tx.refreshToken.updateMany({
       where: {
         sessionId: session.id,
-        type: 'refresh',
         revokedAt: null,
       },
-      data: { revokedAt: now },
+      data: { revokedAt: now, lastUsedAt: now },
     });
   });
 
@@ -90,7 +89,7 @@ export async function revokeSessionForUser(options: RevokeSessionOptions): Promi
   await authEvents.emit({
     type: 'session.revoked',
     userId: session.userId,
-    email: session.user?.email ?? undefined,
+    email: session.user?.primaryEmail ?? undefined,
     metadata: {
       sessionId: session.id,
       revokedBy: options.revokedBy ?? null,
@@ -107,7 +106,7 @@ export async function revokeSessionForUser(options: RevokeSessionOptions): Promi
     session: {
       id: session.id,
       userId: session.userId,
-      email: session.user?.email ?? null,
+      email: session.user?.primaryEmail ?? null,
       wasAlreadyRevoked: !!session.revokedAt,
     },
   };

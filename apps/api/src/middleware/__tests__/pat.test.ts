@@ -52,7 +52,7 @@ describe("PAT middleware (auth-core)", () => {
 
     const pat = await createPersonalAccessToken({
       userId: user.id,
-      email: user.email,
+      email: user.primaryEmail,
       profileId: user.profile.id,
       scopes: ["read:transactions"],
     });
@@ -64,7 +64,7 @@ describe("PAT middleware (auth-core)", () => {
     expect(response.status).toBe(200);
     const data = await response.json();
     expect(data.userId).toBe(user.id);
-    expect(data.userEmail).toBe(user.email);
+    expect(data.userEmail).toBe(user.primaryEmail);
     expect(data.authType).toBe("pat");
     expect(data.tokenId).toBe(pat.tokenId);
     expect(data.tokenScopes).toEqual(["read:transactions"]);
@@ -76,7 +76,7 @@ describe("PAT middleware (auth-core)", () => {
 
     const pat = await createPersonalAccessToken({
       userId: user.id,
-      email: user.email,
+      email: user.primaryEmail,
       profileId: user.profile.id,
       scopes: ["read:transactions"],
       revokedAt: new Date(),
@@ -95,7 +95,7 @@ describe("PAT middleware (auth-core)", () => {
 
     const pat = await createPersonalAccessToken({
       userId: user.id,
-      email: user.email,
+      email: user.primaryEmail,
       profileId: user.profile.id,
       scopes: ["read:transactions"],
       expiresAt: new Date(Date.now() - 1000),
@@ -112,24 +112,24 @@ describe("PAT middleware (auth-core)", () => {
     const { user } = await createTestUser();
     const app = createTestApp();
 
-    const profile = await prisma.profile.findFirst({ where: { userId: user.id } });
-    const workspace = await prisma.workspace.create({
-      data: {
-        ownerProfileId: profile!.id,
-        name: "Workspace Token",
-      },
-    });
-    await prisma.workspaceMember.create({
-      data: {
-        workspaceId: workspace.id,
-        memberProfileId: profile!.id,
-        role: "owner",
-      },
-    });
+  const workspace = await prisma.workspace.create({
+    data: {
+      ownerUserId: user.id,
+      name: "Workspace Token",
+      slug: `workspace-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+    },
+  });
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: workspace.id,
+      userId: user.id,
+      role: "owner",
+    },
+  });
 
     const pat = await createPersonalAccessToken({
       userId: user.id,
-      email: user.email,
+      email: user.primaryEmail,
       profileId: user.profile.id,
       scopes: ["read:transactions"],
       workspaceId: workspace.id,

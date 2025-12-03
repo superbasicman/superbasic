@@ -26,7 +26,7 @@ export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const requestId = c.get('requestId') ?? null;
 
   await prisma.$transaction(async (tx) => {
-    const sessions = await tx.session.findMany({
+    const sessions = await tx.authSession.findMany({
       where: {
         userId,
         revokedAt: null,
@@ -86,10 +86,9 @@ export async function bulkRevokeTokens(c: Context<AppBindings>) {
     requestContext.requestId = requestId;
   }
 
-  const tokens = await prisma.token.findMany({
+  const tokens = await prisma.apiKey.findMany({
     where: {
       userId: auth.userId,
-      type: 'personal_access',
       revokedAt: null,
     },
     select: { id: true },

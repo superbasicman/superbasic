@@ -105,12 +105,12 @@ describe("POST /v1/tokens - Token Creation", () => {
       const data = await response.json();
       const plaintextToken = data.token;
 
-      const storedToken = await prisma.token.findUnique({
+      const storedToken = await prisma.apiKey.findUnique({
         where: { id: data.id },
       });
 
       expect(storedToken).toBeTruthy();
-      const storedEnvelope = storedToken!.tokenHash as { hash: string; keyId: string };
+      const storedEnvelope = storedToken!.keyHash as { hash: string; keyId: string };
       expect(storedEnvelope.hash).not.toBe(plaintextToken);
       expect(storedEnvelope.keyId).toBeTruthy();
     });
@@ -139,11 +139,11 @@ describe("POST /v1/tokens - Token Creation", () => {
       const data = await response.json();
       const plaintextToken = data.token;
 
-      const storedToken = await prisma.token.findUnique({
+      const storedToken = await prisma.apiKey.findUnique({
         where: { id: data.id },
       });
 
-      const last4 = (storedToken!.metadata as any)?.last4;
+      const last4 = storedToken!.last4 ?? (storedToken!.metadata as any)?.last4;
       expect(last4).toBe(plaintextToken.slice(-4));
       expect((last4 as string).length).toBe(4);
     });
@@ -259,7 +259,7 @@ describe("POST /v1/tokens - Token Creation", () => {
       expect(response.status).toBe(201);
 
       const data = await response.json();
-      const storedToken = await prisma.token.findUnique({
+      const storedToken = await prisma.apiKey.findUnique({
         where: { id: data.id },
       });
 

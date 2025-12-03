@@ -36,13 +36,13 @@ export async function handleSsoLogout(c: Context<AppBindings>) {
 
   const identities = await prisma.userIdentity.findMany({
     where: {
-      provider: payload.provider,
-      providerUserId: payload.providerUserId,
+      provider: payload.provider as any,
+      providerSubject: payload.providerUserId,
     },
     select: {
       userId: true,
       provider: true,
-      providerUserId: true,
+      providerSubject: true,
     },
   });
 
@@ -50,7 +50,7 @@ export async function handleSsoLogout(c: Context<AppBindings>) {
     return c.body(null, 202);
   }
 
-  const activeSessions = await prisma.session.findMany({
+  const activeSessions = await prisma.authSession.findMany({
     where: {
       userId: { in: identities.map((i) => i.userId) },
       revokedAt: null,
@@ -68,7 +68,11 @@ export async function handleSsoLogout(c: Context<AppBindings>) {
       providerUserId: payload.providerUserId,
       sessionIds: payload.sessionIds ?? [],
     },
-    identities,
+    identities.map((identity) => ({
+      provider: identity.provider,
+      providerUserId: identity.providerSubject,
+      userId: identity.userId,
+    })),
     activeSessions
   );
 
@@ -76,7 +80,7 @@ export async function handleSsoLogout(c: Context<AppBindings>) {
     return c.body(null, 202);
   }
 
-  const sessionOwners = await prisma.session.findMany({
+  const sessionOwners = await prisma.authSession.findMany({
     where: { id: { in: plan.sessionIds } },
     select: { id: true, userId: true },
   });

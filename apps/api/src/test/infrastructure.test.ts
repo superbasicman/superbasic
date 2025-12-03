@@ -29,9 +29,13 @@ describe('Test Infrastructure', () => {
       // Create a user
       await prisma.user.create({
         data: {
-          email: 'test@example.com',
-          emailLower: 'test@example.com',
-          password: 'hashed',
+          primaryEmail: 'test@example.com',
+          userState: 'active',
+          password: {
+            create: {
+              passwordHash: 'hashed',
+            },
+          },
         },
       });
 
@@ -61,9 +65,8 @@ describe('Test Infrastructure', () => {
       const { user, credentials } = await createTestUser();
 
       expect(user.id).toBeDefined();
-      expect(user.email).toBe(credentials.email);
-      expect(user.password).toBeDefined();
-      expect(user.password).not.toBe(credentials.password); // Should be hashed
+      expect(user.primaryEmail).toBe(credentials.email);
+      expect(user.profile).toBeDefined();
     });
 
     it('should make HTTP requests to app', async () => {

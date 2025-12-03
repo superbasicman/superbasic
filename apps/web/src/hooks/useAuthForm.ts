@@ -51,7 +51,6 @@ export function useAuthForm(): UseAuthFormReturn {
 
     try {
       await login({ email, password });
-      navigate('/');
     } catch (err) {
       if (err instanceof ApiError) {
         // Auth.js CredentialsSignin error is already mapped to user-friendly message
@@ -85,7 +84,6 @@ export function useAuthForm(): UseAuthFormReturn {
 
     try {
       await register({ email, password });
-      navigate('/');
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -98,26 +96,9 @@ export function useAuthForm(): UseAuthFormReturn {
   };
 
   const handleMagicLink = async () => {
-    if (!email) {
-      setError('Email is required');
-      return;
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await requestMagicLink(email);
-      setMagicLinkSent(true);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        setError(err.message);
-      } else {
-        setError('Failed to send magic link. Please try again.');
-      }
-    } finally {
-      setIsLoading(false);
-    }
+    await requestMagicLink();
+    setError('Magic link sign-in has been deprecated. Redirecting to OAuth login…');
+    navigate('/login');
   };
 
   const resetForm = () => {

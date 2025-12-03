@@ -39,7 +39,7 @@ export class TokenService {
   constructor(
     private tokenRepo: TokenRepository,
     private authEvents: AuthEvents
-  ) {}
+  ) { }
 
   /**
    * Create a new API token
@@ -80,7 +80,6 @@ export class TokenService {
     // Create token record via repository
     const apiKey = await this.tokenRepo.create({
       userId: params.userId,
-      profileId: params.profileId,
       name: params.name,
       keyHash,
       last4,
@@ -95,7 +94,6 @@ export class TokenService {
       userId: params.userId,
       metadata: {
         tokenId: apiKey.id,
-        profileId: params.profileId,
         tokenName: params.name,
         scopes: params.scopes,
         expiresAt: expiresAt.toISOString(),
@@ -223,7 +221,6 @@ export class TokenService {
         userId: params.userId,
         metadata: {
           tokenId: params.id,
-          profileId: token.profileId,
           tokenName: token.name,
           ip: params.requestContext?.ip || "unknown",
           userAgent: params.requestContext?.userAgent || "unknown",
@@ -273,13 +270,13 @@ export class TokenService {
   private mapToTokenResponse(apiKey: ApiKey): TokenResponse {
     return {
       id: apiKey.id,
-      name: apiKey.name,
+      name: apiKey.name ?? "Unnamed Token",
       scopes: apiKey.scopes as string[],
       workspaceId: apiKey.workspaceId ?? null,
       createdAt: apiKey.createdAt.toISOString(),
       lastUsedAt: apiKey.lastUsedAt?.toISOString() ?? null,
       expiresAt: apiKey.expiresAt?.toISOString() ?? null,
-      maskedToken: `sbf_****${apiKey.last4}`,
+      maskedToken: `sbf_****${apiKey.last4 ?? "...."}`,
     };
   }
 }
@@ -287,8 +284,8 @@ export class TokenService {
 function isPrismaNotFoundError(error: unknown): error is { code: string } {
   return Boolean(
     error &&
-      typeof error === "object" &&
-      "code" in error &&
-      (error as { code?: string }).code === "P2025"
+    typeof error === "object" &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2025"
   );
 }

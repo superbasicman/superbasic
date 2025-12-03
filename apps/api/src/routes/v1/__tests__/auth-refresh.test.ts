@@ -49,7 +49,7 @@ describe('POST /v1/auth/refresh', () => {
     );
     expect(hasRefreshCookie).toBe(true);
 
-    const dbToken = await prisma().token.findUnique({ where: { id: initial.token.id } });
+    const dbToken = await prisma().refreshToken.findUnique({ where: { id: initial.token.id } });
     expect(dbToken?.revokedAt).not.toBeNull();
   });
 
@@ -122,7 +122,7 @@ describe('POST /v1/auth/refresh', () => {
     });
 
     // Mark the first as reused/revoked.
-    await prisma().token.update({
+    await prisma().refreshToken.update({
       where: { id: first.token.id },
       data: { revokedAt: now },
     });
@@ -142,9 +142,9 @@ describe('POST /v1/auth/refresh', () => {
     });
 
     expect(response.status).toBe(401);
-    const updatedSession = await prisma().session.findUnique({ where: { id: session.id } });
+    const updatedSession = await prisma().authSession.findUnique({ where: { id: session.id } });
     expect(updatedSession?.revokedAt).not.toBeNull();
-    const siblingRow = await prisma().token.findUnique({ where: { id: sibling.token.id } });
+    const siblingRow = await prisma().refreshToken.findUnique({ where: { id: sibling.token.id } });
     expect(siblingRow?.revokedAt).not.toBeNull();
   });
 

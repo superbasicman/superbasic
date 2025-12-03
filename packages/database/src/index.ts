@@ -6,13 +6,15 @@ export type {
   User,
   Profile,
   ApiKey,
-  Account,
-  Session,
+  AuthSession,
+  RefreshToken,
+  UserPassword,
   VerificationToken,
   UserIdentity,
-  Token,
   OAuthClient,
   OAuthAuthorizationCode,
+  UserState,
+  IdentityProvider,
 } from "@prisma/client";
 export * from "./context.js";
 

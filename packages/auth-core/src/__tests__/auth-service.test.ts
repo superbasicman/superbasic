@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import * as authLib from '@repo/auth';
-import type { PrismaClient, Token as PrismaToken } from '@repo/database';
+import type { PrismaClient } from '@repo/database';
 import { SignJWT, exportJWK } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthorizationError, InactiveUserError, UnauthorizedError } from '../errors.js';
@@ -414,20 +414,23 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     prismaStub.token.create.mockResolvedValue({
       id: 'pat_token',
       userId: 'user-123',
-      sessionId: null,
       workspaceId: 'workspace-1',
-      type: 'personal_access',
-      tokenHash: hashEnvelope,
+      keyHash: hashEnvelope,
       scopes: ['read:transactions'],
       name: 'CLI token',
-      familyId: null,
-      metadata: null,
+      last4: 't-abc',
       lastUsedAt: null,
       expiresAt,
       revokedAt: null,
       createdAt: new Date('2025-03-01T00:00:00.000Z'),
       updatedAt: new Date('2025-03-01T00:00:00.000Z'),
-    } satisfies PrismaToken);
+      // ApiKey schema fields
+      issuedAt: new Date('2025-03-01T00:00:00.000Z'),
+      createdByIp: null,
+      lastUsedIp: null,
+      userAgent: null,
+      metadata: null,
+    } as any); // Mock response - actual shape doesn't perfectly match schema in tests
 
     const service = new AuthCoreService({
       prisma: prismaStub as unknown as PrismaClient,

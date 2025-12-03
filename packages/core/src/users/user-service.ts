@@ -20,12 +20,13 @@ import type {
   UserProfileData,
   UpdateUserStatusParams,
 } from './user-types.js';
+import type { UserState } from '@repo/database';
 
 export class UserService {
   constructor(
     private userRepo: UserRepository,
     private authEvents: { emit: (event: any) => void }
-  ) {}
+  ) { }
 
   /**
    * Register a new user with profile
@@ -78,7 +79,7 @@ export class UserService {
     this.authEvents.emit({
       type: 'user.registered',
       userId: user.id,
-      email: user.email,
+      email: user.primaryEmail,
       ...(params.ip && { ip: params.ip }),
     });
 
@@ -96,11 +97,12 @@ export class UserService {
       throw new UserNotFoundError(params.userId);
     }
 
-    if (existing.status === params.status) {
-      return { id: existing.id, status: existing.status };
+    if (existing.userState === params.status) {
+      return { id: existing.id, status: existing.userState };
     }
 
-    const updated = await this.userRepo.updateStatus(params.userId, params.status);
+    // Cast string status to UserState enum if needed, or assume params.status is valid UserState
+    const updated = await this.userRepo.updateStatus(params.userId, params.status as UserState);
 
     if (!updated) {
       throw new UserNotFoundError(params.userId);
@@ -109,7 +111,7 @@ export class UserService {
     this.authEvents.emit({
       type: 'user.status_changed',
       userId: params.userId,
-      email: existing.email,
+      email: existing.primaryEmail,
       metadata: {
         previousStatus: updated.previousStatus,
         newStatus: params.status,
@@ -122,7 +124,7 @@ export class UserService {
       },
     });
 
-    return { id: updated.user.id, status: updated.user.status };
+    return { id: updated.user.id, status: updated.user.userState };
   }
 
   /**
@@ -166,15 +168,15 @@ export class UserService {
    */
   private mapToUserResponse(user: {
     id: string;
-    email: string;
-    name: string | null;
+    primaryEmail: string;
+    displayName: string | null;
     createdAt: Date;
   }): RegisterUserResult {
     return {
       user: {
         id: user.id,
-        email: user.email,
-        name: user.name,
+        email: user.primaryEmail,
+        name: user.displayName,
         createdAt: user.createdAt.toISOString(),
       },
     };

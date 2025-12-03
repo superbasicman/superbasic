@@ -8,7 +8,6 @@ import type { TokenHashEnvelope } from "@repo/auth";
 
 export interface CreateTokenParams {
   userId: string;
-  profileId: string;
   name: string;
   scopes: string[];
   workspaceId?: string | null;
@@ -22,7 +21,6 @@ export interface CreateTokenParams {
 
 export interface CreateTokenData {
   userId: string;
-  profileId: string;
   name: string;
   keyHash: TokenHashEnvelope;
   last4: string;

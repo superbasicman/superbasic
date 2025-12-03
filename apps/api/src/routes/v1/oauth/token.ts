@@ -2,116 +2,277 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
-import { prisma } from '@repo/database';
-import { requireOAuthClient, AuthorizationError, validatePkcePair, generateAccessToken } from '@repo/auth-core';
+import { Prisma, prisma } from '@repo/database';
+import {
+  requireOAuthClient,
+  AuthorizationError,
+  validatePkcePair,
+  generateAccessToken,
+} from '@repo/auth-core';
+import type { ClientType } from '@repo/auth-core';
 import { parseOpaqueToken, verifyTokenSecret } from '@repo/auth';
+import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
+import type { AppBindings } from '../../../types/context.js';
+import {
+  extractIp,
+  handleRevokedTokenReuse,
+  invalidGrant,
+  updateSessionTimestamps,
+} from '../auth/refresh-utils.js';
+import {
+  setRefreshTokenCookie,
+} from '../auth/refresh-cookie.js';
 
-const token = new Hono();
+const token = new Hono<AppBindings>();
 
-const tokenSchema = z.object({
-  grant_type: z.literal('authorization_code'),
-  client_id: z.string(),
-  code: z.string(),
-  redirect_uri: z.string().url(),
-  code_verifier: z.string(),
-});
+const tokenSchema = z.discriminatedUnion('grant_type', [
+  z.object({
+    grant_type: z.literal('authorization_code'),
+    client_id: z.string(),
+    code: z.string(),
+    redirect_uri: z.string().url(),
+    code_verifier: z.string(),
+  }),
+  z.object({
+    grant_type: z.literal('refresh_token'),
+    client_id: z.string(),
+    refresh_token: z.string(),
+  }),
+]);
 
 token.post('/', zValidator('form', tokenSchema), async (c) => {
-  const {
-    client_id,
-    code,
-    redirect_uri,
-    code_verifier,
-  } = c.req.valid('form');
+  const body = c.req.valid('form');
 
   try {
-    // 1. Validate client
+    if (body.grant_type === 'authorization_code') {
+      const {
+        client_id,
+        code,
+        redirect_uri,
+        code_verifier,
+      } = body;
+
+      // 1. Validate client
+      await requireOAuthClient({
+        prisma,
+        clientId: client_id,
+        redirectUri: redirect_uri,
+      });
+
+      // 2. Parse and verify the authorization code
+      const parsed = parseOpaqueToken(code);
+      if (!parsed) {
+        throw new AuthorizationError('Invalid authorization code format');
+      }
+
+      // 3. Find the authorization code in the database
+      const authCode = await prisma.oAuthAuthorizationCode.findFirst({
+        where: {
+          clientId: client_id,
+          redirectUri: redirect_uri,
+          expiresAt: { gt: new Date() },
+          consumedAt: null,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      if (!authCode) {
+        throw new AuthorizationError('Authorization code not found or expired');
+      }
+
+      // 4. Verify the code hash
+      const isValid = await verifyTokenSecret(parsed.tokenSecret, authCode.codeHash);
+      if (!isValid) {
+        throw new AuthorizationError('Invalid authorization code');
+      }
+
+      // 5. Verify PKCE
+      validatePkcePair({
+        codeVerifier: code_verifier,
+        codeChallenge: authCode.codeChallenge,
+        codeChallengeMethod: authCode.codeChallengeMethod,
+      });
+
+      // 6. Mark code as consumed
+      await prisma.oAuthAuthorizationCode.update({
+        where: { id: authCode.id },
+        data: { consumedAt: new Date() },
+      });
+
+      // 7. Create session and get access token + refresh token
+      const result = await authService.createSessionWithRefresh({
+        userId: authCode.userId,
+        identity: {
+          provider: 'oauth',
+          providerUserId: client_id,
+          email: null,
+        },
+        clientType: 'web',
+        workspaceId: null,
+        rememberMe: true,
+      });
+
+      const { token: accessToken, claims } = await generateAccessToken({
+        userId: result.session.userId,
+        sessionId: result.session.sessionId,
+        clientType: result.session.clientType,
+        workspaceId: result.session.activeWorkspaceId ?? null,
+      });
+
+      // Set session + refresh cookies
+      setCookie(c, 'authjs.session-token', result.session.sessionId, {
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        sameSite: 'Lax',
+      });
+
+      setRefreshTokenCookie(c, result.refresh.refreshToken, result.refresh.token.expiresAt);
+
+      return c.json({
+        access_token: accessToken,
+        refresh_token: result.refresh.refreshToken,
+        token_type: 'Bearer',
+        expires_in: claims.exp - claims.iat,
+      });
+    }
+
+    // grant_type === refresh_token
+    const { client_id, refresh_token } = body;
+
     await requireOAuthClient({
       prisma,
       clientId: client_id,
-      redirectUri: redirect_uri,
+      allowDisabled: false,
     });
 
-    // 2. Parse and verify the authorization code
-    const parsed = parseOpaqueToken(code);
+    const parsed = parseOpaqueToken(refresh_token);
     if (!parsed) {
-      throw new AuthorizationError('Invalid authorization code format');
+      return invalidGrant(c);
     }
 
-    // 3. Find the authorization code in the database
-    const authCode = await prisma.oAuthAuthorizationCode.findFirst({
-      where: {
-        clientId: client_id,
-        redirectUri: redirect_uri,
-        expiresAt: { gt: new Date() },
-        consumedAt: null,
-      },
-      orderBy: {
-        createdAt: 'desc',
+    const tokenRecord = await prisma.refreshToken.findUnique({
+      where: { id: parsed.tokenId },
+      include: {
+        session: {
+          include: {
+            user: {
+              select: { id: true, userState: true },
+            },
+          },
+        },
       },
     });
 
-    if (!authCode) {
-      throw new AuthorizationError('Authorization code not found or expired');
+    if (!tokenRecord) {
+      return invalidGrant(c);
     }
 
-    // 4. Verify the code hash
-    const isValid = await verifyTokenSecret(parsed.tokenSecret, authCode.codeHash);
-    if (!isValid) {
-      throw new AuthorizationError('Invalid authorization code');
+    const hashEnvelope = tokenRecord.hashEnvelope as TokenHashEnvelope | null;
+    if (!hashEnvelope || !verifyTokenSecret(parsed.tokenSecret, hashEnvelope)) {
+      return invalidGrant(c);
     }
 
-    // 5. Verify PKCE
-    validatePkcePair({
-      codeVerifier: code_verifier,
-      codeChallenge: authCode.codeChallenge,
-      codeChallengeMethod: authCode.codeChallengeMethod,
-    });
+    const now = new Date();
+    const ipAddress = extractIp(c) ?? null;
+    const userAgent = c.req.header('user-agent') ?? null;
+    const requestId = c.get('requestId') ?? null;
 
-    // 6. Mark code as consumed
-    await prisma.oAuthAuthorizationCode.update({
-      where: { id: authCode.id },
-      data: { consumedAt: new Date() },
-    });
+    if (tokenRecord.revokedAt) {
+      await handleRevokedTokenReuse(
+        {
+          tokenId: tokenRecord.id,
+          sessionId: tokenRecord.sessionId,
+          familyId: tokenRecord.familyId,
+          userId: tokenRecord.userId,
+          ipAddress,
+          userAgent,
+          requestId,
+        },
+        now
+      );
+      return invalidGrant(c);
+    }
 
-    // 7. Create session and get access token
-    const result = await authService.createSessionWithRefresh({
-      userId: authCode.userId,
-      identity: {
-        provider: 'oauth',
-        providerUserId: client_id,
-        email: null,
+    if (!tokenRecord.expiresAt || tokenRecord.expiresAt <= now) {
+      return invalidGrant(c);
+    }
+
+    const session = tokenRecord.session;
+    if (!session || session.revokedAt || session.expiresAt <= now || !session.user || session.user.userState !== 'active') {
+      return invalidGrant(c);
+    }
+
+    try {
+      await prisma.refreshToken.update({
+        where: { id: tokenRecord.id, revokedAt: null },
+        data: {
+          revokedAt: now,
+          lastUsedAt: now,
+          lastUsedIp: ipAddress,
+          userAgent,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        await handleRevokedTokenReuse(
+          {
+            tokenId: tokenRecord.id,
+            sessionId: session.id,
+            familyId: tokenRecord.familyId,
+            userId: tokenRecord.userId,
+            ipAddress,
+            userAgent,
+            requestId,
+          },
+          now
+        );
+        return invalidGrant(c);
+      }
+      throw error;
+    }
+
+    const sessionUpdate = await updateSessionTimestamps(session.id, now);
+
+    const familyId = tokenRecord.familyId ?? tokenRecord.id;
+    const clientInfo = session.clientInfo as Record<string, unknown> | null;
+    const clientType: ClientType =
+      clientInfo && typeof clientInfo === 'object' && 'type' in clientInfo
+        ? ((clientInfo as any).type as ClientType)
+        : 'web';
+
+    const rotated = await authService.issueRefreshToken({
+      userId: tokenRecord.userId,
+      sessionId: session.id,
+      expiresAt: sessionUpdate.expiresAt,
+      familyId,
+      metadata: {
+        source: 'oauth-token-refresh',
+        ipAddress,
+        userAgent,
       },
-      clientType: 'web',
-      workspaceId: null,
-      rememberMe: true,
     });
 
-    // 8. Generate access token
-    const accessToken = await generateAccessToken({
-      userId: result.session.userId,
-      sessionId: result.session.sessionId,
-      clientType: result.session.clientType,
-      workspaceId: result.session.activeWorkspaceId ?? null,
+    const { token: accessToken, claims } = await generateAccessToken({
+      userId: tokenRecord.userId,
+      sessionId: session.id,
+      clientType,
+      mfaLevel: session.mfaLevel,
+      reauthenticatedAt: Math.floor(now.getTime() / 1000),
     });
 
-    // 9. Set session cookie
-    setCookie(c, 'authjs.session-token', result.session.sessionId, {
-      path: '/',
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-      sameSite: 'Lax',
-    });
+    setRefreshTokenCookie(c, rotated.refreshToken, rotated.token.expiresAt);
 
-    // 10. Return tokens
     return c.json({
       access_token: accessToken,
+      refresh_token: rotated.refreshToken,
       token_type: 'Bearer',
-      expires_in: 600, // 10 minutes
+      expires_in: claims.exp - claims.iat,
     });
-
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Token exchange failed';
     return c.json({ error: 'invalid_grant', error_description: message }, 400);

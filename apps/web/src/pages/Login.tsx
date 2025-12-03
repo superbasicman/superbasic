@@ -133,7 +133,7 @@ export default function Login() {
           <div
             className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
           >
-            No charts. No clutter. Just your money — in plain text.
+            Your money, in plain text.
           </div>
         </div>
 

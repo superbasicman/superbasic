@@ -64,10 +64,12 @@ describe('GET /v1/auth/session', () => {
 
     expect(response.status).toBe(204);
 
-    const sessions = await prisma().session.findMany({
+    const sessions = await prisma().authSession.findMany({
       where: { userId: user.id },
     });
-    const revokedIds = sessions.filter((s) => s.revokedAt !== null).map((s) => s.id);
+    const revokedIds = sessions
+      .filter((s: any) => s.revokedAt !== null)
+      .map((s: any) => s.id);
     expect(revokedIds).toEqual(expect.arrayContaining([session.id, otherSession.id]));
   });
 });
@@ -136,10 +138,10 @@ describe('POST /v1/auth/logout', () => {
     const setCookies = response.headers.getSetCookie?.() ?? [];
     expect(setCookies.some((value) => value.startsWith(`${REFRESH_TOKEN_COOKIE}=`))).toBe(true);
 
-    const updatedSession = await prisma().session.findUnique({ where: { id: session.id } });
+    const updatedSession = await prisma().authSession.findUnique({ where: { id: session.id } });
     expect(updatedSession?.revokedAt).not.toBeNull();
 
-    const refreshTokenRow = await prisma().token.findUnique({
+    const refreshTokenRow = await prisma().refreshToken.findUnique({
       where: { id: refresh.token.id },
     });
     expect(refreshTokenRow?.revokedAt).not.toBeNull();
@@ -175,13 +177,13 @@ describe('DELETE /v1/auth/sessions/:id', () => {
 
     expect(response.status).toBe(204);
 
-    const updated = await prisma().session.findUnique({ where: { id: otherSession.id } });
+    const updated = await prisma().authSession.findUnique({ where: { id: otherSession.id } });
     expect(updated?.revokedAt).not.toBeNull();
 
-    const refreshTokenRow = await prisma().token.findUnique({ where: { id: refresh.token.id } });
+    const refreshTokenRow = await prisma().refreshToken.findUnique({ where: { id: refresh.token.id } });
     expect(refreshTokenRow?.revokedAt).not.toBeNull();
 
-    const currentSession = await prisma().session.findUnique({ where: { id: session.id } });
+    const currentSession = await prisma().authSession.findUnique({ where: { id: session.id } });
     expect(currentSession?.revokedAt).toBeNull();
   });
 

@@ -49,7 +49,7 @@ export async function patMiddleware(c: Context, next: Next) {
     const parsedToken = parseOpaqueToken(authHeader.split(" ")[1] ?? "");
     const tokenId = parsedToken?.tokenId ?? null;
     const tokenRecord = tokenId
-      ? await prisma.token.findUnique({
+      ? await prisma.apiKey.findUnique({
           where: { id: tokenId },
           select: { scopes: true },
         })
@@ -64,12 +64,12 @@ export async function patMiddleware(c: Context, next: Next) {
 
     const user = await prisma.user.findUnique({
       where: { id: auth.userId },
-      select: { email: true },
+      select: { primaryEmail: true },
     });
 
     c.set("auth", authWithPatScopes);
     c.set("userId", auth.userId);
-    c.set("userEmail", user?.email ?? "");
+    c.set("userEmail", user?.primaryEmail ?? "");
     c.set("profileId", auth.profileId ?? undefined);
     c.set("workspaceId", auth.activeWorkspaceId);
     c.set("authType", "pat");
