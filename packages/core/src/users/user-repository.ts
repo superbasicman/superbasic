@@ -26,13 +26,11 @@ export class UserRepository {
    * Find user by email
    */
   async findByEmail(email: string): Promise<User | null> {
-    // The schema uses primaryEmail. We assume it stores the normalized email or we query it directly.
-    // Since emailLower is gone, we'll query primaryEmail.
-    // Ideally, primaryEmail should be stored normalized.
+    const normalizedEmail = email.toLowerCase().trim();
     return this.prisma.user.findFirst({
       where: {
-        primaryEmail: email,
-        deletedAt: null
+        primaryEmail: normalizedEmail,
+        deletedAt: null,
       },
     });
   }
@@ -50,16 +48,17 @@ export class UserRepository {
    * Create a new user
    */
   async create(data: CreateUserData): Promise<User> {
+    const normalizedEmail = data.email.toLowerCase().trim();
     return this.prisma.user.create({
       data: {
-        primaryEmail: data.email,
+        primaryEmail: normalizedEmail,
         displayName: data.name,
         userState: 'active',
         password: {
           create: {
             passwordHash: data.password,
-          }
-        }
+          },
+        },
       },
     });
   }
@@ -72,18 +71,19 @@ export class UserRepository {
     userData: CreateUserData,
     profileData: CreateUserProfileData
   ): Promise<User> {
+    const normalizedEmail = userData.email.toLowerCase().trim();
     return this.prisma.$transaction(async (tx) => {
       // Create user
       const user = await tx.user.create({
         data: {
-          primaryEmail: userData.email,
+          primaryEmail: normalizedEmail,
           displayName: userData.name,
           userState: 'active',
           password: {
             create: {
               passwordHash: userData.password,
-            }
-          }
+            },
+          },
         },
       });
 

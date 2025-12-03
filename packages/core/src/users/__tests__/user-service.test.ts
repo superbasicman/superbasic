@@ -57,12 +57,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        name: 'Test User',
-        createdAt: new Date('2025-01-01T00:00:00Z'),
-      });
+  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+    id: 'user-123',
+    primaryEmail: 'test@example.com',
+    displayName: 'Test User',
+    createdAt: new Date('2025-01-01T00:00:00Z'),
+  });
 
       // Act
       const result = await userService.registerUser(params);
@@ -105,12 +105,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        name: null,
-        createdAt: new Date(),
-      });
+  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+    id: 'user-123',
+    primaryEmail: 'test@example.com',
+    displayName: null,
+    createdAt: new Date(),
+  });
 
       // Act
       await userService.registerUser(params);
@@ -127,12 +127,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        name: null,
-        createdAt: new Date(),
-      });
+  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+    id: 'user-123',
+    primaryEmail: 'test@example.com',
+    displayName: null,
+    createdAt: new Date(),
+  });
 
       // Act
       await userService.registerUser(params);
@@ -149,12 +149,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        name: null,
-        createdAt: new Date(),
-      });
+  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+    id: 'user-123',
+    primaryEmail: 'test@example.com',
+    displayName: null,
+    createdAt: new Date(),
+  });
 
       // Act
       const result = await userService.registerUser(params);
@@ -177,12 +177,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        name: null,
-        createdAt: new Date(),
-      });
+  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+    id: 'user-123',
+    primaryEmail: 'test@example.com',
+    displayName: null,
+    createdAt: new Date(),
+  });
 
       // Act
       await userService.registerUser(params);
@@ -202,12 +202,12 @@ describe('UserService', () => {
         password: 'password123',
       };
 
-      mockUserRepo.findByEmail = vi.fn().mockResolvedValue({
-        id: 'existing-user',
-        email: 'existing@example.com',
-        name: null,
-        createdAt: new Date(),
-      } as any);
+  mockUserRepo.findByEmail = vi.fn().mockResolvedValue({
+    id: 'existing-user',
+    primaryEmail: 'existing@example.com',
+    displayName: null,
+    createdAt: new Date(),
+  } as any);
 
       // Act & Assert
       await expect(userService.registerUser(params)).rejects.toThrow(
@@ -303,12 +303,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-        id: 'user-123',
-        email: 'test@example.com',
-        name: null,
-        createdAt: new Date(),
-      });
+  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+    id: 'user-123',
+    primaryEmail: 'test@example.com',
+    displayName: null,
+    createdAt: new Date(),
+  });
 
       // Act & Assert
       await expect(userService.registerUser(params)).resolves.toBeDefined();
@@ -319,15 +319,15 @@ describe('UserService', () => {
     it('should update status and emit audit event', async () => {
       mockUserRepo.findById = vi.fn().mockResolvedValue({
         id: 'user-123',
-        email: 'test@example.com',
-        status: 'active',
+        primaryEmail: 'test@example.com',
+        userState: 'active',
       });
 
       mockUserRepo.updateStatus = vi.fn().mockResolvedValue({
         user: {
           id: 'user-123',
-          email: 'test@example.com',
-          status: 'disabled',
+          primaryEmail: 'test@example.com',
+          userState: 'disabled',
         },
         previousStatus: 'active',
       });
@@ -362,8 +362,8 @@ describe('UserService', () => {
     it('should skip emit when status is unchanged', async () => {
       mockUserRepo.findById = vi.fn().mockResolvedValue({
         id: 'user-123',
-        email: 'test@example.com',
-        status: 'active',
+        primaryEmail: 'test@example.com',
+        userState: 'active',
       });
 
       const result = await userService.updateUserStatus({

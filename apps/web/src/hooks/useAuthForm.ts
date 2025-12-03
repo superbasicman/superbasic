@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { ApiError } from '../lib/api';
+import { ApiError, authApi } from '../lib/api';
 
 interface UseAuthFormReturn {
   // State
@@ -30,8 +29,7 @@ interface UseAuthFormReturn {
  * Extracts state management, validation, and error handling from UI components
  */
 export function useAuthForm(): UseAuthFormReturn {
-  const navigate = useNavigate();
-  const { login, register, requestMagicLink } = useAuth();
+  const { login, register } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -96,9 +94,26 @@ export function useAuthForm(): UseAuthFormReturn {
   };
 
   const handleMagicLink = async () => {
-    await requestMagicLink();
-    setError('Magic link sign-in has been deprecated. Redirecting to OAuth login…');
-    navigate('/login');
+    if (!email) {
+      setError('Email is required');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await authApi.sendMagicLink(email);
+      setMagicLinkSent(true);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const resetForm = () => {

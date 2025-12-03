@@ -32,7 +32,8 @@ const tokenSchema = z.discriminatedUnion('grant_type', [
     client_id: z.string(),
     code: z.string(),
     redirect_uri: z.string().url(),
-    code_verifier: z.string(),
+    // Optional for external provider flows (Google, magic link)
+    code_verifier: z.string().optional(),
   }),
   z.object({
     grant_type: z.literal('refresh_token'),
@@ -89,12 +90,18 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         throw new AuthorizationError('Invalid authorization code');
       }
 
-      // 5. Verify PKCE
-      validatePkcePair({
-        codeVerifier: code_verifier,
-        codeChallenge: authCode.codeChallenge,
-        codeChallengeMethod: authCode.codeChallengeMethod,
-      });
+      // 5. Verify PKCE (skip for external provider flows where challenge is empty)
+      if (authCode.codeChallenge && code_verifier) {
+        validatePkcePair({
+          codeVerifier: code_verifier,
+          codeChallenge: authCode.codeChallenge,
+          codeChallengeMethod: authCode.codeChallengeMethod,
+        });
+      } else if (authCode.codeChallenge && !code_verifier) {
+        // PKCE was required but verifier not provided
+        throw new AuthorizationError('PKCE code_verifier is required');
+      }
+      // If no challenge was set (external provider flow), skip PKCE validation
 
       // 6. Mark code as consumed
       await prisma.oAuthAuthorizationCode.update({
@@ -102,15 +109,22 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         data: { consumedAt: new Date() },
       });
 
-      // 7. Create session and get access token + refresh token
+      // 7. Fetch user email for identity
+      const user = await prisma.user.findUnique({
+        where: { id: authCode.userId },
+        select: { primaryEmail: true },
+      });
+
+      // 8. Create session and get access token + refresh token
+      // Use local_password as a catch-all since the actual IdP is verified at /oauth/authorize
       const result = await authService.createSessionWithRefresh({
         userId: authCode.userId,
         identity: {
-          provider: 'oauth',
-          providerUserId: client_id,
-          email: null,
+          provider: 'local_password',
+          providerUserId: authCode.userId,
+          email: user?.primaryEmail ?? null,
         },
-        clientType: 'web',
+        clientType: client_id === 'mobile' ? 'mobile' : 'web',
         workspaceId: null,
         rememberMe: true,
       });

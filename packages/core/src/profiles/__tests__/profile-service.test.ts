@@ -33,8 +33,8 @@ describe('ProfileService', () => {
       // Arrange
       const mockUser = {
         id: 'user-123',
-        email: 'test@example.com',
-        name: 'Test User',
+        primaryEmail: 'test@example.com',
+        displayName: 'Test User',
         createdAt: new Date('2024-01-01'),
         profile: {
           id: 'profile-123',
@@ -61,8 +61,8 @@ describe('ProfileService', () => {
         where: { id: 'user-123' },
         select: {
           id: true,
-          email: true,
-          name: true,
+          primaryEmail: true,
+          displayName: true,
           createdAt: true,
           profile: {
             select: {
@@ -79,8 +79,8 @@ describe('ProfileService', () => {
       // Arrange
       const mockUser = {
         id: 'user-123',
-        email: 'test@example.com',
-        name: 'Test User',
+        primaryEmail: 'test@example.com',
+        displayName: 'Test User',
         createdAt: new Date('2024-01-01'),
         profile: null,
       };
@@ -110,8 +110,8 @@ describe('ProfileService', () => {
       // Arrange
       const mockUpdatedUser = {
         id: 'user-123',
-        email: 'test@example.com',
-        name: 'Updated Name',
+        primaryEmail: 'test@example.com',
+        displayName: 'Updated Name',
         createdAt: new Date('2024-01-01'),
         profile: {
           id: 'profile-123',
@@ -134,7 +134,7 @@ describe('ProfileService', () => {
       expect(result.user.name).toBe('Updated Name');
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-123' },
-        data: { name: 'Updated Name' },
+        data: { displayName: 'Updated Name' },
       });
     });
 
@@ -142,8 +142,8 @@ describe('ProfileService', () => {
       // Arrange
       const mockUpdatedUser = {
         id: 'user-123',
-        email: 'test@example.com',
-        name: 'Test User',
+        primaryEmail: 'test@example.com',
+        displayName: 'Test User',
         createdAt: new Date('2024-01-01'),
         profile: {
           id: 'profile-123',
@@ -172,8 +172,8 @@ describe('ProfileService', () => {
       // Arrange
       const mockUpdatedUser = {
         id: 'user-123',
-        email: 'test@example.com',
-        name: 'New Name',
+        primaryEmail: 'test@example.com',
+        displayName: 'New Name',
         createdAt: new Date('2024-01-01'),
         profile: {
           id: 'profile-123',
@@ -254,8 +254,8 @@ describe('ProfileService', () => {
       // Arrange
       const mockUpdatedUser = {
         id: 'user-123',
-        email: 'test@example.com',
-        name: 'Test User',
+        primaryEmail: 'test@example.com',
+        displayName: 'Test User',
         createdAt: new Date('2024-01-01'),
         profile: null,
       };

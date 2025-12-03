@@ -51,8 +51,8 @@ describe("UserRepository", () => {
       const found = await userRepo.findByEmail(email);
       expect(found).not.toBeNull();
       expect(found?.id).toBe(created.id);
-      expect(found?.email).toBe(email);
-      expect(found?.name).toBe("Test User");
+      expect(found?.primaryEmail).toBe(email.toLowerCase());
+      expect(found?.displayName).toBe("Test User");
     });
 
     it("should be case-insensitive for email lookup", async () => {
@@ -83,11 +83,9 @@ describe("UserRepository", () => {
       testUsers.push(user);
 
       expect(user.id).toBeDefined();
-      expect(user.email).toBe(email);
-      expect(user.password).toBe("hashed_password_123");
-      expect(user.name).toBe("John Doe");
-      expect(user.emailVerified).toBeNull();
-      expect(user.image).toBeNull();
+      expect(user.primaryEmail).toBe(email.toLowerCase());
+      expect(user.displayName).toBe("John Doe");
+      expect(user.emailVerified).toBe(false);
       expect(user.createdAt).toBeInstanceOf(Date);
       expect(user.updatedAt).toBeInstanceOf(Date);
     });
@@ -101,12 +99,12 @@ describe("UserRepository", () => {
       });
       testUsers.push(user);
 
-      expect(user.name).toBeNull();
+      expect(user.displayName).toBeNull();
     });
 
     it("should fail if email already exists", async () => {
       const email = uniqueEmail();
-      
+
       // Create first user
       const user1 = await userRepo.create({
         email,
@@ -145,8 +143,8 @@ describe("UserRepository", () => {
 
       // Verify user was created
       expect(user.id).toBeDefined();
-      expect(user.email).toBe(email);
-      expect(user.name).toBe("Jane Doe");
+      expect(user.primaryEmail).toBe(email.toLowerCase());
+      expect(user.displayName).toBe("Jane Doe");
 
       // Verify profile was created
       const profile = await prisma.profile.findUnique({
@@ -220,7 +218,7 @@ describe("UserRepository", () => {
       const profiles = await prisma.profile.findMany({
         where: {
           user: {
-            emailLower: normalizedEmail,
+            primaryEmail: normalizedEmail,
           },
         },
       });
@@ -236,12 +234,12 @@ describe("UserRepository", () => {
 
       // Ensure no existing records for this email
       const normalizedEmail = email.toLowerCase();
-      const existingUser = await prisma.user.findUnique({
-        where: { emailLower: normalizedEmail },
+      const existingUser = await prisma.user.findFirst({
+        where: { primaryEmail: normalizedEmail, deletedAt: null },
       });
       expect(existingUser).toBeNull();
       const existingProfileCount = await prisma.profile.count({
-        where: { user: { emailLower: normalizedEmail } },
+        where: { user: { primaryEmail: normalizedEmail, deletedAt: null } },
       });
       expect(existingProfileCount).toBe(0);
 
@@ -261,8 +259,11 @@ describe("UserRepository", () => {
       testUsers.push(user);
 
       // Verify user exists and has profile
-      const createdUser = await prisma.user.findUnique({
-        where: { emailLower: email.toLowerCase() },
+      const createdUser = await prisma.user.findFirst({
+        where: {
+          primaryEmail: email.toLowerCase(),
+          deletedAt: null,
+        },
         include: { profile: true },
       });
       expect(createdUser).not.toBeNull();
@@ -290,10 +291,10 @@ describe("UserRepository", () => {
 
       const result = await userRepo.updateStatus(user.id, "disabled" as any);
       expect(result?.previousStatus).toBe("active");
-      expect(result?.user.status).toBe("disabled");
+      expect(result?.user.userState).toBe("disabled");
 
       const refreshed = await prisma.user.findUnique({ where: { id: user.id } });
-      expect(refreshed?.status).toBe("disabled");
+      expect(refreshed?.userState).toBe("disabled");
     });
 
     it("should return null when user not found", async () => {

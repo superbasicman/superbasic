@@ -75,14 +75,14 @@ async function seedClient(config: SeedConfig): Promise<void> {
     where: { clientId: config.clientId },
     update: {
       name: config.name,
-      type: config.type ?? 'public',
+      clientType: config.type ?? 'public',
       redirectUris: config.redirectUris,
       disabledAt: null,
     },
     create: {
       clientId: config.clientId,
       name: config.name,
-      type: config.type ?? 'public',
+      clientType: config.type ?? 'public',
       redirectUris: config.redirectUris,
     },
   });

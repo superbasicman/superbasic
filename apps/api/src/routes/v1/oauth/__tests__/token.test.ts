@@ -9,6 +9,7 @@ import { deriveCodeChallenge, generateCodeVerifier } from '@repo/auth-core';
 import { issueAuthorizationCode } from '../../../../lib/oauth-authorization-codes.js';
 import { authService } from '../../../../lib/auth-service.js';
 import { parseOpaqueToken } from '@repo/auth';
+import { randomUUID } from 'node:crypto';
 
 function buildFormRequest(body: Record<string, string>): Request {
   const params = new URLSearchParams(body);
@@ -61,9 +62,9 @@ describe('POST /v1/oauth/token', () => {
 
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data.tokenType).toBe('Bearer');
-    expect(typeof data.accessToken).toBe('string');
-    expect(typeof data.refreshToken).toBe('string');
+    expect(data.token_type).toBe('Bearer');
+    expect(typeof data.access_token).toBe('string');
+    expect(typeof data.refresh_token).toBe('string');
 
     const session = await prisma.authSession.findFirst({ where: { userId: user.id } });
     expect((session?.clientInfo as any)?.type).toBe('mobile');
@@ -121,17 +122,18 @@ describe('POST /v1/oauth/token', () => {
       },
     });
 
+    const familyId = randomUUID();
     const sessionWithRefresh = await authService.createSessionWithRefresh({
       userId: user.id,
       identity: {
-        provider: 'oauth',
-        providerUserId: 'web-dashboard',
+        provider: 'local_password',
+        providerUserId: user.id,
         email: user.primaryEmail,
       },
       clientType: 'web',
       workspaceId: null,
       rememberMe: true,
-      refreshFamilyId: 'family-1',
+      refreshFamilyId: familyId,
     });
 
     const response = await app.fetch(
@@ -157,7 +159,7 @@ describe('POST /v1/oauth/token', () => {
     });
 
     expect(oldRecord?.revokedAt).not.toBeNull();
-    expect(newRecord?.familyId).toBe('family-1');
+    expect(newRecord?.familyId).toBe(familyId);
     expect(newRecord?.sessionId).toBe(sessionWithRefresh.session.sessionId);
   });
 
@@ -177,14 +179,14 @@ describe('POST /v1/oauth/token', () => {
     const sessionWithRefresh = await authService.createSessionWithRefresh({
       userId: user.id,
       identity: {
-        provider: 'oauth',
-        providerUserId: 'web-dashboard',
+        provider: 'local_password',
+        providerUserId: user.id,
         email: user.primaryEmail,
       },
       clientType: 'web',
       workspaceId: null,
       rememberMe: true,
-      refreshFamilyId: 'family-2',
+      refreshFamilyId: randomUUID(),
     });
 
     // First refresh to rotate and revoke the original token

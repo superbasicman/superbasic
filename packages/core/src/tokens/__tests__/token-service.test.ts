@@ -44,7 +44,6 @@ describe("TokenService", () => {
       // Arrange
       const params = {
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         scopes: ["read:transactions"],
         expiresInDays: 30,
@@ -59,7 +58,6 @@ describe("TokenService", () => {
       mockTokenRepo.create = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -100,7 +98,6 @@ describe("TokenService", () => {
       // Arrange
       const params = {
         userId: "user-123",
-        profileId: "profile-123",
         name: "Duplicate",
         scopes: ["read:transactions"],
         expiresInDays: 30,
@@ -121,7 +118,6 @@ describe("TokenService", () => {
       // Arrange
       const params = {
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         scopes: ["invalid:scope"],
         expiresInDays: 30,
@@ -137,7 +133,6 @@ describe("TokenService", () => {
       // Arrange
       const params = {
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         scopes: ["read:transactions"],
         expiresInDays: 0,
@@ -156,7 +151,6 @@ describe("TokenService", () => {
       // Arrange
       const params = {
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         scopes: ["read:transactions"],
         expiresInDays: 366,
@@ -171,42 +165,6 @@ describe("TokenService", () => {
       );
     });
 
-    it("should require profileId", async () => {
-      // Arrange
-      const params = {
-        userId: "user-123",
-        profileId: "profile-123",
-        name: "My Token",
-        scopes: ["read:transactions"],
-        expiresInDays: 30,
-      };
-
-      mockTokenRepo.existsByUserAndName = vi.fn().mockResolvedValue(false);
-      mockTokenRepo.create = vi.fn().mockResolvedValue({
-        id: "token-123",
-        userId: "user-123",
-        profileId: "profile-123",
-        name: "My Token",
-        keyHash: hashToken("hash123"),
-        last4: "abcd",
-        scopes: ["read:transactions"],
-        createdAt: new Date("2024-01-01"),
-        lastUsedAt: null,
-        expiresAt: new Date("2024-01-31"),
-        revokedAt: null,
-      });
-
-      // Act
-      const result = await tokenService.createToken(params);
-
-      // Assert
-      expect(result.apiKey.name).toBe("My Token");
-      expect(mockTokenRepo.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          profileId: "profile-123",
-        })
-      );
-    });
   });
 
   describe("listTokens", () => {
@@ -218,7 +176,6 @@ describe("TokenService", () => {
         {
           id: "token-1",
           userId: "user-123",
-          profileId: "profile-123",
           name: "Token 1",
           keyHash: hashToken("hash1"),
           last4: "abc1",
@@ -231,7 +188,6 @@ describe("TokenService", () => {
         {
           id: "token-2",
           userId: "user-123",
-          profileId: "profile-123",
           name: "Token 2",
           keyHash: hashToken("hash2"),
           last4: "abc2",
@@ -283,7 +239,6 @@ describe("TokenService", () => {
       mockTokenRepo.findById = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: "profile-123",
         name: "Old Name",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -299,7 +254,6 @@ describe("TokenService", () => {
       mockTokenRepo.update = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: "profile-123",
         name: "Updated Name",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -347,7 +301,6 @@ describe("TokenService", () => {
       mockTokenRepo.findById = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-456", // Different user
-        profileId: "profile-456",
         name: "Old Name",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -375,7 +328,6 @@ describe("TokenService", () => {
       mockTokenRepo.findById = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: "profile-123",
         name: "Old Name",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -405,7 +357,6 @@ describe("TokenService", () => {
         .mockResolvedValueOnce({
           id: "token-123",
           userId: "user-123",
-          profileId: "profile-123",
           name: "Old Name",
           keyHash: hashToken("hash123"),
           last4: "abcd",
@@ -418,7 +369,6 @@ describe("TokenService", () => {
         .mockResolvedValueOnce({
           id: "token-123",
           userId: "user-123",
-          profileId: "profile-123",
           name: "Old Name", // Different from new name
           keyHash: hashToken("hash123"),
           last4: "abcd",
@@ -454,7 +404,6 @@ describe("TokenService", () => {
       mockTokenRepo.findById = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -494,7 +443,6 @@ describe("TokenService", () => {
       mockTokenRepo.findById = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-123",
-        profileId: "profile-123",
         name: "My Token",
         keyHash: hashToken("hash123"),
         last4: "abcd",
@@ -538,7 +486,6 @@ describe("TokenService", () => {
       mockTokenRepo.findById = vi.fn().mockResolvedValue({
         id: "token-123",
         userId: "user-456", // Different user
-        profileId: "profile-456",
         name: "My Token",
         keyHash: hashToken("hash123"),
         last4: "abcd",

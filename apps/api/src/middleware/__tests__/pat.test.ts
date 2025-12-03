@@ -5,6 +5,9 @@ import { patMiddleware } from "../pat.js";
 import { resetDatabase, getTestPrisma } from "../../test/setup.js";
 import { makeRequest, createPersonalAccessToken, createTestUser } from "../../test/helpers.js";
 
+// Ensure we use the real database, not the mock
+vi.unmock('@repo/database');
+
 type PatContext = {
   Variables: {
     userId: string;

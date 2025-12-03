@@ -21,7 +21,8 @@ export const JWT_SALT = "authjs.session-token"; // Auth.js v5 default
 // Clock skew tolerance for token validation
 export const CLOCK_SKEW_TOLERANCE_SECONDS = 60;
 
-// Provider identifiers (namespaced for Auth.js)
-export const AUTHJS_CREDENTIALS_PROVIDER_ID = "authjs:credentials";
-export const AUTHJS_GOOGLE_PROVIDER_ID = "authjs:google";
-export const AUTHJS_EMAIL_PROVIDER_ID = "authjs:email";
+// Provider identifiers matching IdentityProvider enum
+export const LOCAL_PASSWORD_PROVIDER_ID = "local_password";
+export const LOCAL_MAGIC_LINK_PROVIDER_ID = "local_magic_link";
+export const GOOGLE_PROVIDER_ID = "google";
+export const GITHUB_PROVIDER_ID = "github";

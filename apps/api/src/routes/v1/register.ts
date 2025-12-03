@@ -1,8 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
+import { setCookie } from 'hono/cookie';
 import { RegisterSchema } from '@repo/types';
 import { userService } from '../../services/index.js';
 import { DuplicateEmailError, InvalidEmailError, WeakPasswordError } from '@repo/core';
+import { LOCAL_PASSWORD_PROVIDER_ID } from '@repo/auth';
+import { authService } from '../../lib/auth-service.js';
 
 const registerRoute = new Hono();
 
@@ -11,14 +14,39 @@ registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
 
   // Extract IP for audit logging
   const ip = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || undefined;
+  const userAgent = c.req.header('user-agent') || undefined;
 
   try {
-    // Call service layer
+    // Call service layer to create user
     const result = await userService.registerUser({
       email,
       password,
       ...(name !== undefined && { name }),
       ...(ip !== undefined && { ip }),
+    });
+
+    // Create session so user can proceed with OAuth flow
+    const { session } = await authService.createSessionWithRefresh({
+      userId: result.user.id,
+      clientType: 'web',
+      ipAddress: ip ?? null,
+      userAgent: userAgent ?? null,
+      rememberMe: true,
+      identity: {
+        provider: LOCAL_PASSWORD_PROVIDER_ID,
+        providerUserId: result.user.id,
+        email: result.user.email,
+        emailVerified: false,
+      },
+    });
+
+    // Set session cookie so OAuth authorize can find the session
+    setCookie(c, 'authjs.session-token', session.sessionId, {
+      path: '/',
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+      sameSite: 'Lax',
     });
 
     // Return success response

@@ -1,43 +1,30 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
+/**
+ * OAuth Callback Page
+ *
+ * This page renders while the OAuth authorization code exchange is being processed.
+ * The actual callback handling is done by AuthContext.handleCallback() which:
+ * 1. Validates the state parameter against stored PKCE state
+ * 2. Exchanges the authorization code for tokens
+ * 3. Fetches the user profile
+ * 4. Redirects to the home page on success
+ */
 export default function AuthCallback() {
-  const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<'pending' | 'success' | 'redirect'>('pending');
-  const ranRef = useRef(false);
-
-  useEffect(() => {
-    if (ranRef.current) {
-      return;
-    }
-    ranRef.current = true;
-
-    const message =
-      'Legacy provider callback is no longer supported. Please restart login from the dashboard.';
-    setError(message);
-    setStatus('redirect');
-    setTimeout(() => {
-      navigate('/login', { replace: true });
-    }, 1200);
-  }, [navigate]);
+  const { authError, isLoading } = useAuth();
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="max-w-md w-full p-6 text-center">
         <div className="mb-4 text-lg font-semibold">
-          {status === 'success' ? 'Signed in!' : 'Completing sign-in…'}
+          {isLoading ? 'Completing sign-in...' : 'Processing...'}
         </div>
-        {error ? (
+        {authError ? (
           <div className="rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        ) : status === 'success' ? (
-          <div className="rounded border border-green-300 bg-green-50 px-4 py-3 text-sm text-green-700">
-            Redirecting…
+            {authError}
           </div>
         ) : (
-          <div className="rounded border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+          <div className="rounded border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-700">
             Please wait while we finish signing you in.
           </div>
         )}

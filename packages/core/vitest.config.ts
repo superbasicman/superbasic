@@ -16,7 +16,7 @@ function loadEnvFile(filePath: string) {
       const rawValue = match[2].trim();
       const value =
         (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
-        (rawValue.startsWith("'") && rawValue.endsWith("'"))
+          (rawValue.startsWith("'") && rawValue.endsWith("'"))
           ? rawValue.slice(1, -1)
           : rawValue;
       if (!process.env[key]) {
@@ -27,15 +27,16 @@ function loadEnvFile(filePath: string) {
 }
 
 const workspaceRoot = resolve(__dirname, "..", "..");
+// Load .env.test files FIRST so they take precedence over .env.local
 const candidateEnvFiles = [
-  resolve(workspaceRoot, ".env.local"),
-  resolve(workspaceRoot, ".env.test"),
-  resolve(workspaceRoot, "apps/api/.env.local"),
   resolve(workspaceRoot, "apps/api/.env.test"),
-  resolve(workspaceRoot, "packages/database/.env.local"),
+  resolve(workspaceRoot, ".env.test"),
   resolve(workspaceRoot, "packages/database/.env.test"),
-  resolve(__dirname, ".env.local"),
   resolve(__dirname, ".env.test"),
+  resolve(workspaceRoot, ".env.local"),
+  resolve(workspaceRoot, "apps/api/.env.local"),
+  resolve(workspaceRoot, "packages/database/.env.local"),
+  resolve(__dirname, ".env.local"),
 ];
 
 candidateEnvFiles.forEach(loadEnvFile);

@@ -41,7 +41,15 @@ export async function getCurrentSession(c: Context<AppBindings>) {
 
   return c.json({
     auth,
-    user,
-    session,
+    user: {
+      ...user,
+      email: user.primaryEmail,
+    },
+    session: session
+      ? {
+          ...session,
+          clientType: (session.clientInfo as any)?.type ?? 'unknown',
+        }
+      : null,
   });
 }

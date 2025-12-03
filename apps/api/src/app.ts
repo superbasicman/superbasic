@@ -18,6 +18,8 @@ import { bulkRevokeSessions, bulkRevokeTokens } from './routes/v1/auth/bulk-revo
 import { oauthRoutes } from './routes/v1/oauth/index.js';
 import { handleSsoLogout, ssoLogoutValidator } from './routes/v1/auth/sso-logout.js';
 import { signin } from './routes/v1/auth/signin.js';
+import { google } from './routes/v1/auth/google.js';
+import { magicLink } from './routes/v1/auth/magic-link.js';
 
 const app = new Hono<AppBindings>();
 
@@ -52,7 +54,8 @@ authRoutes.post('/logout', logout);
 authRoutes.post('/sso/logout', ssoLogoutValidator, handleSsoLogout);
 // Mount routes
 authRoutes.route('/signin', signin);
-// Mount Auth.js handler (handles remaining /v1/auth/*)
+authRoutes.route('/google', google);
+authRoutes.route('/magic-link', magicLink);
 
 
 v1.route('/auth', authRoutes);

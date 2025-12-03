@@ -6,9 +6,8 @@ vi.unmock('@repo/database');
 import app from '../../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../../test/setup.js';
 import {
-  createAccessToken,
+  createSessionRecord,
   createTestUser,
-  makeAuthenticatedRequest,
   makeRequest,
 } from '../../../../test/helpers.js';
 
@@ -20,7 +19,7 @@ describe('GET /v1/oauth/authorize', () => {
   it('issues a PKCE authorization code and redirects with state', async () => {
     const prisma = getTestPrisma();
     const { user } = await createTestUser();
-    const { token } = await createAccessToken(user.id);
+    const session = await createSessionRecord(user.id);
 
     await prisma.oAuthClient.create({
       data: {
@@ -41,11 +40,15 @@ describe('GET /v1/oauth/authorize', () => {
       state: 'abc123',
     });
 
-    const response = await makeAuthenticatedRequest(
+    const response = await makeRequest(
       app,
       'GET',
       `/v1/oauth/authorize?${params.toString()}`,
-      token
+      {
+        headers: {
+          Cookie: `authjs.session-token=${session.id}`,
+        },
+      }
     );
 
     expect(response.status).toBe(302);
@@ -78,19 +81,7 @@ describe('GET /v1/oauth/authorize', () => {
   });
 
   it('requires authentication', async () => {
-    const response = await makeRequest(
-      app,
-      'GET',
-      '/v1/oauth/authorize?response_type=code&client_id=mobile&redirect_uri=sb://callback&code_challenge=abc'
-    );
-
-    expect(response.status).toBe(401);
-  });
-
-  it('rejects redirects not allowed for the client', async () => {
     const prisma = getTestPrisma();
-    const { user } = await createTestUser();
-    const { token } = await createAccessToken(user.id);
 
     await prisma.oAuthClient.create({
       data: {
@@ -101,15 +92,47 @@ describe('GET /v1/oauth/authorize', () => {
       },
     });
 
-    const response = await makeAuthenticatedRequest(
+    // Without a session cookie, should redirect to login page
+    const response = await makeRequest(
+      app,
+      'GET',
+      '/v1/oauth/authorize?response_type=code&client_id=mobile&redirect_uri=sb://callback&code_challenge=abc'
+    );
+
+    expect(response.status).toBe(302);
+    const location = response.headers.get('location');
+    expect(location).toContain('/login');
+  });
+
+  it('rejects redirects not allowed for the client', async () => {
+    const prisma = getTestPrisma();
+    const { user } = await createTestUser();
+    const session = await createSessionRecord(user.id);
+
+    await prisma.oAuthClient.create({
+      data: {
+        clientId: 'mobile',
+        name: 'Mobile',
+        clientType: 'public',
+        redirectUris: ['sb://callback'],
+      },
+    });
+
+    const response = await makeRequest(
       app,
       'GET',
       '/v1/oauth/authorize?response_type=code&client_id=mobile&redirect_uri=sb://not-allowed&code_challenge=abc',
-      token
+      {
+        headers: {
+          Cookie: `authjs.session-token=${session.id}`,
+        },
+      }
     );
 
-    expect(response.status).toBe(400);
-    const data = await response.json();
-    expect(data.error).toBe('invalid_request');
+    // OAuth 2.1 redirects back with error when redirect_uri is in allowlist but request uses different one
+    // Since 'sb://not-allowed' is not in the client's registered redirect URIs, it will error
+    expect(response.status).toBe(302);
+    const location = response.headers.get('location');
+    expect(location).toContain('error=invalid_request');
   });
 });

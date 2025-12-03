@@ -22,9 +22,12 @@ describe("ProfileRepository", () => {
     const email = `test-${Date.now()}@example.com`;
     testUser = await prisma.user.create({
       data: {
-        email,
-        emailLower: email.toLowerCase(),
-        password: "hashed_password",
+        primaryEmail: email.toLowerCase(),
+        displayName: null,
+        userState: 'active',
+        password: {
+          create: { passwordHash: 'hashed_password' },
+        },
       },
     });
 

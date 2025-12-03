@@ -52,8 +52,10 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
   // 2. Check for existing session
   const sessionToken = getCookie(c, 'authjs.session-token');
 
-  if (!sessionToken) {
-    // No session - redirect to login
+  // Validate session token is a valid UUID before querying
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!sessionToken || !UUID_REGEX.test(sessionToken)) {
+    // No session or invalid format - redirect to login
     const loginUrl = new URL('/login', WEB_APP_URL);
     loginUrl.searchParams.set('returnTo', c.req.url);
     return c.redirect(loginUrl.toString());
@@ -85,6 +87,7 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
 
   await prisma.oAuthAuthorizationCode.create({
     data: {
+      id: opaque.tokenId,
       userId: session.userId,
       clientId: client_id,
       redirectUri: normalizeRedirectUri(redirect_uri),

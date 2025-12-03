@@ -222,11 +222,23 @@ export const authApi = {
   },
 
   /**
-   * Request magic link via email
-   * Removed legacy magic link flow in favor of OAuth-only login.
+   * Send magic link to email
    */
-  async requestMagicLink(): Promise<void> {
-    throw new ApiError("Magic link sign-in is no longer supported", 400);
+  async sendMagicLink(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_URL}/v1/auth/magic-link/send`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(data.error || "Failed to send magic link", response.status);
+    }
+
+    return response.json();
   },
 
   /**

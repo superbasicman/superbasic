@@ -8,7 +8,12 @@ import dotenv from "dotenv";
 const repoRoot = process.cwd();
 const databaseDir = resolve(repoRoot, "packages/database");
 const isProd = process.argv.includes("--prod");
-const envFile = isProd ? "packages/database/.env.prod" : "packages/database/.env.local";
+const isDev = process.argv.includes("--dev");
+const envFile = isProd
+  ? "packages/database/.env.prod"
+  : isDev
+    ? "packages/database/.env.local"
+    : "packages/database/.env.test";
 
 function loadEnv(relativePath, override = false) {
   const filePath = resolve(repoRoot, relativePath);
@@ -23,12 +28,15 @@ if (!existsSync(resolve(repoRoot, envFile))) {
 }
 
 loadEnv(envFile, true);
-loadEnv("packages/database/.env.test");
 // Pull in API env so token hashing secrets and other shared vars are available for tests
 loadEnv("apps/api/.env.local");
-loadEnv("apps/api/.env.test", true);
+// In dev mode, keep .env.local; otherwise let test env override for local runs
+if (!isDev) {
+  loadEnv("apps/api/.env.test", true);
+}
 
 const databaseUrl = process.env.DATABASE_URL;
+const baseEnv = { ...process.env, DATABASE_URL: databaseUrl };
 
 if (!databaseUrl) {
   console.error(
@@ -48,7 +56,7 @@ async function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: "inherit",
-      env: { ...process.env, ...options.env },
+      env: { ...baseEnv, ...options.env },
       cwd: options.cwd ?? repoRoot,
     });
     child.on("exit", (code) => {
@@ -69,8 +77,8 @@ async function dropPublicSchema() {
       {
         stdio: ["pipe", "inherit", "inherit"],
         cwd: databaseDir,
-        // Prisma 7+ reads DATABASE_URL from env; pass explicitly to avoid config lookup
-        env: { ...process.env, DATABASE_URL: databaseUrl },
+        // Prisma reads DATABASE_URL from env; pass explicitly to avoid config lookup or overrides
+        env: baseEnv,
       }
     );
 

@@ -19,6 +19,8 @@ import {
   authEvents,
   createOpaqueToken,
   createTokenHashEnvelope,
+  verifyTokenSecret,
+  parseOpaqueToken,
 } from "@repo/auth";
 import { getTestPrisma } from "../../../../test/setup.js";
 import { tokensRoute } from "../index.js";
@@ -450,9 +452,11 @@ describe("PATCH /v1/tokens/:id - Token Name Update", () => {
       );
       expect(updatedToken!.name).toBe("Updated Name");
 
-      // Verify the plaintext token still hashes to the same value
-      const tokenHash = createTokenHashEnvelope(token);
-      expect((updatedToken!.keyHash as { hash: string }).hash).toBe(tokenHash.hash);
+      // Verify the plaintext token still validates against the stored hash
+      const parsed = parseOpaqueToken(token);
+      expect(parsed).not.toBeNull();
+      const isValid = await verifyTokenSecret(parsed!.tokenSecret, updatedToken!.keyHash as any);
+      expect(isValid).toBe(true);
     });
 
     it("should preserve token scopes after name change", async () => {

@@ -2,10 +2,11 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
+import { setCookie } from "hono/cookie";
 import { prisma } from "@repo/database";
 import {
     verifyPassword,
-    AUTHJS_CREDENTIALS_PROVIDER_ID,
+    LOCAL_PASSWORD_PROVIDER_ID,
 } from "@repo/auth";
 import { authService } from "../../../lib/auth-service.js";
 import { setRefreshTokenCookie } from "./refresh-cookie.js";
@@ -54,11 +55,20 @@ signin.post("/password", zValidator("json", passwordSchema), async (c) => {
         userAgent,
         rememberMe: true,
         identity: {
-            provider: AUTHJS_CREDENTIALS_PROVIDER_ID,
+            provider: LOCAL_PASSWORD_PROVIDER_ID,
             providerUserId: user.id,
             email: user.primaryEmail,
             emailVerified: !!user.emailVerified,
         },
+    });
+
+    // Set session cookie so OAuth authorize can find the session
+    setCookie(c, 'authjs.session-token', session.sessionId, {
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+        httpOnly: true,
+        maxAge: 30 * 24 * 60 * 60, // 30 days
+        sameSite: 'Lax',
     });
 
     setRefreshTokenCookie(c, refresh.refreshToken, refresh.token.expiresAt);

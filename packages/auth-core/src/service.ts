@@ -404,6 +404,11 @@ export class AuthCoreService implements AuthService {
       select: {
         id: true,
         userState: true,
+        profile: {
+          select: {
+            id: true,
+          },
+        },
       },
     });
 
@@ -415,7 +420,7 @@ export class AuthCoreService implements AuthService {
       throw new InactiveUserError();
     }
 
-    // const profileId = user.profile?.id ?? null; // Removed profileId usage
+    const profileId = user.profile?.id ?? null;
 
     const session = options.sessionId
       ? await this.prisma.authSession.findUnique({
@@ -462,7 +467,7 @@ export class AuthCoreService implements AuthService {
 
     await this.setContext(this.prisma, {
       userId: user.id,
-      profileId: null, // Removed profileId from context
+      profileId,
       workspaceId: workspaceResolution.workspaceId,
       mfaLevel,
     });
@@ -477,7 +482,7 @@ export class AuthCoreService implements AuthService {
       activeWorkspaceId: workspaceResolution.workspaceId,
       scopes: workspaceResolution.scopes,
       roles: workspaceResolution.roles,
-      profileId: null,
+      profileId,
       mfaLevel,
       recentlyAuthenticatedAt: recentAuthAt,
     };
@@ -513,6 +518,11 @@ export class AuthCoreService implements AuthService {
           select: {
             id: true,
             userState: true,
+            profile: {
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },
@@ -539,7 +549,7 @@ export class AuthCoreService implements AuthService {
       throw new InactiveUserError();
     }
 
-    // const profileId = token.user.profile?.id ?? null;
+    const profileId = token.user.profile?.id ?? null;
     const forcedWorkspaceId = token.workspaceId ?? null;
     const workspaceHeader = forcedWorkspaceId ?? options.request.workspaceHeader ?? null;
     const workspacePathParam = forcedWorkspaceId
@@ -573,7 +583,7 @@ export class AuthCoreService implements AuthService {
       activeWorkspaceId: workspaceResolution.workspaceId,
       scopes,
       roles: workspaceResolution.roles,
-      profileId: null,
+      profileId,
       mfaLevel: 'none',
     };
 
@@ -583,7 +593,7 @@ export class AuthCoreService implements AuthService {
 
     await this.setContext(this.prisma, {
       userId: token.userId,
-      profileId: null,
+      profileId,
       workspaceId: workspaceResolution.workspaceId,
       mfaLevel: 'none',
     });

@@ -112,35 +112,61 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    if (!code || !state || !verifier) {
-      setAuthError('Invalid callback parameters');
+    if (!code) {
+      setAuthError('Authorization code missing');
       setIsLoading(false);
       navigate('/login', { replace: true });
       return;
     }
 
-    if (state !== storedState) {
-      setAuthError('Invalid state parameter');
-      setIsLoading(false);
-      navigate('/login', { replace: true });
-      return;
+    // Check if this is a Google OAuth callback (special state) or magic link callback
+    const isGoogleCallback = state === 'google-oauth';
+    const isMagicLinkCallback = state === 'magic-link';
+    const isExternalProvider = isGoogleCallback || isMagicLinkCallback;
+
+    // For standard PKCE flow, validate state
+    if (!isExternalProvider) {
+      if (!state || !verifier) {
+        setAuthError('Invalid callback parameters');
+        setIsLoading(false);
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      if (state !== storedState) {
+        setAuthError('Invalid state parameter');
+        setIsLoading(false);
+        navigate('/login', { replace: true });
+        return;
+      }
     }
 
     try {
-      // Exchange code for tokens
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+      // For external provider callbacks, exchange code without PKCE verifier
+      const body = isExternalProvider
+        ? new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: CLIENT_ID,
+            code,
+            redirect_uri: REDIRECT_URI,
+          })
+        : new URLSearchParams({
+            grant_type: 'authorization_code',
+            client_id: CLIENT_ID,
+            code,
+            redirect_uri: REDIRECT_URI,
+            code_verifier: verifier!,
+          });
+
       const response = await fetch(`${apiUrl}/v1/oauth/token`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: CLIENT_ID,
-          code,
-          redirect_uri: REDIRECT_URI,
-          code_verifier: verifier,
-        }),
+        credentials: 'include',
+        body,
       });
 
       if (!response.ok) {
@@ -246,13 +272,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   /**
-   * Complete OAuth/magic-link flows by exchanging the refresh cookie for an access token
-   * and hydrating the authenticated user in context.
+   * Complete OAuth/magic-link flows
+   * Called after external provider authentication (Google, magic link)
    */
   const completeProviderLogin = useCallback(async () => {
-    // Legacy bridge no longer used; rely on OAuth callback flow.
-    clearStoredTokens();
-    throw new Error('Legacy provider login is no longer supported. Please sign in again.');
+    // The callback flow is now handled by handleCallback()
+    // This method is kept for interface compatibility
+    await checkAuthStatus();
   }, []);
 
   /**
@@ -269,17 +295,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Login with Google OAuth
+   * Redirects to backend which handles the Google OAuth flow
    */
   async function loginWithGoogle(): Promise<void> {
-    await initiateOAuthFlow();
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    // Redirect to backend Google OAuth endpoint
+    // The backend will redirect to Google with proper client credentials
+    window.location.href = `${apiUrl}/v1/auth/google`;
   }
 
   /**
    * Request magic link via email
+   * This is now handled via a dedicated endpoint
    */
   async function requestMagicLink(): Promise<void> {
-    console.warn('Magic link flow is deprecated; using OAuth authorize flow instead.');
-    await initiateOAuthFlow();
+    // This function is now just a placeholder
+    // The actual magic link request is handled by authApi.sendMagicLink
+    // which should be called from the login form with the email
+    throw new Error('Use authApi.sendMagicLink(email) instead');
   }
 
   /**
