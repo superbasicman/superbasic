@@ -161,7 +161,10 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
 
     // Infrastructure failures (DB down, etc) should return 503
     await resetContext();
-    return c.json({ error: 'Service Unavailable', message: 'Authentication service temporarily unavailable' }, 503);
+    return c.json(
+      { error: 'Service Unavailable', message: 'Authentication service temporarily unavailable' },
+      503
+    );
   } finally {
     await resetContext();
   }

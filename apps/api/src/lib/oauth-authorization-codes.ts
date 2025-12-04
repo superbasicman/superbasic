@@ -16,6 +16,7 @@ export type IssueAuthorizationCodeInput = {
   codeChallenge: string;
   codeChallengeMethod: PkceChallengeMethod;
   scopes?: PermissionScope[];
+  nonce?: string | null;
   expiresInMs?: number;
 };
 
@@ -28,6 +29,7 @@ export type AuthorizationCodeRecord = {
   codeChallenge: string;
   codeChallengeMethod: PkceChallengeMethod;
   scopes: PermissionScope[];
+  nonce: string | null;
   expiresAt: Date;
   consumedAt: Date | null;
   createdAt: Date;
@@ -43,6 +45,7 @@ function mapAuthorizationCode(record: PrismaAuthorizationCode): AuthorizationCod
     codeChallenge: record.codeChallenge,
     codeChallengeMethod: record.codeChallengeMethod as PkceChallengeMethod,
     scopes: record.scopes as PermissionScope[],
+    nonce: record.nonce ?? null,
     expiresAt: record.expiresAt,
     consumedAt: record.consumedAt ?? null,
     createdAt: record.createdAt,
@@ -69,6 +72,7 @@ export async function issueAuthorizationCode(
       codeChallenge: input.codeChallenge,
       codeChallengeMethod: input.codeChallengeMethod,
       scopes,
+      nonce: input.nonce ?? null,
       expiresAt,
       consumedAt: null,
     },

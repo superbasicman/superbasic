@@ -67,12 +67,12 @@
 
 ## Phase 9: OIDC / id_token Semantics Review
 
-### id_token Not Implemented
+### id_token Implementation
 
-- [ ] 17. id_token is NOT issued by /oauth/token endpoint - spec requires id_token for OIDC flows with claims: iss, aud, sub, exp, iat, nonce, auth_time (apps/api/src/routes/v1/oauth/token.ts)
-- [ ] 18. No nonce parameter support in /oauth/authorize - OIDC requires nonce for id_token replay protection (apps/api/src/routes/v1/oauth/authorize.ts)
-- [ ] 19. No auth_time claim tracked or included - spec requires auth_time in id_token (packages/auth-core/src/signing.ts)
-- [ ] 20. Pairwise subject mapping table not implemented - spec requires (user_id, client_id) -> pairwise_sub mapping for third-party clients (documented as deferred, but no explicit tracking)
+- [x] 17. id_token is NOT issued by /oauth/token endpoint - FIXED: Added signIdToken/generateIdToken in auth-core, token endpoint issues id_token when openid scope requested
+- [x] 18. No nonce parameter support in /oauth/authorize - FIXED: Added nonce param to authorize schema, stored in OAuthAuthorizationCode, passed to id_token
+- [x] 19. No auth_time claim tracked or included - FIXED: Sessions track createdAt, used as auth_time in id_token claims
+- [x] 20. Pairwise subject mapping table not implemented - DEFERRED: V1 uses public subs (users.id) per spec 3.6; pairwise subs for third-party clients (documented in signIdToken JSDoc)
 
 ## Phase 10: Workspace Selection & Tenant Isolation Review
 

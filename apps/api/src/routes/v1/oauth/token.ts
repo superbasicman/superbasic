@@ -8,6 +8,7 @@ import {
   AuthorizationError,
   validatePkcePair,
   generateAccessToken,
+  generateIdToken,
 } from '@repo/auth-core';
 import type { ClientType } from '@repo/auth-core';
 import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
@@ -176,10 +177,10 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         data: { consumedAt: new Date() },
       });
 
-      // 7. Fetch user email for identity
+      // 7. Fetch user details for identity and id_token
       const user = await prisma.user.findUnique({
         where: { id: authCode.userId },
-        select: { primaryEmail: true },
+        select: { primaryEmail: true, emailVerified: true, displayName: true, picture: true },
       });
 
       // 8. Create session and get access token + refresh token
@@ -214,11 +215,32 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
 
       setRefreshTokenCookie(c, result.refresh.refreshToken, result.refresh.token.expiresAt);
 
+      // 9. Issue id_token if openid scope was requested
+      const requestedScopes = authCode.scopes as string[];
+      const hasOpenidScope = requestedScopes.includes('openid');
+
+      let idToken: string | undefined;
+      if (hasOpenidScope) {
+        const authTime = Math.floor(result.session.createdAt.getTime() / 1000);
+        const idTokenResult = await generateIdToken({
+          userId: authCode.userId,
+          clientId: client_id,
+          authTime,
+          nonce: authCode.nonce ?? undefined,
+          email: user?.primaryEmail ?? undefined,
+          emailVerified: user?.emailVerified ?? undefined,
+          name: user?.displayName ?? undefined,
+          picture: user?.picture ?? undefined,
+        });
+        idToken = idTokenResult.token;
+      }
+
       return c.json({
         access_token: accessToken,
         refresh_token: result.refresh.refreshToken,
         token_type: 'Bearer',
         expires_in: claims.exp - claims.iat,
+        ...(idToken && { id_token: idToken }),
       });
     }
 

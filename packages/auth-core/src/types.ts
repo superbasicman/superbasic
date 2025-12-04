@@ -247,3 +247,17 @@ export type SsoLoginResolution = {
   action: 'link' | 'create';
   reason?: string;
 };
+
+export type IdTokenClaims = {
+  iss: string;
+  sub: string;
+  aud: string | string[];
+  exp: number;
+  iat: number;
+  auth_time: number;
+  nonce?: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  picture?: string;
+};

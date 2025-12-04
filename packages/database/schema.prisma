@@ -328,6 +328,7 @@ model OAuthAuthorizationCode {
   codeChallenge       String              @map("code_challenge")
   codeChallengeMethod PkceChallengeMethod @default(S256) @map("code_challenge_method")
   scopes              String[]            @default([])
+  nonce               String?
   expiresAt           DateTime            @map("expires_at")
   consumedAt          DateTime?           @map("consumed_at")
   createdAt           DateTime            @default(now()) @map("created_at")

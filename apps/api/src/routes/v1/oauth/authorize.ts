@@ -16,12 +16,13 @@ const authorizeSchema = z.object({
   code_challenge: z.string(),
   code_challenge_method: z.enum(['S256', 'plain']).optional().default('S256'),
   scope: z.string().optional(),
+  nonce: z.string().optional(),
 });
 
 const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
 authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
-  const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope } =
+  const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, nonce } =
     c.req.valid('query');
 
   try {
@@ -93,6 +94,7 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
       codeChallenge: code_challenge,
       codeChallengeMethod: code_challenge_method,
       scopes: scope ? scope.split(' ') : [],
+      nonce: nonce ?? null,
       expiresAt,
     },
   });

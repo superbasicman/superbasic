@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors.js';
-import { authRateLimitMiddleware, credentialsRateLimitMiddleware } from './middleware/rate-limit/index.js';
+import {
+  authRateLimitMiddleware,
+  credentialsRateLimitMiddleware,
+} from './middleware/rate-limit/index.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { healthRoute } from './routes/v1/health.js';
 import { meRoute } from './routes/v1/me.js';

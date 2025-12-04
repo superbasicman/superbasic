@@ -20,10 +20,12 @@ import type { AuthService } from './interfaces.js';
 import { toJsonInput } from './json.js';
 import {
   type SignAccessTokenParams,
+  type SignIdTokenParams,
   SigningKeyStore,
   buildSigningKey,
   buildVerificationKey,
   signAccessToken,
+  signIdToken,
 } from './signing.js';
 import { TokenService } from './token-service.js';
 import type {
@@ -974,6 +976,11 @@ export async function createAuthService(
 export async function generateAccessToken(params: SignAccessTokenParams) {
   const resources = await getDefaultSigningResources();
   return signAccessToken(resources.keyStore, resources.config, params);
+}
+
+export async function generateIdToken(params: SignIdTokenParams) {
+  const resources = await getDefaultSigningResources();
+  return signIdToken(resources.keyStore, resources.config, params);
 }
 
 function isValidDate(value: unknown): value is Date {

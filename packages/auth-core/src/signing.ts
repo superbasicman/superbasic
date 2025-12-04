@@ -5,7 +5,7 @@ import {
   type AuthCoreEnvironment,
   type VerificationKeyConfig,
 } from './config.js';
-import type { AccessTokenClaims, ClientType, MfaLevel } from './types.js';
+import type { AccessTokenClaims, ClientType, IdTokenClaims, MfaLevel } from './types.js';
 
 export type SigningKey = {
   kid: string;
@@ -164,4 +164,74 @@ export async function signAccessToken(
       exp,
     },
   };
+}
+
+export type SignIdTokenParams = {
+  userId: string;
+  clientId: string;
+  authTime: number;
+  nonce?: string | undefined;
+  email?: string | undefined;
+  emailVerified?: boolean | undefined;
+  name?: string | undefined;
+  picture?: string | undefined;
+  expiresInSeconds?: number | undefined;
+};
+
+const ID_TOKEN_TTL_SECONDS = 3600; // 1 hour
+
+/**
+ * Signs an OIDC id_token JWT.
+ *
+ * V1 uses public subject identifiers (users.id) for first-party clients.
+ * When third-party clients are introduced, pairwise subject identifiers
+ * will be implemented via a (user_id, client_id) -> pairwise_sub mapping table.
+ */
+export async function signIdToken(
+  keyStore: SigningKeyStore,
+  config: Pick<AuthCoreEnvironment, 'issuer'>,
+  params: SignIdTokenParams
+): Promise<{ token: string; claims: IdTokenClaims }> {
+  const key = keyStore.getActiveKey();
+  const issuedAt = Math.floor(Date.now() / 1000);
+  const expiresInSeconds = params.expiresInSeconds ?? ID_TOKEN_TTL_SECONDS;
+  const exp = issuedAt + expiresInSeconds;
+
+  const claims: IdTokenClaims = {
+    iss: config.issuer,
+    sub: params.userId,
+    aud: params.clientId,
+    exp,
+    iat: issuedAt,
+    auth_time: params.authTime,
+  };
+
+  // Add optional claims only if defined
+  if (params.nonce) {
+    claims.nonce = params.nonce;
+  }
+  if (params.email) {
+    claims.email = params.email;
+  }
+  if (params.emailVerified !== undefined) {
+    claims.email_verified = params.emailVerified;
+  }
+  if (params.name) {
+    claims.name = params.name;
+  }
+  if (params.picture) {
+    claims.picture = params.picture;
+  }
+
+  const payload = { ...claims };
+
+  const token = await new SignJWT(payload)
+    .setProtectedHeader({ alg: key.alg, kid: key.kid, typ: 'JWT' })
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(exp)
+    .setIssuer(config.issuer)
+    .setAudience(params.clientId)
+    .sign(key.privateKey);
+
+  return { token, claims };
 }
