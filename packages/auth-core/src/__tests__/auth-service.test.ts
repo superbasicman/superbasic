@@ -117,6 +117,7 @@ describe('AuthCoreService.verifyRequest', () => {
       profileId: 'profile-123',
       workspaceId: null,
       mfaLevel: 'none',
+      serviceId: null,
     });
   });
 

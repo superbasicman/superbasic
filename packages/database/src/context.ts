@@ -7,6 +7,7 @@ export type PostgresAppContext = {
   profileId: string | null;
   workspaceId: string | null;
   mfaLevel: 'none' | 'mfa' | 'phishing_resistant' | null;
+  serviceId: string | null;
 };
 
 const UUID_REGEX = /^[0-9a-f-]{36}$/i;
@@ -33,6 +34,7 @@ export async function setPostgresContext(
     buildUuidSetStatement('app.profile_id', context.profileId),
     buildUuidSetStatement('app.workspace_id', context.workspaceId),
     buildMfaLevelStatement('app.mfa_level', context.mfaLevel),
+    buildUuidSetStatement('app.service_id', context.serviceId),
   ].filter((statement): statement is string => Boolean(statement));
 
   for (const statement of statements) {
@@ -46,6 +48,7 @@ export async function resetPostgresContext(client: PrismaClientOrTransaction): P
     profileId: null,
     workspaceId: null,
     mfaLevel: null,
+    serviceId: null,
   });
 }
 

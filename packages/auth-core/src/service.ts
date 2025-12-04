@@ -229,6 +229,7 @@ export class AuthCoreService implements AuthService {
         profileId: null,
         workspaceId: activeWorkspaceId,
         mfaLevel: null,
+        serviceId: payload.sub,
       });
 
       if (input.requestId) {
@@ -553,6 +554,7 @@ export class AuthCoreService implements AuthService {
       profileId,
       workspaceId: workspaceResolution.workspaceId,
       mfaLevel,
+      serviceId: null,
     });
 
     // Default to "now" when no explicit auth time signal is available
@@ -681,6 +683,7 @@ export class AuthCoreService implements AuthService {
       profileId,
       workspaceId: workspaceResolution.workspaceId,
       mfaLevel: 'none',
+      serviceId: null,
     });
 
     return authContext;

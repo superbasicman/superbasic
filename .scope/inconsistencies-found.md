@@ -78,7 +78,7 @@
 
 ### GUC Coverage
 
-- [ ] 21. app.service_id GUC is NOT set for service principals - spec requires SET app.service_id for service principal contexts (packages/database/src/context.ts only sets user_id, profile_id, workspace_id, mfa_level)
+- [x] 21. app.service_id GUC is NOT set for service principals - FIXED: Added serviceId to PostgresAppContext type, setPostgresContext now sets app.service_id GUC for service principals
 
 ### Connection Pool Hygiene
 
@@ -87,7 +87,7 @@
 ## Phase 11: Error Semantics Coverage Review
 
 - [x] 401/403 mapping confirmed across handlers
-- [ ] 22. Infrastructure failures in auth-context.ts return 401 instead of 503 (duplicate of #11, but applies across multiple handlers)
+- [x] 22. Infrastructure failures in auth-context.ts return 401 instead of 503 - FIXED: Already addressed in #11 (same fix applies)
 
 ## Phase 12: IdP / First-Party Flows Review
 

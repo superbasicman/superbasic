@@ -57,6 +57,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
       profileId: null,
       workspaceId: null,
       mfaLevel: null,
+      serviceId: null,
     });
     await next();
     await resetContext();
@@ -136,6 +137,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
         profileId: authContext.profileId,
         workspaceId: authContext.activeWorkspaceId,
         mfaLevel: authContext.mfaLevel,
+        serviceId: authContext.serviceId ?? null,
       });
     } else {
       await setContext({
@@ -143,6 +145,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
         profileId: null,
         workspaceId: null,
         mfaLevel: null,
+        serviceId: null,
       });
     }
 
