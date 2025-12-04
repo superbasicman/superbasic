@@ -1,6 +1,6 @@
 /**
  * User Service
- * 
+ *
  * Business logic layer for user operations.
  * Implements user registration with validation and profile creation.
  */
@@ -26,11 +26,11 @@ export class UserService {
   constructor(
     private userRepo: UserRepository,
     private authEvents: { emit: (event: any) => void }
-  ) { }
+  ) {}
 
   /**
    * Register a new user with profile
-   * 
+   *
    * Business rules:
    * - Email must be valid format
    * - Email must be unique (case-insensitive)

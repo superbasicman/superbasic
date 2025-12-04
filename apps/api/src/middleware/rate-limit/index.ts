@@ -1,6 +1,6 @@
 /**
  * Rate limiting middleware exports
- * 
+ *
  * This module provides focused rate limiting middleware for different use cases:
  * - Auth rate limiting (10 req/min per IP)
  * - Token creation rate limiting (10 tokens/hour per user)

@@ -1,6 +1,6 @@
 /**
  * User Repository
- * 
+ *
  * Data access layer for user operations.
  * Pure Prisma operations with no business logic.
  */
@@ -20,7 +20,7 @@ export interface CreateUserProfileData {
 }
 
 export class UserRepository {
-  constructor(private prisma: PrismaClient) { }
+  constructor(private prisma: PrismaClient) {}
 
   /**
    * Find user by email
@@ -134,7 +134,5 @@ export class UserRepository {
 }
 
 function isValidUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value.trim()
-  );
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim());
 }

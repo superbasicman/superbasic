@@ -10,7 +10,9 @@ import type { RateLimitResult } from '@repo/rate-limit';
 import { resolveClientIp } from '../rate-limit/client-ip.js';
 
 // Mock rate limiter for testing
-let mockCheckLimit: ((key: string, config: { limit: number; window: number }) => Promise<RateLimitResult>) | null = null;
+let mockCheckLimit:
+  | ((key: string, config: { limit: number; window: number }) => Promise<RateLimitResult>)
+  | null = null;
 let originalTrustedProxyIps: string | undefined;
 
 beforeAll(() => {

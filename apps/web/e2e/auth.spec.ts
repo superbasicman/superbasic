@@ -351,7 +351,9 @@ test.describe('Authentication E2E Tests', () => {
       await verifyNotAuthenticated(page);
     });
 
-    test('should redirect to login when accessing protected routes after logout', async ({ page }) => {
+    test('should redirect to login when accessing protected routes after logout', async ({
+      page,
+    }) => {
       // Register and login
       const user = generateTestUser();
       await registerUser(page, user);
@@ -486,7 +488,9 @@ test.describe('Authentication E2E Tests', () => {
    * Requirements: 6.7
    */
   test.describe('Protected Route Access Control', () => {
-    test('should redirect to login when accessing protected route without authentication', async ({ page }) => {
+    test('should redirect to login when accessing protected route without authentication', async ({
+      page,
+    }) => {
       // Try to access home page without authentication
       await page.goto('/');
 

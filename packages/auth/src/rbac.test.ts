@@ -215,7 +215,7 @@ describe('hasAnyScope', () => {
 describe('admin scope behavior', () => {
   it('should grant all permissions with admin scope', () => {
     const userScopes = ['admin'];
-    
+
     // Test all valid scopes
     for (const scope of VALID_SCOPES) {
       if (scope !== 'admin') {
@@ -226,15 +226,15 @@ describe('admin scope behavior', () => {
 
   it('should work with hasAllScopes', () => {
     const userScopes = ['admin'];
-    const allScopes = VALID_SCOPES.filter(s => s !== 'admin') as Scope[];
-    
+    const allScopes = VALID_SCOPES.filter((s) => s !== 'admin') as Scope[];
+
     expect(hasAllScopes(userScopes, allScopes)).toBe(true);
   });
 
   it('should work with hasAnyScope', () => {
     const userScopes = ['admin'];
     const someScopes: Scope[] = ['read:transactions', 'write:budgets'];
-    
+
     expect(hasAnyScope(userScopes, someScopes)).toBe(true);
   });
 });

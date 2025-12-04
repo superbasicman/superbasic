@@ -11,15 +11,15 @@ export default function ApiKeys() {
   const [tokens, setTokens] = useState<TokenResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showTokenDisplay, setShowTokenDisplay] = useState(false);
   const [createdToken, setCreatedToken] = useState<{ token: string; name: string } | null>(null);
-  
+
   // Revoke dialog state
   const [tokenToRevoke, setTokenToRevoke] = useState<TokenResponse | null>(null);
-  
+
   // Edit name dialog state
   const [tokenToEdit, setTokenToEdit] = useState<TokenResponse | null>(null);
   const [scopeFilter, setScopeFilter] = useState('');
@@ -100,7 +100,7 @@ export default function ApiKeys() {
 
   function formatDate(dateString: string | null): string {
     if (!dateString) return 'Never';
-    
+
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -112,7 +112,7 @@ export default function ApiKeys() {
     if (diffMinutes < 60) return `${diffMinutes} minute${diffMinutes === 1 ? '' : 's'} ago`;
     if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
     if (diffDays < 30) return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`;
-    
+
     return date.toLocaleDateString();
   }
 
@@ -180,10 +180,7 @@ export default function ApiKeys() {
 
         {/* Create + filters */}
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <Button
-            variant="primary"
-            onClick={() => setShowCreateModal(true)}
-          >
+          <Button variant="primary" onClick={() => setShowCreateModal(true)}>
             Create API Key
           </Button>
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
@@ -223,14 +220,9 @@ export default function ApiKeys() {
               />
             </svg>
             <h3 className="mt-2 text-sm font-medium text-gray-900">No API keys</h3>
-            <p className="mt-1 text-sm text-gray-500">
-              Get started by creating your first API key
-            </p>
+            <p className="mt-1 text-sm text-gray-500">Get started by creating your first API key</p>
             <div className="mt-6">
-              <Button
-                variant="primary"
-                onClick={() => setShowCreateModal(true)}
-              >
+              <Button variant="primary" onClick={() => setShowCreateModal(true)}>
                 Create API Key
               </Button>
             </div>

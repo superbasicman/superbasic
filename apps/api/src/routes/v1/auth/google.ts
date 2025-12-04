@@ -169,7 +169,7 @@ google.get(
       const googleUser = await userInfoResponse.json();
 
       const { userId, identity } = await resolveGoogleIdentity({
-        providerUserId: googleUser.sub,
+        providerSubject: googleUser.sub,
         email: googleUser.email,
         emailVerified: googleUser.email_verified || false,
         name: googleUser.name,

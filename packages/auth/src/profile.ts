@@ -1,21 +1,21 @@
 /**
  * Profile management utilities
- * 
+ *
  * Ensures that every Auth.js user has a corresponding profile record.
  * Profiles store user preferences and own business logic data.
  */
 
-import { prisma } from "@repo/database";
+import { prisma } from '@repo/database';
 
 /**
  * Ensures a profile exists for the given user ID.
  * Creates a profile with default settings if one doesn't exist.
- * 
+ *
  * This function is idempotent - safe to call multiple times for the same user.
- * 
+ *
  * @param userId - The Auth.js user ID (UUID)
  * @returns The profile ID (existing or newly created)
- * 
+ *
  * @example
  * ```typescript
  * // In Auth.js signIn callback
@@ -37,8 +37,8 @@ export async function ensureProfileExists(userId: string): Promise<string> {
   const newProfile = await prisma.profile.create({
     data: {
       userId,
-      timezone: "UTC",
-      currency: "USD",
+      timezone: 'UTC',
+      currency: 'USD',
     },
     select: { id: true },
   });

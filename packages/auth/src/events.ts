@@ -4,29 +4,29 @@
  */
 
 export type AuthEventType =
-  | "user.registered"
-  | "user.login.success"
-  | "user.login.failed"
-  | "user.status_changed"
-  | "user.logout"
-  | "user.mfa_enrolled"
-  | "user.mfa_challenged"
-  | "user.mfa_challenge_failed"
-  | "user.step_up"
-  | "user.step_up_failed"
-  | "user.sso.login"
-  | "user.sso.logout"
-  | "session.revoked"
-  | "refresh.reuse_detected"
-  | "refresh.rotated"
-  | "token.created"
-  | "token.updated"
-  | "token.used"
-  | "token.revoked"
-  | "token.auth_failed"
-  | "token.scope_denied"
-  | "auth.failed_rate_limited"
-  | "user.session.created";
+  | 'user.registered'
+  | 'user.login.success'
+  | 'user.login.failed'
+  | 'user.status_changed'
+  | 'user.logout'
+  | 'user.mfa_enrolled'
+  | 'user.mfa_challenged'
+  | 'user.mfa_challenge_failed'
+  | 'user.step_up'
+  | 'user.step_up_failed'
+  | 'user.sso.login'
+  | 'user.sso.logout'
+  | 'session.revoked'
+  | 'refresh.reuse_detected'
+  | 'refresh.rotated'
+  | 'token.created'
+  | 'token.updated'
+  | 'token.used'
+  | 'token.revoked'
+  | 'token.auth_failed'
+  | 'token.scope_denied'
+  | 'auth.failed_rate_limited'
+  | 'user.session.created';
 
 /**
  * Base authentication event structure
@@ -40,11 +40,11 @@ export interface AuthEvent {
   metadata?: Record<string, unknown>;
 }
 
-export interface MfaEvent extends Omit<AuthEvent, "type"> {
-  type: "user.mfa_enrolled" | "user.mfa_challenged" | "user.mfa_challenge_failed";
+export interface MfaEvent extends Omit<AuthEvent, 'type'> {
+  type: 'user.mfa_enrolled' | 'user.mfa_challenged' | 'user.mfa_challenge_failed';
   metadata: {
-    mfaLevel?: "mfa" | "phishing_resistant";
-    factorType?: "totp" | "webauthn" | "sms" | "email";
+    mfaLevel?: 'mfa' | 'phishing_resistant';
+    factorType?: 'totp' | 'webauthn' | 'sms' | 'email';
     success?: boolean;
     sessionId?: string | null;
     requestId?: string | null;
@@ -52,11 +52,11 @@ export interface MfaEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface StepUpEvent extends Omit<AuthEvent, "type"> {
-  type: "user.step_up" | "user.step_up_failed";
+export interface StepUpEvent extends Omit<AuthEvent, 'type'> {
+  type: 'user.step_up' | 'user.step_up_failed';
   metadata: {
     action: string;
-    minMfaLevel?: "none" | "mfa" | "phishing_resistant";
+    minMfaLevel?: 'none' | 'mfa' | 'phishing_resistant';
     satisfied: boolean;
     sessionId?: string | null;
     requestId?: string | null;
@@ -64,13 +64,13 @@ export interface StepUpEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface SsoEvent extends Omit<AuthEvent, "type"> {
-  type: "user.sso.login" | "user.sso.logout";
+export interface SsoEvent extends Omit<AuthEvent, 'type'> {
+  type: 'user.sso.login' | 'user.sso.logout';
   metadata: {
     provider: string;
-    providerUserId?: string;
+    providerSubject?: string;
     workspaceId?: string | null;
-    mode?: "invite_only" | "auto_provision" | null;
+    mode?: 'invite_only' | 'auto_provision' | null;
     sessionId?: string | null;
     requestId?: string | null;
     timestamp: string;
@@ -81,8 +81,8 @@ export interface SsoEvent extends Omit<AuthEvent, "type"> {
  * Token creation event payload
  * Emitted when a new API token is created
  */
-export interface TokenCreatedEvent extends Omit<AuthEvent, "type"> {
-  type: "token.created";
+export interface TokenCreatedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'token.created';
   userId: string;
   metadata: {
     tokenId: string;
@@ -101,8 +101,8 @@ export interface TokenCreatedEvent extends Omit<AuthEvent, "type"> {
  * Token usage event payload
  * Emitted when a token is successfully used to authenticate a request
  */
-export interface TokenUsedEvent extends Omit<AuthEvent, "type"> {
-  type: "token.used";
+export interface TokenUsedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'token.used';
   userId: string;
   metadata: {
     tokenId: string;
@@ -119,8 +119,8 @@ export interface TokenUsedEvent extends Omit<AuthEvent, "type"> {
  * Token revocation event payload
  * Emitted when a token is revoked by the user
  */
-export interface TokenRevokedEvent extends Omit<AuthEvent, "type"> {
-  type: "token.revoked";
+export interface TokenRevokedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'token.revoked';
   userId: string;
   metadata: {
     tokenId: string;
@@ -137,11 +137,11 @@ export interface TokenRevokedEvent extends Omit<AuthEvent, "type"> {
  * Token authentication failure event payload
  * Emitted when token authentication fails (invalid, expired, revoked, etc.)
  */
-export interface TokenAuthFailedEvent extends Omit<AuthEvent, "type"> {
-  type: "token.auth_failed";
+export interface TokenAuthFailedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'token.auth_failed';
   userId?: string;
   metadata: {
-    reason: "invalid_format" | "not_found" | "revoked" | "expired";
+    reason: 'invalid_format' | 'not_found' | 'revoked' | 'expired';
     tokenPrefix?: string;
     tokenId?: string;
     expiresAt?: string;
@@ -155,8 +155,8 @@ export interface TokenAuthFailedEvent extends Omit<AuthEvent, "type"> {
  * Token scope denial event payload
  * Emitted when a token lacks required scope for an operation
  */
-export interface TokenScopeDeniedEvent extends Omit<AuthEvent, "type"> {
-  type: "token.scope_denied";
+export interface TokenScopeDeniedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'token.scope_denied';
   userId: string;
   metadata: {
     tokenId: string;
@@ -170,8 +170,8 @@ export interface TokenScopeDeniedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface TokenUpdatedEvent extends Omit<AuthEvent, "type"> {
-  type: "token.updated";
+export interface TokenUpdatedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'token.updated';
   userId: string;
   metadata: {
     tokenId: string;
@@ -184,8 +184,8 @@ export interface TokenUpdatedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface RefreshRotatedEvent extends Omit<AuthEvent, "type"> {
-  type: "refresh.rotated";
+export interface RefreshRotatedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'refresh.rotated';
   userId: string;
   metadata: {
     sessionId: string;
@@ -199,8 +199,8 @@ export interface RefreshRotatedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface AuthFailedRateLimitedEvent extends Omit<AuthEvent, "type"> {
-  type: "auth.failed_rate_limited";
+export interface AuthFailedRateLimitedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'auth.failed_rate_limited';
   metadata: {
     ip: string;
     windowSeconds: number;
@@ -210,8 +210,8 @@ export interface AuthFailedRateLimitedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface SessionRevokedEvent extends Omit<AuthEvent, "type"> {
-  type: "session.revoked";
+export interface SessionRevokedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'session.revoked';
   userId: string;
   metadata: {
     sessionId: string;
@@ -224,8 +224,8 @@ export interface SessionRevokedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface RefreshReuseDetectedEvent extends Omit<AuthEvent, "type"> {
-  type: "refresh.reuse_detected";
+export interface RefreshReuseDetectedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'refresh.reuse_detected';
   userId: string;
   metadata: {
     sessionId?: string | null;
@@ -238,8 +238,8 @@ export interface RefreshReuseDetectedEvent extends Omit<AuthEvent, "type"> {
   };
 }
 
-export interface UserStatusChangedEvent extends Omit<AuthEvent, "type"> {
-  type: "user.status_changed";
+export interface UserStatusChangedEvent extends Omit<AuthEvent, 'type'> {
+  type: 'user.status_changed';
   userId: string;
   email?: string;
   metadata: {
@@ -263,19 +263,17 @@ class AuthEventEmitter {
     this.handlers.push(handler);
   }
 
-  async emit(event: Omit<AuthEvent, "timestamp">) {
+  async emit(event: Omit<AuthEvent, 'timestamp'>) {
     const fullEvent: AuthEvent = {
       ...event,
       timestamp: new Date(),
     };
 
-    const tasks = this.handlers.map((handler) =>
-      Promise.resolve().then(() => handler(fullEvent))
-    );
+    const tasks = this.handlers.map((handler) => Promise.resolve().then(() => handler(fullEvent)));
 
     // Fire and forget - don't block auth flow
     Promise.all(tasks).catch((err) => {
-      console.error("Auth event handler error:", err);
+      console.error('Auth event handler error:', err);
     });
   }
 

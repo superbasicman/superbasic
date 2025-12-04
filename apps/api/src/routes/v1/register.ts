@@ -34,7 +34,7 @@ registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
       rememberMe: true,
       identity: {
         provider: LOCAL_PASSWORD_PROVIDER_ID,
-        providerUserId: result.user.id,
+        providerSubject: result.user.id,
         email: result.user.email,
         emailVerified: false,
       },

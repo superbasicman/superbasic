@@ -4,7 +4,7 @@
  * Interactive Plaid setup wizard
  * Walks through Plaid account registration, API key setup, and encryption key generation
  * Updates .env files with Plaid configuration
- * 
+ *
  * Usage:
  *   pnpm setup:plaid
  *   OR
@@ -56,15 +56,15 @@ function generateEncryptionKey(): string {
   } catch {
     // Fallback if openssl not available
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    return Array.from({ length: 44 }, () => 
-      chars[Math.floor(Math.random() * chars.length)]
-    ).join('');
+    return Array.from({ length: 44 }, () => chars[Math.floor(Math.random() * chars.length)]).join(
+      ''
+    );
   }
 }
 
 function readEnvFile(filePath: string): Map<string, string> {
   const envMap = new Map<string, string>();
-  
+
   if (!existsSync(filePath)) {
     return envMap;
   }
@@ -74,7 +74,7 @@ function readEnvFile(filePath: string): Map<string, string> {
 
   for (const line of lines) {
     const trimmed = line.trim();
-    
+
     // Skip empty lines and comments
     if (!trimmed || trimmed.startsWith('#')) {
       continue;
@@ -84,7 +84,7 @@ function readEnvFile(filePath: string): Map<string, string> {
     const match = trimmed.match(/^([^=]+)=(.*)$/);
     if (match) {
       const key = match[1]?.trim();
-      const value = match[2] ?? "";
+      const value = match[2] ?? '';
       if (!key) {
         continue;
       }
@@ -97,7 +97,11 @@ function readEnvFile(filePath: string): Map<string, string> {
   return envMap;
 }
 
-function writeEnvFile(filePath: string, envMap: Map<string, string>, updates: Record<string, string>) {
+function writeEnvFile(
+  filePath: string,
+  envMap: Map<string, string>,
+  updates: Record<string, string>
+) {
   // Update map with new values
   for (const [key, value] of Object.entries(updates)) {
     envMap.set(key, value);
@@ -105,14 +109,14 @@ function writeEnvFile(filePath: string, envMap: Map<string, string>, updates: Re
 
   // Build content preserving comments and structure if file exists
   let content = '';
-  
+
   if (existsSync(filePath)) {
     const originalContent = readFileSync(filePath, 'utf-8');
     const lines = originalContent.split('\n');
-    
+
     for (const line of lines) {
       const trimmed = line.trim();
-      
+
       // Keep comments and empty lines as-is
       if (!trimmed || trimmed.startsWith('#')) {
         content += line + '\n';
@@ -194,8 +198,8 @@ async function main() {
     console.log('  3. Verify your email address');
     console.log('  4. Complete the onboarding questionnaire');
     console.log('  5. Choose "Sandbox" access for development');
-    
-    await question('\nPress Enter once you\'ve created your account...');
+
+    await question("\nPress Enter once you've created your account...");
   }
 
   success('Plaid account ready!');
@@ -213,10 +217,12 @@ async function main() {
   console.log('  • Production  - Live environment (requires approval)');
 
   log('For Phase 4 development, we recommend starting with Sandbox.');
-  
-  const environment = await question('\nWhich environment? (sandbox/development/production) [sandbox]: ');
+
+  const environment = await question(
+    '\nWhich environment? (sandbox/development/production) [sandbox]: '
+  );
   const plaidEnv = environment.toLowerCase() || 'sandbox';
-  
+
   if (!['sandbox', 'development', 'production'].includes(plaidEnv)) {
     error('Invalid environment. Must be: sandbox, development, or production');
     rl.close();
@@ -233,7 +239,7 @@ async function main() {
   log('STEP 3: Plaid API Credentials');
   log('═══════════════════════════════════════════════════════════');
 
-  info('Now let\'s get your API credentials from the Plaid dashboard:');
+  info("Now let's get your API credentials from the Plaid dashboard:");
   console.log('\n🌐 Visit: https://dashboard.plaid.com/team/keys');
   console.log('\n  1. Sign in to your Plaid account');
   console.log('  2. Navigate to "Team Settings" → "Keys"');
@@ -247,7 +253,7 @@ async function main() {
   await question('\nPress Enter when ready to paste credentials...');
 
   const clientId = await question('\nPaste your Plaid CLIENT_ID: ');
-  
+
   if (!clientId || clientId.length < 10) {
     error('Invalid client_id. It should be a long alphanumeric string.');
     rl.close();
@@ -257,7 +263,7 @@ async function main() {
   config.PLAID_CLIENT_ID = clientId;
 
   const secret = await question('Paste your Plaid SECRET: ');
-  
+
   if (!secret || secret.length < 10) {
     error('Invalid secret. It should be a long alphanumeric string.');
     rl.close();
@@ -283,7 +289,7 @@ async function main() {
   log('Generating a secure encryption key...');
   const encryptionKey = generateEncryptionKey();
   config.PLAID_ACCESS_TOKEN_ENCRYPTION_KEY = encryptionKey;
-  
+
   success('Encryption key generated!');
   warning('IMPORTANT: Keep this key secure. If lost, you cannot decrypt existing tokens.');
 
@@ -300,17 +306,17 @@ async function main() {
   console.log('  • balance - Real-time balance information (optional)');
 
   log('Default configuration: transactions');
-  
+
   const customizeProducts = await question('\nCustomize products? (y/n) [n]: ');
-  
+
   if (customizeProducts.toLowerCase() === 'y') {
     const useAuth = await question('Include auth product? (y/n): ');
     const useBalance = await question('Include balance product? (y/n): ');
-    
+
     const products = ['transactions'];
     if (useAuth.toLowerCase() === 'y') products.push('auth');
     if (useBalance.toLowerCase() === 'y') products.push('balance');
-    
+
     config.PLAID_PRODUCTS = products.join(',');
   } else {
     config.PLAID_PRODUCTS = 'transactions';
@@ -347,10 +353,10 @@ async function main() {
   console.log('\n  • Development: http://localhost:5173/oauth/callback');
   console.log('  • Production: https://app.yourdomain.com/oauth/callback');
 
-  log('For development, we\'ll use: http://localhost:5173/oauth/callback');
-  
+  log("For development, we'll use: http://localhost:5173/oauth/callback");
+
   const customRedirect = await question('\nUse custom redirect URI? (y/n) [n]: ');
-  
+
   if (customRedirect.toLowerCase() === 'y') {
     const redirectUri = await question('Enter redirect URI: ');
     config.PLAID_REDIRECT_URI = redirectUri;
@@ -386,18 +392,18 @@ async function main() {
     log('For local development, you can use ngrok or a similar tunneling service:');
     console.log('  • ngrok http 3000');
     console.log('  • Use the HTTPS URL provided');
-    
+
     const webhookUrl = await question('\nEnter webhook URL (must be HTTPS): ');
-    
+
     if (webhookUrl && webhookUrl.startsWith('https://')) {
       config.PLAID_WEBHOOK_URL = webhookUrl;
-      
+
       info('You must also add this in the Plaid dashboard:');
       console.log('\n🌐 Visit: https://dashboard.plaid.com/team/api');
       console.log('  1. Go to "API" → "Webhooks"');
       console.log(`  2. Add: ${webhookUrl}/v1/webhooks/plaid`);
       console.log('  3. Click "Save"');
-      
+
       await question('\nPress Enter after adding the webhook in Plaid dashboard...');
       success('Webhook URL configured!');
     } else {
@@ -415,7 +421,7 @@ async function main() {
   log('═══════════════════════════════════════════════════════════');
 
   const apiEnvPath = resolve(process.cwd(), 'apps/api/.env.local');
-  
+
   if (!existsSync(apiEnvPath)) {
     warning('apps/api/.env.local not found. Creating new file...');
     warning('You may need to run: pnpm setup:env first');
@@ -458,13 +464,13 @@ async function main() {
 
   if (verifyInstall.toLowerCase() !== 'n') {
     info('Checking for plaid package...');
-    
+
     try {
       // Check if plaid is in package.json
       const packageJsonPath = resolve(process.cwd(), 'package.json');
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      
-      const hasPlaid = 
+
+      const hasPlaid =
         (packageJson.dependencies && packageJson.dependencies.plaid) ||
         (packageJson.devDependencies && packageJson.devDependencies.plaid);
 
@@ -472,9 +478,9 @@ async function main() {
         success('Plaid SDK is installed!');
       } else {
         warning('Plaid SDK not found in package.json');
-        
+
         const installNow = await question('\nInstall Plaid SDK now? (y/n): ');
-        
+
         if (installNow.toLowerCase() === 'y') {
           info('Installing plaid...');
           try {
@@ -503,7 +509,7 @@ async function main() {
 
   if (testConnection.toLowerCase() === 'y') {
     info('Creating a simple test script...');
-    
+
     const testScript = `
 import { Configuration, PlaidApi, PlaidEnvironments } from 'plaid';
 
@@ -537,7 +543,7 @@ client.linkTokenCreate({
 
     const testPath = resolve(process.cwd(), 'tooling/scripts/temp/test-plaid-connection.ts');
     writeFileSync(testPath, testScript);
-    
+
     try {
       info('Running test...');
       execSync(`pnpm tsx ${testPath}`, { stdio: 'inherit' });

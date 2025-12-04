@@ -19,10 +19,7 @@ export async function listSessions(c: Context<AppBindings>) {
       revokedAt: null,
       expiresAt: { gt: now },
     },
-    orderBy: [
-      { lastActivityAt: 'desc' },
-      { createdAt: 'desc' },
-    ],
+    orderBy: [{ lastActivityAt: 'desc' }, { createdAt: 'desc' }],
     select: {
       id: true,
       createdAt: true,
@@ -50,7 +47,7 @@ export async function deleteSession(c: Context<AppBindings>) {
   }
 
   try {
-    auth.recentlyAuthenticatedAt ??= new Date();
+    auth.authTime ??= new Date();
     requireRecentAuth(auth, { withinSeconds: 15 * 60, minMfaLevel: 'mfa' });
   } catch (error) {
     return c.json({ error: 'forbidden', message: 'Recent authentication required' }, 403);

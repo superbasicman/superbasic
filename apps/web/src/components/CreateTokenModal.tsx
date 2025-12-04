@@ -43,15 +43,13 @@ export function CreateTokenModal({ onClose, onSuccess }: CreateTokenModalProps) 
 
   const handleScopeToggle = (scope: string) => {
     setSelectedScopes((prev) => {
-      const newScopes = prev.includes(scope)
-        ? prev.filter((s) => s !== scope)
-        : [...prev, scope];
-      
+      const newScopes = prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope];
+
       // Clear error when user selects a scope
       if (newScopes.length > 0) {
         setScopesError(null);
       }
-      
+
       return newScopes;
     });
   };
@@ -114,9 +112,7 @@ export function CreateTokenModal({ onClose, onSuccess }: CreateTokenModalProps) 
             <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
               <div className="sm:flex sm:items-start">
                 <div className="mt-3 w-full text-center sm:mt-0 sm:text-left">
-                  <h3 className="text-lg font-medium leading-6 text-gray-900">
-                    Create API Key
-                  </h3>
+                  <h3 className="text-lg font-medium leading-6 text-gray-900">Create API Key</h3>
                   <p className="mt-2 text-sm text-gray-500">
                     Create a new API key for programmatic access to your account
                   </p>
@@ -153,9 +149,7 @@ export function CreateTokenModal({ onClose, onSuccess }: CreateTokenModalProps) 
                         } px-3 py-2 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-primary-500 sm:text-sm`}
                         placeholder="e.g., CI/CD Pipeline, Mobile App"
                       />
-                      {nameError && (
-                        <p className="mt-1 text-sm text-red-600">{nameError}</p>
-                      )}
+                      {nameError && <p className="mt-1 text-sm text-red-600">{nameError}</p>}
                     </div>
 
                     {/* Scopes field */}
@@ -189,14 +183,15 @@ export function CreateTokenModal({ onClose, onSuccess }: CreateTokenModalProps) 
                           );
                         })}
                       </div>
-                      {scopesError && (
-                        <p className="mt-2 text-sm text-red-600">{scopesError}</p>
-                      )}
+                      {scopesError && <p className="mt-2 text-sm text-red-600">{scopesError}</p>}
                     </div>
 
                     {/* Expiration field */}
                     <div>
-                      <label htmlFor="expiration" className="block text-sm font-medium text-gray-700">
+                      <label
+                        htmlFor="expiration"
+                        className="block text-sm font-medium text-gray-700"
+                      >
                         Expiration
                       </label>
                       <select

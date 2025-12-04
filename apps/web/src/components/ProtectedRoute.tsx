@@ -7,7 +7,7 @@ interface ProtectedRouteProps {
 
 /**
  * ProtectedRoute component that wraps routes requiring authentication
- * 
+ *
  * - Checks authentication status from AuthContext
  * - Shows loading state while checking auth
  * - Redirects to /login if unauthenticated

@@ -1,6 +1,6 @@
 /**
  * Profile Domain Types
- * 
+ *
  * Type definitions for profile service operations.
  */
 
@@ -9,11 +9,13 @@ import { z } from 'zod';
 /**
  * Zod schema for profile updates
  */
-export const UpdateProfileSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  timezone: z.string().optional(),
-  currency: z.string().length(3).optional(),
-}).strict();
+export const UpdateProfileSchema = z
+  .object({
+    name: z.string().min(1).max(100).optional(),
+    timezone: z.string().optional(),
+    currency: z.string().length(3).optional(),
+  })
+  .strict();
 
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
 

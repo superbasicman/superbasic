@@ -94,12 +94,7 @@ describe('Scope Enforcement Middleware', () => {
       const { token } = await createAccessToken(user.id);
 
       // Make request with session auth (scopes resolved from auth context)
-      const response = await makeAuthenticatedRequest(
-        testApp,
-        'GET',
-        '/v1/me',
-        token
-      );
+      const response = await makeAuthenticatedRequest(testApp, 'GET', '/v1/me', token);
 
       expect(response.status).toBe(200);
 
@@ -110,11 +105,11 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should allow PAT with read:profile scope to access GET /v1/me', async () => {
       const { user } = await createTestUser();
-  const prisma = getTestPrisma();
+      const prisma = getTestPrisma();
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: user.id },
-  });
+      const profile = await prisma.profile.findUnique({
+        where: { userId: user.id },
+      });
 
       // Create token with read:profile scope
       const { token } = await createApiToken(user.id, profile!.id, user.email, {
@@ -186,11 +181,11 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       // Create token with admin scope (grants all permissions)
-  const { token } = await createApiToken(user.id, profile!.id, user.email, {
-    name: 'Admin Token',
-    scopes: ['admin'],
-    workspaceId: workspace.id,
-  });
+      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+        name: 'Admin Token',
+        scopes: ['admin'],
+        workspaceId: workspace.id,
+      });
 
       // Make request with Bearer token
       const response = await makeRequest(testApp, 'GET', '/v1/me', {
@@ -216,18 +211,12 @@ describe('Scope Enforcement Middleware', () => {
       const { token } = await createAccessToken(user.id);
 
       // Make request with session auth (scopes resolved from auth context)
-      const response = await makeAuthenticatedRequest(
-        testApp,
-        'PATCH',
-        '/v1/me',
-        token,
-        {
-          body: {
-            name: 'Updated Name',
-            timezone: 'America/New_York',
-          },
-        }
-      );
+      const response = await makeAuthenticatedRequest(testApp, 'PATCH', '/v1/me', token, {
+        body: {
+          name: 'Updated Name',
+          timezone: 'America/New_York',
+        },
+      });
 
       expect(response.status).toBe(200);
 
@@ -311,7 +300,7 @@ describe('Scope Enforcement Middleware', () => {
         scopes: ['read:transactions', 'write:transactions'],
       });
 
-      console.log('test_token:', token)
+      console.log('test_token:', token);
 
       // Make request with Bearer token
       const response = await makeRequest(testApp, 'PATCH', '/v1/me', {
@@ -435,26 +424,15 @@ describe('Scope Enforcement Middleware', () => {
       const { token } = await createAccessToken(user.id);
 
       // Test read endpoint
-      const readResponse = await makeAuthenticatedRequest(
-        testApp,
-        'GET',
-        '/v1/me',
-        token
-      );
+      const readResponse = await makeAuthenticatedRequest(testApp, 'GET', '/v1/me', token);
       expect(readResponse.status).toBe(200);
 
       // Test write endpoint
-      const writeResponse = await makeAuthenticatedRequest(
-        testApp,
-        'PATCH',
-        '/v1/me',
-        token,
-        {
-          body: {
-            name: 'Updated Name',
-          },
-        }
-      );
+      const writeResponse = await makeAuthenticatedRequest(testApp, 'PATCH', '/v1/me', token, {
+        body: {
+          name: 'Updated Name',
+        },
+      });
       expect(writeResponse.status).toBe(200);
     });
 
@@ -530,17 +508,11 @@ describe('Scope Enforcement Middleware', () => {
       });
 
       const { token } = await createAccessToken(user.id);
-      const response = await makeAuthenticatedRequest(
-        testApp,
-        'GET',
-        '/v1/tokens',
-        token,
-        {
-          headers: {
-            'x-workspace-id': workspace.id,
-          },
-        }
-      );
+      const response = await makeAuthenticatedRequest(testApp, 'GET', '/v1/tokens', token, {
+        headers: {
+          'x-workspace-id': workspace.id,
+        },
+      });
 
       expect(response.status).toBe(200);
     });

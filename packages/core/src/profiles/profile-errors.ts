@@ -1,6 +1,6 @@
 /**
  * Profile Domain Errors
- * 
+ *
  * Custom error classes for profile-related business rule violations.
  */
 

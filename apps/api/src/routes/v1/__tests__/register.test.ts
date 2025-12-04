@@ -16,7 +16,7 @@ vi.mock('@repo/rate-limit', async (importOriginal) => {
     createRateLimiter: () => ({
       checkLimit: async () => ({ allowed: true, remaining: 999, reset: 0 }),
       getUsage: async () => 0,
-      resetLimit: async () => { },
+      resetLimit: async () => {},
     }),
     createMockRedis: () => ({}),
   };

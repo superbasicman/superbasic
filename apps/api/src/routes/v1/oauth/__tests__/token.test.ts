@@ -127,7 +127,7 @@ describe('POST /v1/oauth/token', () => {
       userId: user.id,
       identity: {
         provider: 'local_password',
-        providerUserId: user.id,
+        providerSubject: user.id,
         email: user.primaryEmail,
       },
       clientType: 'web',
@@ -180,7 +180,7 @@ describe('POST /v1/oauth/token', () => {
       userId: user.id,
       identity: {
         provider: 'local_password',
-        providerUserId: user.id,
+        providerSubject: user.id,
         email: user.primaryEmail,
       },
       clientType: 'web',

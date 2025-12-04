@@ -11,12 +11,12 @@ import {
   parseOpaqueToken,
   verifyTokenSecret,
   type TokenHashEnvelope,
-} from "./token-hash.js";
+} from './token-hash.js';
 
 /**
  * PAT prefix for easy identification and secret scanning
  */
-const PAT_PREFIX = "sbf";
+const PAT_PREFIX = 'sbf';
 
 /**
  * Length of the random token portion (in bytes)
@@ -87,8 +87,8 @@ export function extractTokenFromHeader(authHeader: string | undefined): string |
     return null;
   }
 
-  const parts = authHeader.split(" ");
-  if (parts.length !== 2 || parts[0] !== "Bearer") {
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
     return null;
   }
 

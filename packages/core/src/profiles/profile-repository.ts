@@ -1,6 +1,6 @@
 /**
  * Profile Repository
- * 
+ *
  * Data access layer for profile operations.
  * Pure Prisma operations with no business logic.
  */

@@ -112,7 +112,7 @@ export function resolveSsoWorkspace(
 
 export function planBackChannelLogout(
   event: SsoLogoutEvent,
-  identities: { provider: string; providerUserId: string; userId: string }[],
+  identities: { provider: string; providerSubject: string; userId: string }[],
   sessions: SessionSummary[] = []
 ): SsoLogoutPlan {
   const provider = normalizeSsoProvider(event.provider);
@@ -122,7 +122,7 @@ export function planBackChannelLogout(
   for (const identity of identities) {
     if (
       normalizeSsoProvider(identity.provider) === provider &&
-      identity.providerUserId === event.providerUserId
+      identity.providerSubject === event.providerSubject
     ) {
       userIds.add(identity.userId);
     }
@@ -151,14 +151,19 @@ export function planBackChannelLogout(
 
 export function resolveSsoLoginUser(
   identity: VerifiedIdentity,
-  identities: { provider: string; providerUserId: string; userId: string; email?: string | null }[],
+  identities: {
+    provider: string;
+    providerSubject: string;
+    userId: string;
+    email?: string | null;
+  }[],
   options: { allowEmailLinking?: boolean } = {}
 ): SsoLoginResolution {
   const provider = normalizeSsoProvider(identity.provider);
   const directMatch = identities.find(
     (existing) =>
       normalizeSsoProvider(existing.provider) === provider &&
-      existing.providerUserId === identity.providerUserId
+      existing.providerSubject === identity.providerSubject
   );
 
   if (directMatch) {

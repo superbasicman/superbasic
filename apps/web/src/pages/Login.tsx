@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Input } from "@repo/design-system";
-import { useAuth } from "../contexts/AuthContext";
-import { useAuthForm } from "../hooks/useAuthForm";
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Input } from '@repo/design-system';
+import { useAuth } from '../contexts/AuthContext';
+import { useAuthForm } from '../hooks/useAuthForm';
 
 export default function Login() {
   const [searchParams] = useSearchParams();
@@ -25,14 +25,14 @@ export default function Login() {
   } = useAuthForm();
 
   const [isDark, setIsDark] = useState(true);
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [step, setStep] = useState<"initial" | "password">("initial");
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [step, setStep] = useState<'initial' | 'password'>('initial');
 
   // Check URL params for mode on mount
   useEffect(() => {
-    const modeParam = searchParams.get("mode");
-    if (modeParam === "signup") {
-      setMode("signup");
+    const modeParam = searchParams.get('mode');
+    if (modeParam === 'signup') {
+      setMode('signup');
     }
   }, [searchParams]);
 
@@ -45,26 +45,26 @@ export default function Login() {
 
   const handleEmailContinue = () => {
     if (email) {
-      setStep("password");
+      setStep('password');
       setError(null);
     }
   };
 
   const handleBack = () => {
-    setStep("initial");
-    setPassword("");
-    setConfirmPassword("");
+    setStep('initial');
+    setPassword('');
+    setConfirmPassword('');
     setError(null);
   };
 
   const toggleMode = () => {
-    setMode(mode === "signin" ? "signup" : "signin");
-    setStep("initial");
+    setMode(mode === 'signin' ? 'signup' : 'signin');
+    setStep('initial');
     resetForm();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent, action: () => void) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       action();
     }
   };
@@ -73,26 +73,27 @@ export default function Login() {
   const CustomButton = ({
     children,
     onClick,
-    variant = "primary",
+    variant = 'primary',
     disabled = false,
   }: {
     children: React.ReactNode;
     onClick?: () => void;
-    variant?: "primary" | "toggle";
+    variant?: 'primary' | 'toggle';
     disabled?: boolean;
   }) => {
-    const baseStyles = "w-full text-sm py-3 px-4 border transition-colors";
-    const toggleStyles = "text-xs py-2 px-3 border transition-colors";
+    const baseStyles = 'w-full text-sm py-3 px-4 border transition-colors';
+    const toggleStyles = 'text-xs py-2 px-3 border transition-colors';
 
-    if (variant === "toggle") {
+    if (variant === 'toggle') {
       return (
         <button
           type="button"
           onClick={onClick}
-          className={`${toggleStyles} ${isDark
-              ? "border-white hover:bg-white hover:text-black"
-              : "border-black hover:bg-black hover:text-white"
-            }`}
+          className={`${toggleStyles} ${
+            isDark
+              ? 'border-white hover:bg-white hover:text-black'
+              : 'border-black hover:bg-black hover:text-white'
+          }`}
         >
           {children}
         </button>
@@ -104,10 +105,11 @@ export default function Login() {
         type="button"
         onClick={onClick}
         disabled={disabled || isLoading}
-        className={`${baseStyles} ${isDark
-            ? "border-white hover:bg-white hover:text-black disabled:opacity-50"
-            : "border-black hover:bg-black hover:text-white disabled:opacity-50"
-          }`}
+        className={`${baseStyles} ${
+          isDark
+            ? 'border-white hover:bg-white hover:text-black disabled:opacity-50'
+            : 'border-black hover:bg-black hover:text-white disabled:opacity-50'
+        }`}
       >
         {children}
       </button>
@@ -116,13 +118,14 @@ export default function Login() {
 
   return (
     <div
-      className={`min-h-screen flex items-center justify-center p-8 font-mono ${isDark ? "bg-black text-white" : "bg-white text-black"
-        }`}
+      className={`min-h-screen flex items-center justify-center p-8 font-mono ${
+        isDark ? 'bg-black text-white' : 'bg-white text-black'
+      }`}
     >
       {/* Theme toggle - fixed to top right of screen */}
       <div className="fixed top-8 right-8">
         <CustomButton onClick={() => setIsDark(!isDark)} variant="toggle">
-          {isDark ? "Light" : "Dark"}
+          {isDark ? 'Light' : 'Dark'}
         </CustomButton>
       </div>
 
@@ -130,9 +133,7 @@ export default function Login() {
         {/* Header */}
         <div className="mb-12 text-center">
           <div className="text-2xl mb-2">SuperBasic Finance</div>
-          <div
-            className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}
-          >
+          <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Your money, in plain text.
           </div>
         </div>
@@ -140,22 +141,21 @@ export default function Login() {
         {/* Error message */}
         {error && (
           <div
-            className={`mb-6 p-4 border ${isDark
-                ? "border-red-400 text-red-400"
-                : "border-red-600 text-red-600"
-              }`}
+            className={`mb-6 p-4 border ${
+              isDark ? 'border-red-400 text-red-400' : 'border-red-600 text-red-600'
+            }`}
           >
             {error}
           </div>
         )}
 
         {/* Initial step */}
-        {step === "initial" && (
+        {step === 'initial' && (
           <div>
             {/* Google OAuth */}
             <div className="space-y-3 mb-6">
               <CustomButton onClick={loginWithGoogle}>
-                {mode === "signin" ? "Sign in" : "Sign up"} with Google
+                {mode === 'signin' ? 'Sign in' : 'Sign up'} with Google
               </CustomButton>
             </div>
 
@@ -163,14 +163,12 @@ export default function Login() {
             <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center">
                 <div
-                  className={`w-full border-t ${isDark ? "border-gray-700" : "border-gray-300"
-                    }`}
+                  className={`w-full border-t ${isDark ? 'border-gray-700' : 'border-gray-300'}`}
                 />
               </div>
               <div className="relative flex justify-center text-xs">
                 <span
-                  className={`px-2 ${isDark ? "bg-black text-gray-400" : "bg-white text-gray-600"
-                    }`}
+                  className={`px-2 ${isDark ? 'bg-black text-gray-400' : 'bg-white text-gray-600'}`}
                 >
                   or
                 </span>
@@ -191,43 +189,31 @@ export default function Login() {
 
             {/* Continue button */}
             <div className="mb-6">
-              <CustomButton onClick={handleEmailContinue}>
-                Continue
-              </CustomButton>
+              <CustomButton onClick={handleEmailContinue}>Continue</CustomButton>
             </div>
 
             {/* Toggle mode */}
             <div className="text-center">
-              <button
-                type="button"
-                onClick={toggleMode}
-                className="text-xs underline"
-              >
-                {mode === "signin"
-                  ? "First time? Create account"
-                  : "Already have an account? Sign in"}
+              <button type="button" onClick={toggleMode} className="text-xs underline">
+                {mode === 'signin'
+                  ? 'First time? Create account'
+                  : 'Already have an account? Sign in'}
               </button>
             </div>
 
             {/* Terms */}
             <div
-              className={`text-xs mt-8 text-center ${isDark ? "text-gray-400" : "text-gray-600"
-                }`}
+              className={`text-xs mt-8 text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
             >
-              By continuing, you agree to our Terms of Service and Privacy
-              Policy
+              By continuing, you agree to our Terms of Service and Privacy Policy
             </div>
           </div>
         )}
 
         {/* Password step - Sign in */}
-        {step === "password" && mode === "signin" && (
+        {step === 'password' && mode === 'signin' && (
           <div>
-            <button
-              type="button"
-              onClick={handleBack}
-              className="text-xs underline mb-8"
-            >
+            <button type="button" onClick={handleBack} className="text-xs underline mb-8">
               ← Back
             </button>
 
@@ -247,7 +233,7 @@ export default function Login() {
 
             <div className="mb-6">
               <CustomButton onClick={handleLogin} disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign in"}
+                {isLoading ? 'Signing in...' : 'Sign in'}
               </CustomButton>
             </div>
 
@@ -255,14 +241,12 @@ export default function Login() {
             <div className="relative mb-6">
               <div className="absolute inset-0 flex items-center">
                 <div
-                  className={`w-full border-t ${isDark ? "border-gray-700" : "border-gray-300"
-                    }`}
+                  className={`w-full border-t ${isDark ? 'border-gray-700' : 'border-gray-300'}`}
                 />
               </div>
               <div className="relative flex justify-center text-xs">
                 <span
-                  className={`px-2 ${isDark ? "bg-black text-gray-400" : "bg-white text-gray-600"
-                    }`}
+                  className={`px-2 ${isDark ? 'bg-black text-gray-400' : 'bg-white text-gray-600'}`}
                 >
                   or
                 </span>
@@ -272,25 +256,21 @@ export default function Login() {
             {/* Magic link option */}
             <div className="mb-6">
               <CustomButton onClick={handleMagicLink} disabled={isLoading}>
-                {isLoading ? "Sending..." : "Send magic link"}
+                {isLoading ? 'Sending...' : 'Send magic link'}
               </CustomButton>
             </div>
 
             {magicLinkSent && (
               <div
-                className={`mb-6 p-4 border ${isDark
-                    ? "border-green-400 text-green-400"
-                    : "border-green-600 text-green-600"
-                  }`}
+                className={`mb-6 p-4 border ${
+                  isDark ? 'border-green-400 text-green-400' : 'border-green-600 text-green-600'
+                }`}
               >
                 Check your email for a magic link.
               </div>
             )}
 
-            <div
-              className={`text-xs mb-6 ${isDark ? "text-gray-400" : "text-gray-600"
-                }`}
-            >
+            <div className={`text-xs mb-6 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               We'll email you a secure link. No password needed.
             </div>
 
@@ -298,9 +278,9 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => {
-                  setMode("signup");
-                  setStep("password");
-                  setConfirmPassword("");
+                  setMode('signup');
+                  setStep('password');
+                  setConfirmPassword('');
                   setError(null);
                 }}
                 className="text-xs underline"
@@ -312,13 +292,9 @@ export default function Login() {
         )}
 
         {/* Password step - Sign up */}
-        {step === "password" && mode === "signup" && (
+        {step === 'password' && mode === 'signup' && (
           <div>
-            <button
-              type="button"
-              onClick={handleBack}
-              className="text-xs underline mb-8"
-            >
+            <button type="button" onClick={handleBack} className="text-xs underline mb-8">
               ← Back
             </button>
 
@@ -348,16 +324,12 @@ export default function Login() {
 
             <div className="mb-6">
               <CustomButton onClick={handleRegister} disabled={isLoading}>
-                {isLoading ? "Creating account..." : "Create account"}
+                {isLoading ? 'Creating account...' : 'Create account'}
               </CustomButton>
             </div>
 
             <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setMode("signin")}
-                className="text-xs underline"
-              >
+              <button type="button" onClick={() => setMode('signin')} className="text-xs underline">
                 Already have an account? Sign in
               </button>
             </div>

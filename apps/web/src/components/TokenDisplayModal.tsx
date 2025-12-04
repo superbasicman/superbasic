@@ -78,9 +78,7 @@ export function TokenDisplayModal({ token, name, onClose }: TokenDisplayModalPro
                         </svg>
                       </div>
                       <div className="ml-3">
-                        <h3 className="text-sm font-medium text-yellow-800">
-                          Save this token now
-                        </h3>
+                        <h3 className="text-sm font-medium text-yellow-800">Save this token now</h3>
                         <div className="mt-2 text-sm text-yellow-700">
                           <p>
                             You won't be able to see it again. Make sure to copy it to a secure
@@ -93,9 +91,7 @@ export function TokenDisplayModal({ token, name, onClose }: TokenDisplayModalPro
 
                   {/* Token display */}
                   <div className="mt-4">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Your API Key
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700">Your API Key</label>
                     <div className="mt-1 flex rounded-md shadow-sm">
                       <input
                         type="text"

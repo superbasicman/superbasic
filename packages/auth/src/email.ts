@@ -7,10 +7,7 @@ export interface SendMagicLinkEmailParams {
 }
 
 export function getRecipientLogId(email: string): string {
-  return createHash('sha256')
-    .update(email.trim().toLowerCase())
-    .digest('hex')
-    .slice(0, 12);
+  return createHash('sha256').update(email.trim().toLowerCase()).digest('hex').slice(0, 12);
 }
 
 export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams): Promise<void> {
@@ -19,14 +16,18 @@ export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams):
   const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
   const recipient = getRecipientLogId(to);
 
-  console.log('[sendMagicLinkEmail] Sending magic link email:', { recipient, from, urlLength: url.length });
+  console.log('[sendMagicLinkEmail] Sending magic link email:', {
+    recipient,
+    from,
+    urlLength: url.length,
+  });
 
   try {
     const result = await resend.emails.send({
-    from,
-    to,
-    subject: 'Your sign-in link for SuperBasic Finance',
-    html: `
+      from,
+      to,
+      subject: 'Your sign-in link for SuperBasic Finance',
+      html: `
       <!DOCTYPE html>
       <html>
         <head>
@@ -51,7 +52,7 @@ export async function sendMagicLinkEmail({ to, url }: SendMagicLinkEmailParams):
         </body>
       </html>
     `,
-    text: `
+      text: `
 Sign in to SuperBasic Finance
 
 Click the link below to sign in to your account:
@@ -66,10 +67,10 @@ Need help? Contact us at support@superbasicfinance.com
     `.trim(),
     });
 
-    console.log('[sendMagicLinkEmail] Email sent successfully:', { 
-      recipient, 
+    console.log('[sendMagicLinkEmail] Email sent successfully:', {
+      recipient,
       emailId: result.data?.id,
-      error: result.error 
+      error: result.error,
     });
 
     if (result.error) {

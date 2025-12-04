@@ -3,7 +3,12 @@ import { parseOpaqueToken } from '@repo/auth';
 import { AuthorizationError, type VerifyRequestInput } from '@repo/auth-core';
 import type { AppBindings } from '../types/context.js';
 import { authService } from '../lib/auth-service.js';
-import { prisma, resetPostgresContext, setPostgresContext, type PostgresAppContext } from '@repo/database';
+import {
+  prisma,
+  resetPostgresContext,
+  setPostgresContext,
+  type PostgresAppContext,
+} from '@repo/database';
 
 function extractBearer(header: string | undefined): string | null {
   if (!header) {
@@ -68,8 +73,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
       verifyInput.authorizationHeader = authorizationHeader;
     }
 
-    const ip =
-      c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip');
+    const ip = c.req.header('x-forwarded-for')?.split(',')[0]?.trim() || c.req.header('x-real-ip');
     if (ip) {
       verifyInput.ipAddress = ip;
     }
@@ -99,8 +103,8 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
       ...verifyInput,
     });
 
-    if (authContext && !authContext.recentlyAuthenticatedAt) {
-      authContext.recentlyAuthenticatedAt = new Date();
+    if (authContext && !authContext.authTime) {
+      authContext.authTime = new Date();
     }
 
     c.set('auth', authContext);
@@ -108,7 +112,9 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
     if (authContext) {
       const isPat = !authContext.sessionId && authContext.clientType === 'cli';
       const tokenInfo =
-        isPat && authorizationHeader ? parseOpaqueToken(extractBearer(authorizationHeader) ?? '') : null;
+        isPat && authorizationHeader
+          ? parseOpaqueToken(extractBearer(authorizationHeader) ?? '')
+          : null;
 
       c.set('userId', authContext.userId);
       c.set('profileId', authContext.profileId ?? null);

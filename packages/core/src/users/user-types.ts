@@ -1,6 +1,6 @@
 /**
  * User Domain Types
- * 
+ *
  * Type definitions for user service operations.
  */
 

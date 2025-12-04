@@ -52,14 +52,14 @@ export function simulateRateLimitExceeded() {
 
 /**
  * Mock environment variables for testing
- * 
+ *
  * @param vars - Environment variables to set
  */
 export function mockEnv(vars: Record<string, string>) {
   const originalEnv = { ...process.env };
-  
+
   Object.assign(process.env, vars);
-  
+
   return () => {
     process.env = originalEnv;
   };
@@ -71,7 +71,7 @@ export function mockEnv(vars: Record<string, string>) {
  */
 export function createMockRedis() {
   const calls: Array<{ method: string; args: unknown[] }> = [];
-  
+
   const mockRedis = {
     zremrangebyscore: vi.fn(async (...args: unknown[]) => {
       calls.push({ method: 'zremrangebyscore', args });
@@ -102,6 +102,6 @@ export function createMockRedis() {
       calls.length = 0;
     },
   };
-  
+
   return mockRedis;
 }

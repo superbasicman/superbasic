@@ -30,9 +30,7 @@ export function extractIp(c: Context<AppBindings>): string | undefined {
 }
 
 export async function updateSessionTimestamps(sessionId: string, now: Date) {
-  const candidateExpiresAt = new Date(
-    now.getTime() + DEFAULT_INACTIVITY_WINDOW_SECONDS * 1000
-  );
+  const candidateExpiresAt = new Date(now.getTime() + DEFAULT_INACTIVITY_WINDOW_SECONDS * 1000);
 
   const updated = await prisma.authSession.update({
     where: { id: sessionId },

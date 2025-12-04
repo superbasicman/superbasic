@@ -38,13 +38,13 @@ export type OAuthClientRecord = {
 
 export type VerifiedIdentity = {
   provider: string;
-  providerUserId: string;
+  providerSubject: string;
   email: string | null;
   emailVerified?: boolean;
   name?: string;
   picture?: string;
   tenantId?: string;
-  metadata?: Record<string, unknown>;
+  rawClaims?: Record<string, unknown>;
 };
 
 export type WorkspaceSsoBindingMode = 'invite_only' | 'auto_provision';
@@ -57,13 +57,18 @@ export type WorkspaceSsoBinding = {
   allowedEmailDomains?: string[];
 };
 
+export type ServiceType = 'internal' | 'external';
+
 export type AuthContext = {
   userId: string;
   sessionId: string | null;
-  principalType: 'user' | 'service';
+  principalType: 'anonymous' | 'user' | 'service';
   serviceId: string | null;
+  serviceType: ServiceType | null;
   clientId: string | null;
   clientType: ClientType;
+  tokenId: string | null;
+  membershipId: string | null;
   activeWorkspaceId: string | null;
   allowedWorkspaces: string[] | null;
   scopes: PermissionScope[];
@@ -71,7 +76,7 @@ export type AuthContext = {
   profileId: string | null;
   requestId?: string;
   mfaLevel: MfaLevel;
-  recentlyAuthenticatedAt?: Date | null;
+  authTime: Date | null;
 };
 
 export type VerifyRequestInput = {
@@ -228,7 +233,7 @@ export type SessionSummary = {
 
 export type SsoLogoutEvent = {
   provider: string;
-  providerUserId: string;
+  providerSubject: string;
   sessionIds?: string[];
 };
 

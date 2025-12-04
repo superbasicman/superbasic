@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { createRateLimiter } from "../index.js";
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createRateLimiter } from '../index.js';
 
 class FakeRedis {
   private store = new Map<string, Array<{ score: number; member: string }>>();
@@ -64,14 +64,14 @@ class FakeRedis {
   }
 }
 
-describe("rate limiter sliding window", () => {
+describe('rate limiter sliding window', () => {
   const config = { limit: 3, window: 60 };
   let redis: FakeRedis;
   let limiter: ReturnType<typeof createRateLimiter>;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.setSystemTime(new Date("2024-01-01T00:00:00.000Z"));
+    vi.setSystemTime(new Date('2024-01-01T00:00:00.000Z'));
     redis = new FakeRedis();
     limiter = createRateLimiter(redis as unknown as any);
   });
@@ -80,37 +80,37 @@ describe("rate limiter sliding window", () => {
     vi.useRealTimers();
   });
 
-  it("allows requests within the configured limit", async () => {
+  it('allows requests within the configured limit', async () => {
     for (let i = 0; i < config.limit; i++) {
-      const result = await limiter.checkLimit("user:123", config);
+      const result = await limiter.checkLimit('user:123', config);
       expect(result.allowed).toBe(true);
       expect(result.remaining).toBe(config.limit - (i + 1));
     }
 
-    const usage = await limiter.getUsage("user:123", config);
+    const usage = await limiter.getUsage('user:123', config);
     expect(usage).toBe(config.limit);
   });
 
-  it("blocks requests that exceed the limit", async () => {
-    await limiter.checkLimit("ip:10.0.0.1", config);
-    await limiter.checkLimit("ip:10.0.0.1", config);
-    await limiter.checkLimit("ip:10.0.0.1", config);
+  it('blocks requests that exceed the limit', async () => {
+    await limiter.checkLimit('ip:10.0.0.1', config);
+    await limiter.checkLimit('ip:10.0.0.1', config);
+    await limiter.checkLimit('ip:10.0.0.1', config);
 
-    const result = await limiter.checkLimit("ip:10.0.0.1", config);
+    const result = await limiter.checkLimit('ip:10.0.0.1', config);
     expect(result.allowed).toBe(false);
     expect(result.remaining).toBe(0);
 
-    const usage = await limiter.getUsage("ip:10.0.0.1", config);
+    const usage = await limiter.getUsage('ip:10.0.0.1', config);
     expect(usage).toBe(config.limit);
   });
 
-  it("evicts entries outside the sliding window", async () => {
-    await limiter.checkLimit("session:abc", config);
+  it('evicts entries outside the sliding window', async () => {
+    await limiter.checkLimit('session:abc', config);
 
     // Advance time beyond the 60 second window
     vi.advanceTimersByTime((config.window + 1) * 1000);
 
-    const usage = await limiter.getUsage("session:abc", config);
+    const usage = await limiter.getUsage('session:abc', config);
     expect(usage).toBe(0);
   });
 });

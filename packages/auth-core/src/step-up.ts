@@ -30,7 +30,7 @@ export function requireRecentAuth(
     throw new AuthorizationError('Stronger authentication required');
   }
 
-  const recent = auth.recentlyAuthenticatedAt ?? null;
+  const recent = auth.authTime ?? null;
   if (!recent) {
     throw new AuthorizationError('Recent authentication required');
   }

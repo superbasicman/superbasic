@@ -10,10 +10,10 @@ export type ContextVariables = {
   userEmail: string;
   jti?: string;
   profileId?: string | null;
-  authType?: "session" | "pat";
+  authType?: 'session' | 'pat';
   workspaceId?: string | null;
   allowedWorkspaces?: string[];
-  principalType?: "user" | "service";
+  principalType?: 'anonymous' | 'user' | 'service';
   serviceId?: string | null;
   clientId?: string | null;
   tokenId?: string;

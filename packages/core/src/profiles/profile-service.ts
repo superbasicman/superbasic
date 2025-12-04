@@ -1,6 +1,6 @@
 /**
  * Profile Service
- * 
+ *
  * Business logic layer for profile operations.
  * Orchestrates profile and user data access through repositories.
  */
@@ -26,9 +26,9 @@ export class ProfileService {
 
   /**
    * Get current user profile
-   * 
+   *
    * Fetches user data along with associated profile information.
-   * 
+   *
    * @param params - User ID to fetch profile for
    * @returns Profile response with user and profile data
    * @throws ProfileNotFoundError if user doesn't exist
@@ -63,10 +63,10 @@ export class ProfileService {
 
   /**
    * Update user profile
-   * 
+   *
    * Updates user name and/or profile settings (timezone, currency).
    * Validates input data before applying updates.
-   * 
+   *
    * @param params - Update parameters including userId, profileId, and fields to update
    * @returns Updated profile response
    * @throws InvalidProfileDataError if validation fails
@@ -128,7 +128,7 @@ export class ProfileService {
 
   /**
    * Validate profile data using Zod schema
-   * 
+   *
    * @param data - Profile data to validate
    * @throws InvalidProfileDataError if validation fails
    */
@@ -136,14 +136,14 @@ export class ProfileService {
     const result = UpdateProfileSchema.safeParse(data);
 
     if (!result.success) {
-      const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`).join(', ');
+      const errors = result.error.errors.map((e) => `${e.path.join('.')}: ${e.message}`).join(', ');
       throw new InvalidProfileDataError(`Validation failed: ${errors}`);
     }
   }
 
   /**
    * Map database user object to profile response
-   * 
+   *
    * @param user - User object from database
    * @returns Formatted profile response
    */
@@ -166,10 +166,10 @@ export class ProfileService {
         createdAt: user.createdAt.toISOString(),
         profile: user.profile
           ? {
-            id: user.profile.id,
-            timezone: user.profile.timezone,
-            currency: user.profile.currency,
-          }
+              id: user.profile.id,
+              timezone: user.profile.timezone,
+              currency: user.profile.currency,
+            }
           : null,
       },
     };

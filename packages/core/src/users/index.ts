@@ -1,6 +1,6 @@
 /**
  * Users Domain
- * 
+ *
  * Exports for user management functionality
  */
 

@@ -1,6 +1,6 @@
 /**
  * User Domain Errors
- * 
+ *
  * Custom error classes for user-related business rule violations.
  */
 

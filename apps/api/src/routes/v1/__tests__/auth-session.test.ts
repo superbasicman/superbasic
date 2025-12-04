@@ -67,9 +67,7 @@ describe('GET /v1/auth/session', () => {
     const sessions = await prisma().authSession.findMany({
       where: { userId: user.id },
     });
-    const revokedIds = sessions
-      .filter((s: any) => s.revokedAt !== null)
-      .map((s: any) => s.id);
+    const revokedIds = sessions.filter((s: any) => s.revokedAt !== null).map((s: any) => s.id);
     expect(revokedIds).toEqual(expect.arrayContaining([session.id, otherSession.id]));
   });
 });
@@ -180,7 +178,9 @@ describe('DELETE /v1/auth/sessions/:id', () => {
     const updated = await prisma().authSession.findUnique({ where: { id: otherSession.id } });
     expect(updated?.revokedAt).not.toBeNull();
 
-    const refreshTokenRow = await prisma().refreshToken.findUnique({ where: { id: refresh.token.id } });
+    const refreshTokenRow = await prisma().refreshToken.findUnique({
+      where: { id: refresh.token.id },
+    });
     expect(refreshTokenRow?.revokedAt).not.toBeNull();
 
     const currentSession = await prisma().authSession.findUnique({ where: { id: session.id } });

@@ -23,7 +23,7 @@ function parseTrustedProxyIps(): Set<string> {
 
   const entries = raw
     .split(',')
-    .map(entry => normalizeIp(entry))
+    .map((entry) => normalizeIp(entry))
     .filter((entry): entry is string => Boolean(entry));
 
   return new Set(entries);

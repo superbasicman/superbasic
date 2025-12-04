@@ -1,17 +1,17 @@
 /**
  * DELETE /v1/tokens/:id - Revoke API token
- * 
+ *
  * Requires session authentication
  * Soft deletes token by setting revokedAt timestamp
  * Operation is idempotent (already revoked = 204)
  */
 
-import { Hono } from "hono";
-import { authMiddleware } from "../../../middleware/auth.js";
-import { requireScope } from "../../../middleware/scopes.js";
-import { TokenNotFoundError } from "@repo/core";
-import { revokePersonalAccessToken } from "../../../lib/pat-tokens.js";
-import { requireRecentMfa } from "../../../middleware/require-recent-mfa.js";
+import { Hono } from 'hono';
+import { authMiddleware } from '../../../middleware/auth.js';
+import { requireScope } from '../../../middleware/scopes.js';
+import { TokenNotFoundError } from '@repo/core';
+import { revokePersonalAccessToken } from '../../../lib/pat-tokens.js';
+import { requireRecentMfa } from '../../../middleware/require-recent-mfa.js';
 
 type Variables = {
   userId: string;
@@ -26,38 +26,41 @@ function isValidUuid(value: string): boolean {
 
 const revokeTokenRoute = new Hono<{ Variables: Variables }>();
 
-revokeTokenRoute.delete("/:id", authMiddleware, requireRecentMfa(), requireScope("write:accounts"), async (c) => {
-  const userId = c.get("userId") as string;
-  const requestId = c.get("requestId") || "unknown";
-  const tokenId = c.req.param("id");
+revokeTokenRoute.delete(
+  '/:id',
+  authMiddleware,
+  requireRecentMfa(),
+  requireScope('write:accounts'),
+  async (c) => {
+    const userId = c.get('userId') as string;
+    const requestId = c.get('requestId') || 'unknown';
+    const tokenId = c.req.param('id');
 
-  if (!isValidUuid(tokenId)) {
-    return c.json({ error: "Token not found" }, 404);
-  }
-
-  try {
-    await revokePersonalAccessToken({
-      tokenId,
-      userId,
-      requestContext: {
-        ip:
-          c.req.header("x-forwarded-for") ||
-          c.req.header("x-real-ip") ||
-          "unknown",
-        userAgent: c.req.header("user-agent") || "unknown",
-        requestId,
-      },
-    });
-  } catch (error) {
-    if (error instanceof TokenNotFoundError) {
-      return c.json({ error: "Token not found" }, 404);
+    if (!isValidUuid(tokenId)) {
+      return c.json({ error: 'Token not found' }, 404);
     }
 
-    throw error;
-  }
+    try {
+      await revokePersonalAccessToken({
+        tokenId,
+        userId,
+        requestContext: {
+          ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
+          userAgent: c.req.header('user-agent') || 'unknown',
+          requestId,
+        },
+      });
+    } catch (error) {
+      if (error instanceof TokenNotFoundError) {
+        return c.json({ error: 'Token not found' }, 404);
+      }
 
-  // Return 204 No Content on success
-  return c.body(null, 204);
-});
+      throw error;
+    }
+
+    // Return 204 No Content on success
+    return c.body(null, 204);
+  }
+);
 
 export { revokeTokenRoute };

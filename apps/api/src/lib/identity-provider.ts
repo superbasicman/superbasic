@@ -26,7 +26,7 @@ export async function authenticatePasswordIdentity(email: string, password: stri
 
   const identity: VerifiedIdentity = {
     provider: LOCAL_PASSWORD_PROVIDER_ID,
-    providerUserId: user.id,
+    providerSubject: user.id,
     email: user.primaryEmail,
     emailVerified: !!user.emailVerified,
   };
@@ -58,7 +58,7 @@ export async function upsertMagicLinkIdentity(email: string) {
 
   const identity: VerifiedIdentity = {
     provider: LOCAL_MAGIC_LINK_PROVIDER_ID,
-    providerUserId: user.id,
+    providerSubject: user.id,
     email: normalizedEmail,
     emailVerified: true,
   };
@@ -67,7 +67,7 @@ export async function upsertMagicLinkIdentity(email: string) {
 }
 
 export type GoogleProfile = {
-  providerUserId: string;
+  providerSubject: string;
   email: string;
   emailVerified: boolean;
   name?: string;
@@ -81,7 +81,7 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
     where: {
       provider_providerSubject: {
         provider: 'google',
-        providerSubject: profile.providerUserId,
+        providerSubject: profile.providerSubject,
       },
     },
     include: { user: true },
@@ -103,7 +103,7 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
       data: {
         userId: existingUser.id,
         provider: 'google',
-        providerSubject: profile.providerUserId,
+        providerSubject: profile.providerSubject,
         emailAtProvider: profile.email,
         emailVerifiedAtProvider: profile.emailVerified,
         rawProfile: { name: profile.name, picture: profile.picture },
@@ -121,7 +121,7 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
       identities: {
         create: {
           provider: 'google',
-          providerSubject: profile.providerUserId,
+          providerSubject: profile.providerSubject,
           emailAtProvider: profile.email,
           emailVerifiedAtProvider: profile.emailVerified,
           rawProfile: { name: profile.name, picture: profile.picture },
@@ -137,7 +137,7 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
 function toVerifiedGoogleIdentity(profile: GoogleProfile): VerifiedIdentity {
   const identity: VerifiedIdentity = {
     provider: GOOGLE_PROVIDER_ID,
-    providerUserId: profile.providerUserId,
+    providerSubject: profile.providerSubject,
     email: profile.email,
     emailVerified: profile.emailVerified,
   };

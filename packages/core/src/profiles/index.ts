@@ -1,6 +1,6 @@
 /**
  * Profiles Domain
- * 
+ *
  * Exports profile repository, service, errors, and types.
  */
 

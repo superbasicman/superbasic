@@ -2,7 +2,7 @@
 
 /**
  * Interactive setup script for Neon database branch configuration
- * 
+ *
  * Usage:
  *   pnpm tsx tooling/scripts/setup-neon-branches.ts
  */
@@ -76,7 +76,7 @@ async function main() {
   console.log('  2. Copy the connection string (starts with postgresql://)');
 
   const mainBranch = await question('\nPaste main branch connection string: ');
-  
+
   if (!mainBranch.startsWith('postgresql://')) {
     console.error('\n❌ Invalid connection string. Must start with postgresql://');
     rl.close();
@@ -88,7 +88,7 @@ async function main() {
   console.log('  2. Copy the connection string');
 
   const devBranch = await question('\nPaste dev branch connection string: ');
-  
+
   if (!devBranch.startsWith('postgresql://')) {
     console.error('\n❌ Invalid connection string. Must start with postgresql://');
     rl.close();
@@ -103,7 +103,7 @@ async function main() {
   log('═══════════════════════════════════════════════════════════');
 
   const updateLocal = await question('\nUpdate local .env.local files with dev branch? (y/n): ');
-  
+
   if (updateLocal.toLowerCase() === 'y') {
     try {
       // Update apps/api/.env.local
@@ -147,7 +147,7 @@ async function main() {
   console.log('  3. Value: (copy from below)');
   console.log('  4. Check ONLY "Production"');
   console.log('  5. Click "Save"');
-  
+
   console.log('\n┌────────────────────────────────────────────────────────────┐');
   console.log('│ PRODUCTION DATABASE_URL (main branch):                    │');
   console.log('└────────────────────────────────────────────────────────────┘');
@@ -161,7 +161,7 @@ async function main() {
   console.log('  3. Value: (copy from below)');
   console.log('  4. Check ONLY "Preview"');
   console.log('  5. Click "Save"');
-  
+
   console.log('\n┌────────────────────────────────────────────────────────────┐');
   console.log('│ PREVIEW DATABASE_URL (dev branch):                        │');
   console.log('└────────────────────────────────────────────────────────────┘');

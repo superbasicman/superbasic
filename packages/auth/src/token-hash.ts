@@ -1,7 +1,7 @@
-import crypto from "node:crypto";
+import crypto from 'node:crypto';
 
 export interface TokenHashEnvelope {
-  algo: "hmac-sha256";
+  algo: 'hmac-sha256';
   keyId: string;
   hash: string;
   issuedAt: string;
@@ -9,9 +9,9 @@ export interface TokenHashEnvelope {
   [key: string]: string | undefined;
 }
 
-const TOKEN_HASH_ALGO: TokenHashEnvelope["algo"] = "hmac-sha256";
-const OPAQUE_TOKEN_DELIMITER = ".";
-const OPAQUE_TOKEN_PREFIX_DELIMITER = "_";
+const TOKEN_HASH_ALGO: TokenHashEnvelope['algo'] = 'hmac-sha256';
+const OPAQUE_TOKEN_DELIMITER = '.';
+const OPAQUE_TOKEN_PREFIX_DELIMITER = '_';
 const DEFAULT_TOKEN_SECRET_BYTES = 32;
 const DEFAULT_TOKEN_SALT_BYTES = 16;
 const UUID_PATTERN =
@@ -32,8 +32,8 @@ function parseTokenHashKeys(): TokenHashKeyConfig {
           : trimmed;
 
       const parsed = JSON.parse(unwrapped) as TokenHashKeyConfig;
-      if (typeof parsed !== "object" || parsed === null) {
-        throw new Error("TOKEN_HASH_KEYS must be a JSON object of { keyId: secret }");
+      if (typeof parsed !== 'object' || parsed === null) {
+        throw new Error('TOKEN_HASH_KEYS must be a JSON object of { keyId: secret }');
       }
       return parsed;
     } catch (error) {
@@ -50,14 +50,13 @@ function parseTokenHashKeys(): TokenHashKeyConfig {
   }
 
   throw new Error(
-    "TOKEN_HASH_KEYS is required (JSON object of { keyId: secret }). " +
-      "Set TOKEN_HASH_KEYS or TOKEN_HASH_FALLBACK_SECRET/AUTH_SECRET in your environment."
+    'TOKEN_HASH_KEYS is required (JSON object of { keyId: secret }). ' +
+      'Set TOKEN_HASH_KEYS or TOKEN_HASH_FALLBACK_SECRET/AUTH_SECRET in your environment.'
   );
 }
 
 const tokenHashKeys = parseTokenHashKeys();
-const defaultKeyId =
-  process.env.TOKEN_HASH_ACTIVE_KEY_ID || Object.keys(tokenHashKeys)[0] || "v1";
+const defaultKeyId = process.env.TOKEN_HASH_ACTIVE_KEY_ID || Object.keys(tokenHashKeys)[0] || 'v1';
 
 function getKeyForId(keyId: string): string | null {
   return tokenHashKeys[keyId] ?? tokenHashKeys[defaultKeyId] ?? null;
@@ -78,16 +77,16 @@ export function createTokenHashEnvelope(
 
   const salt =
     options?.salt ??
-    crypto.randomBytes(options?.saltBytes ?? DEFAULT_TOKEN_SALT_BYTES).toString("base64url");
-  const hmac = crypto.createHmac("sha256", secretKey);
+    crypto.randomBytes(options?.saltBytes ?? DEFAULT_TOKEN_SALT_BYTES).toString('base64url');
+  const hmac = crypto.createHmac('sha256', secretKey);
   hmac.update(salt);
-  hmac.update(":");
+  hmac.update(':');
   hmac.update(tokenSecret);
 
   return {
     algo: TOKEN_HASH_ALGO,
     keyId,
-    hash: hmac.digest("base64"),
+    hash: hmac.digest('base64'),
     issuedAt: (options?.issuedAt ?? new Date()).toISOString(),
     salt,
   };
@@ -99,7 +98,7 @@ export function verifyTokenSecret(
 ): envelope is TokenHashEnvelope {
   if (
     !envelope ||
-    typeof envelope !== "object" ||
+    typeof envelope !== 'object' ||
     (envelope as any).hash === undefined ||
     (envelope as any).keyId === undefined
   ) {
@@ -108,7 +107,7 @@ export function verifyTokenSecret(
 
   const payload = envelope as TokenHashEnvelope;
 
-  if (payload.algo !== TOKEN_HASH_ALGO || typeof payload.hash !== "string") {
+  if (payload.algo !== TOKEN_HASH_ALGO || typeof payload.hash !== 'string') {
     return false;
   }
 
@@ -117,14 +116,14 @@ export function verifyTokenSecret(
     return false;
   }
 
-  const salt = payload.salt ?? "";
-  const hmac = crypto.createHmac("sha256", secretKey);
+  const salt = payload.salt ?? '';
+  const hmac = crypto.createHmac('sha256', secretKey);
   if (salt) {
     hmac.update(salt);
-    hmac.update(":");
+    hmac.update(':');
   }
   hmac.update(tokenSecret);
-  const computed = hmac.digest("base64");
+  const computed = hmac.digest('base64');
 
   try {
     return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(payload.hash));
@@ -147,7 +146,7 @@ export function createOpaqueToken(options?: {
   const secretLength = options?.secretLength ?? DEFAULT_TOKEN_SECRET_BYTES;
   const prefix = options?.prefix ?? null;
   const tokenId = crypto.randomUUID();
-  const tokenSecret = crypto.randomBytes(secretLength).toString("base64url");
+  const tokenSecret = crypto.randomBytes(secretLength).toString('base64url');
   return {
     tokenId,
     tokenSecret,
@@ -162,7 +161,7 @@ export function parseOpaqueToken(
   token: string,
   options?: { expectedPrefix?: string | string[]; allowLegacy?: boolean }
 ): { tokenId: string; tokenSecret: string; prefix: string | null } | null {
-  if (!token || typeof token !== "string") {
+  if (!token || typeof token !== 'string') {
     return null;
   }
 
@@ -172,9 +171,7 @@ export function parseOpaqueToken(
       : [options.expectedPrefix]
     : null;
 
-  const withPrefixMatch = token.match(
-    /^([a-zA-Z0-9]+)_([0-9a-fA-F-]{36})\.(.+)$/
-  );
+  const withPrefixMatch = token.match(/^([a-zA-Z0-9]+)_([0-9a-fA-F-]{36})\.(.+)$/);
   if (withPrefixMatch) {
     const prefix = withPrefixMatch[1];
     const tokenId = withPrefixMatch[2];

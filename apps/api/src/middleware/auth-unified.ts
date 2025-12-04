@@ -3,9 +3,9 @@
  * Tries Bearer token auth first, then falls back to session auth
  */
 
-import type { Context, Next } from "hono";
-import { authMiddleware } from "./auth.js";
-import { patMiddleware } from "./pat.js";
+import type { Context, Next } from 'hono';
+import { authMiddleware } from './auth.js';
+import { patMiddleware } from './pat.js';
 
 /**
  * Unified authentication middleware
@@ -34,8 +34,8 @@ export async function unifiedAuthMiddleware(c: Context, next: Next) {
   }
 
   // Check for Bearer token first
-  const authHeader = c.req.header("Authorization");
-  const hasBearer = authHeader?.toLowerCase().startsWith("bearer ");
+  const authHeader = c.req.header('Authorization');
+  const hasBearer = authHeader?.toLowerCase().startsWith('bearer ');
 
   if (hasBearer) {
     return patMiddleware(c, next);

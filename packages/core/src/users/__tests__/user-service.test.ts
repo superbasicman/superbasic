@@ -1,6 +1,6 @@
 /**
  * User Service Tests
- * 
+ *
  * Unit tests for user service with mocked repository.
  */
 
@@ -57,12 +57,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-    id: 'user-123',
-    primaryEmail: 'test@example.com',
-    displayName: 'Test User',
-    createdAt: new Date('2025-01-01T00:00:00Z'),
-  });
+      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        primaryEmail: 'test@example.com',
+        displayName: 'Test User',
+        createdAt: new Date('2025-01-01T00:00:00Z'),
+      });
 
       // Act
       const result = await userService.registerUser(params);
@@ -105,12 +105,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-    id: 'user-123',
-    primaryEmail: 'test@example.com',
-    displayName: null,
-    createdAt: new Date(),
-  });
+      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        primaryEmail: 'test@example.com',
+        displayName: null,
+        createdAt: new Date(),
+      });
 
       // Act
       await userService.registerUser(params);
@@ -127,12 +127,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-    id: 'user-123',
-    primaryEmail: 'test@example.com',
-    displayName: null,
-    createdAt: new Date(),
-  });
+      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        primaryEmail: 'test@example.com',
+        displayName: null,
+        createdAt: new Date(),
+      });
 
       // Act
       await userService.registerUser(params);
@@ -149,12 +149,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-    id: 'user-123',
-    primaryEmail: 'test@example.com',
-    displayName: null,
-    createdAt: new Date(),
-  });
+      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        primaryEmail: 'test@example.com',
+        displayName: null,
+        createdAt: new Date(),
+      });
 
       // Act
       const result = await userService.registerUser(params);
@@ -177,12 +177,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-    id: 'user-123',
-    primaryEmail: 'test@example.com',
-    displayName: null,
-    createdAt: new Date(),
-  });
+      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        primaryEmail: 'test@example.com',
+        displayName: null,
+        createdAt: new Date(),
+      });
 
       // Act
       await userService.registerUser(params);
@@ -202,17 +202,15 @@ describe('UserService', () => {
         password: 'password123',
       };
 
-  mockUserRepo.findByEmail = vi.fn().mockResolvedValue({
-    id: 'existing-user',
-    primaryEmail: 'existing@example.com',
-    displayName: null,
-    createdAt: new Date(),
-  } as any);
+      mockUserRepo.findByEmail = vi.fn().mockResolvedValue({
+        id: 'existing-user',
+        primaryEmail: 'existing@example.com',
+        displayName: null,
+        createdAt: new Date(),
+      } as any);
 
       // Act & Assert
-      await expect(userService.registerUser(params)).rejects.toThrow(
-        DuplicateEmailError
-      );
+      await expect(userService.registerUser(params)).rejects.toThrow(DuplicateEmailError);
       await expect(userService.registerUser(params)).rejects.toThrow(
         'Email already in use: existing@example.com'
       );
@@ -226,9 +224,7 @@ describe('UserService', () => {
       };
 
       // Act & Assert
-      await expect(userService.registerUser(params)).rejects.toThrow(
-        InvalidEmailError
-      );
+      await expect(userService.registerUser(params)).rejects.toThrow(InvalidEmailError);
       await expect(userService.registerUser(params)).rejects.toThrow(
         'Invalid email format: invalid-email'
       );
@@ -242,9 +238,7 @@ describe('UserService', () => {
       };
 
       // Act & Assert
-      await expect(userService.registerUser(params)).rejects.toThrow(
-        InvalidEmailError
-      );
+      await expect(userService.registerUser(params)).rejects.toThrow(InvalidEmailError);
     });
 
     it('should throw WeakPasswordError if password is too short', async () => {
@@ -255,9 +249,7 @@ describe('UserService', () => {
       };
 
       // Act & Assert
-      await expect(userService.registerUser(params)).rejects.toThrow(
-        WeakPasswordError
-      );
+      await expect(userService.registerUser(params)).rejects.toThrow(WeakPasswordError);
       await expect(userService.registerUser(params)).rejects.toThrow(
         'must be at least 8 characters'
       );
@@ -271,9 +263,7 @@ describe('UserService', () => {
       };
 
       // Act & Assert
-      await expect(userService.registerUser(params)).rejects.toThrow(
-        WeakPasswordError
-      );
+      await expect(userService.registerUser(params)).rejects.toThrow(WeakPasswordError);
       await expect(userService.registerUser(params)).rejects.toThrow(
         'must contain at least one letter and one number'
       );
@@ -287,9 +277,7 @@ describe('UserService', () => {
       };
 
       // Act & Assert
-      await expect(userService.registerUser(params)).rejects.toThrow(
-        WeakPasswordError
-      );
+      await expect(userService.registerUser(params)).rejects.toThrow(WeakPasswordError);
       await expect(userService.registerUser(params)).rejects.toThrow(
         'must contain at least one letter and one number'
       );
@@ -303,12 +291,12 @@ describe('UserService', () => {
       };
 
       mockUserRepo.findByEmail = vi.fn().mockResolvedValue(null);
-  mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
-    id: 'user-123',
-    primaryEmail: 'test@example.com',
-    displayName: null,
-    createdAt: new Date(),
-  });
+      mockUserRepo.createWithProfile = vi.fn().mockResolvedValue({
+        id: 'user-123',
+        primaryEmail: 'test@example.com',
+        displayName: null,
+        createdAt: new Date(),
+      });
 
       // Act & Assert
       await expect(userService.registerUser(params)).resolves.toBeDefined();

@@ -1,21 +1,21 @@
 /**
  * POST /v1/tokens - Create new API token
- * 
+ *
  * Requires session authentication (no PAT creation via PAT)
  * Generates cryptographically secure token, hashes it, and stores in database
  * Returns plaintext token once (never retrievable again)
  */
 
-import { Hono } from "hono";
-import { zValidator } from "@hono/zod-validator";
-import { CreateTokenRequestSchema } from "@repo/types";
-import { DuplicateTokenNameError, InvalidScopesError, InvalidExpirationError } from "@repo/core";
-import { authMiddleware } from "../../../middleware/auth.js";
-import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit/index.js";
-import { requireScope } from "../../../middleware/scopes.js";
-import type { PermissionScope } from "@repo/auth-core";
-import { issuePersonalAccessToken } from "../../../lib/pat-tokens.js";
-import { requireRecentMfa } from "../../../middleware/require-recent-mfa.js";
+import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { CreateTokenRequestSchema } from '@repo/types';
+import { DuplicateTokenNameError, InvalidScopesError, InvalidExpirationError } from '@repo/core';
+import { authMiddleware } from '../../../middleware/auth.js';
+import { tokenCreationRateLimitMiddleware } from '../../../middleware/rate-limit/index.js';
+import { requireScope } from '../../../middleware/scopes.js';
+import type { PermissionScope } from '@repo/auth-core';
+import { issuePersonalAccessToken } from '../../../lib/pat-tokens.js';
+import { requireRecentMfa } from '../../../middleware/require-recent-mfa.js';
 
 type Variables = {
   userId: string;
@@ -26,28 +26,28 @@ type Variables = {
 const createTokenRoute = new Hono<{ Variables: Variables }>();
 
 createTokenRoute.post(
-  "/",
+  '/',
   authMiddleware, // Requires session auth
   requireRecentMfa(),
-  requireScope("write:accounts"),
+  requireScope('write:accounts'),
   tokenCreationRateLimitMiddleware, // 10 tokens per hour per user
-  zValidator("json", CreateTokenRequestSchema, (result, c) => {
+  zValidator('json', CreateTokenRequestSchema, (result, c) => {
     if (!result.success) {
-      return c.json({ error: "Validation failed", issues: (result as any).error.issues }, 400);
+      return c.json({ error: 'Validation failed', issues: (result as any).error.issues }, 400);
     }
   }),
   async (c) => {
-    const userId = c.get("userId") as string;
-    const profileId = c.get("profileId") as string | undefined;
-    const workspaceId = c.get("workspaceId") as string | undefined;
-    const requestId = c.get("requestId") || "unknown";
-    const { name, scopes: rawScopes, expiresInDays } = c.req.valid("json");
+    const userId = c.get('userId') as string;
+    const profileId = c.get('profileId') as string | undefined;
+    const workspaceId = c.get('workspaceId') as string | undefined;
+    const requestId = c.get('requestId') || 'unknown';
+    const { name, scopes: rawScopes, expiresInDays } = c.req.valid('json');
     const scopes = rawScopes as PermissionScope[];
 
     if (!profileId) {
       return c.json(
         {
-          error: "Profile context is required to create tokens",
+          error: 'Profile context is required to create tokens',
         },
         403
       );
@@ -55,8 +55,8 @@ createTokenRoute.post(
 
     try {
       const requestContext = {
-        ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
-        userAgent: c.req.header("user-agent") || "unknown",
+        ip: c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown',
+        userAgent: c.req.header('user-agent') || 'unknown',
         requestId,
         workspaceId: workspaceId ?? null,
       };

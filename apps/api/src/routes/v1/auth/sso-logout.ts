@@ -65,12 +65,12 @@ export async function handleSsoLogout(c: Context<AppBindings>) {
   const plan = planBackChannelLogout(
     {
       provider: payload.provider,
-      providerUserId: payload.providerUserId,
+      providerSubject: payload.providerUserId,
       sessionIds: payload.sessionIds ?? [],
     },
     identities.map((identity) => ({
       provider: identity.provider,
-      providerUserId: identity.providerSubject,
+      providerSubject: identity.providerSubject,
       userId: identity.userId,
     })),
     activeSessions

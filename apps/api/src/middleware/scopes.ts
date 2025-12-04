@@ -3,9 +3,9 @@
  * Validates that the authenticated user/token has required permissions
  */
 
-import type { Context, Next } from "hono";
-import { authz, AuthorizationError, type PermissionScope } from "@repo/auth-core";
-import type { AppBindings } from "../types/context.js";
+import type { Context, Next } from 'hono';
+import { authz, AuthorizationError, type PermissionScope } from '@repo/auth-core';
+import type { AppBindings } from '../types/context.js';
 
 /**
  * Scope enforcement middleware factory
@@ -22,12 +22,12 @@ import type { AppBindings } from "../types/context.js";
  */
 export function requireScope(requiredScope: PermissionScope) {
   return async (c: Context<AppBindings>, next: Next) => {
-    const auth = c.get("auth");
-    const tokenScopes = ((c.get("tokenScopes") as string[]) || []).map((scope) => scope.toString());
+    const auth = c.get('auth');
+    const tokenScopes = ((c.get('tokenScopes') as string[]) || []).map((scope) => scope.toString());
 
     try {
       const scopes = auth?.scopes ?? tokenScopes;
-      const hasAdmin = scopes.includes("admin");
+      const hasAdmin = scopes.includes('admin');
       if (auth) {
         if (!hasAdmin) {
           authz.requireScope(auth, requiredScope);
@@ -37,7 +37,7 @@ export function requireScope(requiredScope: PermissionScope) {
         if (!hasRequired) {
           return c.json(
             {
-              error: "Insufficient permissions",
+              error: 'Insufficient permissions',
               required: requiredScope,
             },
             403
@@ -47,11 +47,11 @@ export function requireScope(requiredScope: PermissionScope) {
     } catch (error) {
       if (
         error instanceof AuthorizationError ||
-        (error instanceof Error && error.name === "AuthorizationError")
+        (error instanceof Error && error.name === 'AuthorizationError')
       ) {
         return c.json(
           {
-            error: "Insufficient permissions",
+            error: 'Insufficient permissions',
             required: requiredScope,
           },
           403

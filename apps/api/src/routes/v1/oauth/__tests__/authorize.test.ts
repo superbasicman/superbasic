@@ -5,11 +5,7 @@ vi.unmock('@repo/database');
 
 import app from '../../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../../test/setup.js';
-import {
-  createSessionRecord,
-  createTestUser,
-  makeRequest,
-} from '../../../../test/helpers.js';
+import { createSessionRecord, createTestUser, makeRequest } from '../../../../test/helpers.js';
 
 describe('GET /v1/oauth/authorize', () => {
   beforeEach(async () => {
@@ -40,16 +36,11 @@ describe('GET /v1/oauth/authorize', () => {
       state: 'abc123',
     });
 
-    const response = await makeRequest(
-      app,
-      'GET',
-      `/v1/oauth/authorize?${params.toString()}`,
-      {
-        headers: {
-          Cookie: `${COOKIE_NAME}=${session.id}`,
-        },
-      }
-    );
+    const response = await makeRequest(app, 'GET', `/v1/oauth/authorize?${params.toString()}`, {
+      headers: {
+        Cookie: `${COOKIE_NAME}=${session.id}`,
+      },
+    });
 
     expect(response.status).toBe(302);
     const location = response.headers.get('location');

@@ -1,16 +1,16 @@
 /**
  * User Repository Integration Tests
- * 
+ *
  * Tests repository methods with real test database
  */
 
-import { randomUUID } from "crypto";
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { prisma } from "@repo/database";
-import { UserRepository } from "../user-repository.js";
-import type { User } from "@repo/database";
+import { randomUUID } from 'crypto';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { prisma } from '@repo/database';
+import { UserRepository } from '../user-repository.js';
+import type { User } from '@repo/database';
 
-describe("UserRepository", () => {
+describe('UserRepository', () => {
   let userRepo: UserRepository;
   let testUsers: User[] = [];
   const uniqueEmail = () => `test-${randomUUID()}@example.com`;
@@ -23,28 +23,30 @@ describe("UserRepository", () => {
   afterEach(async () => {
     // Cleanup: delete all test users (cascades to profiles)
     for (const user of testUsers) {
-      await prisma.user.delete({
-        where: { id: user.id },
-      }).catch(() => {
-        // Ignore errors if user already deleted
-      });
+      await prisma.user
+        .delete({
+          where: { id: user.id },
+        })
+        .catch(() => {
+          // Ignore errors if user already deleted
+        });
     }
     testUsers = [];
   });
 
-  describe("findByEmail", () => {
-    it("should return null if user does not exist", async () => {
-      const user = await userRepo.findByEmail("nonexistent@example.com");
+  describe('findByEmail', () => {
+    it('should return null if user does not exist', async () => {
+      const user = await userRepo.findByEmail('nonexistent@example.com');
       expect(user).toBeNull();
     });
 
-    it("should return user if found", async () => {
+    it('should return user if found', async () => {
       // Create test user
       const email = uniqueEmail();
       const created = await userRepo.create({
         email,
-        password: "hashed_password",
-        name: "Test User",
+        password: 'hashed_password',
+        name: 'Test User',
       });
       testUsers.push(created);
 
@@ -52,16 +54,16 @@ describe("UserRepository", () => {
       expect(found).not.toBeNull();
       expect(found?.id).toBe(created.id);
       expect(found?.primaryEmail).toBe(email.toLowerCase());
-      expect(found?.displayName).toBe("Test User");
+      expect(found?.displayName).toBe('Test User');
     });
 
-    it("should be case-insensitive for email lookup", async () => {
+    it('should be case-insensitive for email lookup', async () => {
       // Create user with lowercase email
       const email = uniqueEmail();
       const created = await userRepo.create({
         email: email.toLowerCase(),
-        password: "hashed_password",
-        name: "Test User",
+        password: 'hashed_password',
+        name: 'Test User',
       });
       testUsers.push(created);
 
@@ -72,29 +74,29 @@ describe("UserRepository", () => {
     });
   });
 
-  describe("create", () => {
-    it("should create user successfully", async () => {
+  describe('create', () => {
+    it('should create user successfully', async () => {
       const email = uniqueEmail();
       const user = await userRepo.create({
         email,
-        password: "hashed_password_123",
-        name: "John Doe",
+        password: 'hashed_password_123',
+        name: 'John Doe',
       });
       testUsers.push(user);
 
       expect(user.id).toBeDefined();
       expect(user.primaryEmail).toBe(email.toLowerCase());
-      expect(user.displayName).toBe("John Doe");
+      expect(user.displayName).toBe('John Doe');
       expect(user.emailVerified).toBe(false);
       expect(user.createdAt).toBeInstanceOf(Date);
       expect(user.updatedAt).toBeInstanceOf(Date);
     });
 
-    it("should create user with null name", async () => {
+    it('should create user with null name', async () => {
       const email = uniqueEmail();
       const user = await userRepo.create({
         email,
-        password: "hashed_password",
+        password: 'hashed_password',
         name: null,
       });
       testUsers.push(user);
@@ -102,14 +104,14 @@ describe("UserRepository", () => {
       expect(user.displayName).toBeNull();
     });
 
-    it("should fail if email already exists", async () => {
+    it('should fail if email already exists', async () => {
       const email = uniqueEmail();
 
       // Create first user
       const user1 = await userRepo.create({
         email,
-        password: "password1",
-        name: "User 1",
+        password: 'password1',
+        name: 'User 1',
       });
       testUsers.push(user1);
 
@@ -117,26 +119,26 @@ describe("UserRepository", () => {
       await expect(
         userRepo.create({
           email,
-          password: "password2",
-          name: "User 2",
+          password: 'password2',
+          name: 'User 2',
         })
       ).rejects.toThrow();
     });
   });
 
-  describe("createWithProfile", () => {
-    it("should create user and profile in transaction", async () => {
+  describe('createWithProfile', () => {
+    it('should create user and profile in transaction', async () => {
       const email = uniqueEmail();
       const user = await userRepo.createWithProfile(
         {
           email,
-          password: "hashed_password",
-          name: "Jane Doe",
+          password: 'hashed_password',
+          name: 'Jane Doe',
         },
         {
-          userId: "", // Will be set by transaction
-          timezone: "America/New_York",
-          currency: "USD",
+          userId: '', // Will be set by transaction
+          timezone: 'America/New_York',
+          currency: 'USD',
         }
       );
       testUsers.push(user);
@@ -144,7 +146,7 @@ describe("UserRepository", () => {
       // Verify user was created
       expect(user.id).toBeDefined();
       expect(user.primaryEmail).toBe(email.toLowerCase());
-      expect(user.displayName).toBe("Jane Doe");
+      expect(user.displayName).toBe('Jane Doe');
 
       // Verify profile was created
       const profile = await prisma.profile.findUnique({
@@ -152,22 +154,22 @@ describe("UserRepository", () => {
       });
       expect(profile).not.toBeNull();
       expect(profile?.userId).toBe(user.id);
-      expect(profile?.timezone).toBe("America/New_York");
-      expect(profile?.currency).toBe("USD");
+      expect(profile?.timezone).toBe('America/New_York');
+      expect(profile?.currency).toBe('USD');
     });
 
-    it("should create user with default profile settings", async () => {
+    it('should create user with default profile settings', async () => {
       const email = uniqueEmail();
       const user = await userRepo.createWithProfile(
         {
           email,
-          password: "hashed_password",
+          password: 'hashed_password',
           name: null,
         },
         {
-          userId: "",
-          timezone: "UTC",
-          currency: "USD",
+          userId: '',
+          timezone: 'UTC',
+          currency: 'USD',
         }
       );
       testUsers.push(user);
@@ -175,24 +177,24 @@ describe("UserRepository", () => {
       const profile = await prisma.profile.findUnique({
         where: { userId: user.id },
       });
-      expect(profile?.timezone).toBe("UTC");
-      expect(profile?.currency).toBe("USD");
+      expect(profile?.timezone).toBe('UTC');
+      expect(profile?.currency).toBe('USD');
     });
 
-    it("should rollback both user and profile if profile creation fails", async () => {
+    it('should rollback both user and profile if profile creation fails', async () => {
       const email = uniqueEmail();
 
       // Create first user with profile
       const user1 = await userRepo.createWithProfile(
         {
           email,
-          password: "password1",
-          name: "User 1",
+          password: 'password1',
+          name: 'User 1',
         },
         {
-          userId: "",
-          timezone: "UTC",
-          currency: "USD",
+          userId: '',
+          timezone: 'UTC',
+          currency: 'USD',
         }
       );
       testUsers.push(user1);
@@ -202,13 +204,13 @@ describe("UserRepository", () => {
         userRepo.createWithProfile(
           {
             email, // Duplicate email
-            password: "password2",
-            name: "User 2",
+            password: 'password2',
+            name: 'User 2',
           },
           {
-            userId: "",
-            timezone: "UTC",
-            currency: "USD",
+            userId: '',
+            timezone: 'UTC',
+            currency: 'USD',
           }
         )
       ).rejects.toThrow();
@@ -229,7 +231,7 @@ describe("UserRepository", () => {
       expect(profile!.userId).toBe(user1.id);
     });
 
-    it("should handle transaction atomicity", async () => {
+    it('should handle transaction atomicity', async () => {
       const email = uniqueEmail();
 
       // Ensure no existing records for this email
@@ -247,13 +249,13 @@ describe("UserRepository", () => {
       const user = await userRepo.createWithProfile(
         {
           email,
-          password: "hashed_password",
-          name: "Transaction Test",
+          password: 'hashed_password',
+          name: 'Transaction Test',
         },
         {
-          userId: "",
-          timezone: "Europe/London",
-          currency: "GBP",
+          userId: '',
+          timezone: 'Europe/London',
+          currency: 'GBP',
         }
       );
       testUsers.push(user);
@@ -268,8 +270,8 @@ describe("UserRepository", () => {
       });
       expect(createdUser).not.toBeNull();
       expect(createdUser?.profile).not.toBeNull();
-      expect(createdUser?.profile?.timezone).toBe("Europe/London");
-      expect(createdUser?.profile?.currency).toBe("GBP");
+      expect(createdUser?.profile?.timezone).toBe('Europe/London');
+      expect(createdUser?.profile?.currency).toBe('GBP');
 
       // Ensure exactly one profile linked to the created user
       const profileCountForUser = await prisma.profile.count({
@@ -279,26 +281,26 @@ describe("UserRepository", () => {
     });
   });
 
-  describe("updateStatus", () => {
-    it("should update status and return previous status", async () => {
+  describe('updateStatus', () => {
+    it('should update status and return previous status', async () => {
       const email = uniqueEmail();
       const user = await userRepo.create({
         email,
-        password: "hashed_password",
-        name: "Test User",
+        password: 'hashed_password',
+        name: 'Test User',
       });
       testUsers.push(user);
 
-      const result = await userRepo.updateStatus(user.id, "disabled" as any);
-      expect(result?.previousStatus).toBe("active");
-      expect(result?.user.userState).toBe("disabled");
+      const result = await userRepo.updateStatus(user.id, 'disabled' as any);
+      expect(result?.previousStatus).toBe('active');
+      expect(result?.user.userState).toBe('disabled');
 
       const refreshed = await prisma.user.findUnique({ where: { id: user.id } });
-      expect(refreshed?.userState).toBe("disabled");
+      expect(refreshed?.userState).toBe('disabled');
     });
 
-    it("should return null when user not found", async () => {
-      const result = await userRepo.updateStatus("non-existent", "disabled" as any);
+    it('should return null when user not found', async () => {
+      const result = await userRepo.updateStatus('non-existent', 'disabled' as any);
       expect(result).toBeNull();
     });
   });

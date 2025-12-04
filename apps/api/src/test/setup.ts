@@ -27,7 +27,7 @@ export async function setupTestDatabase(): Promise<void> {
   // Ensure we're using the test database
   // Accept: "_test" in database name, Neon branch URLs, or NODE_ENV=test
   const dbUrl = databaseUrl;
-  const isTestDb = 
+  const isTestDb =
     dbUrl.includes('_test') || // Database name contains "_test"
     dbUrl.includes('/neondb?') || // Neon branch database (not main)
     process.env.NODE_ENV === 'test'; // Test environment
@@ -75,7 +75,7 @@ export async function resetDatabase(): Promise<void> {
 
   // Delete all data in reverse order of foreign key dependencies
   // This ensures referential integrity is maintained during cleanup
-  
+
   await testPrisma.oAuthAuthorizationCode.deleteMany();
   await testPrisma.oAuthClient.deleteMany();
   // Delete API keys first (child of users and profiles)
@@ -98,7 +98,7 @@ export async function resetDatabase(): Promise<void> {
 /**
  * Reset specific Redis rate limit key
  * Called before rate limit tests to ensure clean state
- * 
+ *
  * @param key - The rate limit key to reset (e.g., 'magic-link:test@example.com')
  */
 export async function resetRedisKey(key: string): Promise<void> {
@@ -154,7 +154,7 @@ export async function resetRedis(): Promise<void> {
       'ratelimit:magic-link:hashed@example.com',
       'ratelimit:magic-link:token-test@example.com',
     ];
-    
+
     // Delete keys (Redis del command accepts multiple keys)
     await testRedis.del(...testKeys);
   } catch (error) {
@@ -171,7 +171,7 @@ export async function teardownTestDatabase(): Promise<void> {
     await testPrisma.$disconnect();
     testPrisma = null;
   }
-  
+
   // Clean up Redis connection
   testRedis = null;
 }

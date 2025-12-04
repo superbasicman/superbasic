@@ -2,5 +2,5 @@
 import app from '../dist/app.js';
 
 export default {
-    fetch: app.fetch.bind(app)
+  fetch: app.fetch.bind(app),
 };

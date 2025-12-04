@@ -3,46 +3,38 @@
  * Tests token revocation, ownership verification, idempotency, and audit logging
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
 
-import { Hono } from "hono";
-import { resetDatabase } from "../../../../test/setup.js";
+import { Hono } from 'hono';
+import { resetDatabase } from '../../../../test/setup.js';
 import {
   makeAuthenticatedRequest,
   createTestUser,
   createAccessToken,
-} from "../../../../test/helpers.js";
-import {
-  authEvents,
-  createOpaqueToken,
-  createTokenHashEnvelope,
-} from "@repo/auth";
-import { getTestPrisma } from "../../../../test/setup.js";
-import { tokensRoute } from "../index.js";
-import { corsMiddleware } from "../../../../middleware/cors.js";
-import { attachAuthContext } from "../../../../middleware/auth-context.js";
+} from '../../../../test/helpers.js';
+import { authEvents, createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { getTestPrisma } from '../../../../test/setup.js';
+import { tokensRoute } from '../index.js';
+import { corsMiddleware } from '../../../../middleware/cors.js';
+import { attachAuthContext } from '../../../../middleware/auth-context.js';
 
 // Create test app with tokens route
 function createTestApp() {
   const app = new Hono();
-  app.use("*", corsMiddleware);
-  app.use("*", attachAuthContext);
-  app.route("/v1/tokens", tokensRoute);
+  app.use('*', corsMiddleware);
+  app.use('*', attachAuthContext);
+  app.route('/v1/tokens', tokensRoute);
   return app;
 }
 
 // Helper to create a test API key
-async function createTestApiKey(
-  userId: string,
-  profileIdOrName?: string,
-  maybeName?: string
-) {
-  const name = maybeName ?? profileIdOrName ?? "Test Token";
+async function createTestApiKey(userId: string, profileIdOrName?: string, maybeName?: string) {
+  const name = maybeName ?? profileIdOrName ?? 'Test Token';
   const prisma = getTestPrisma();
-  const opaque = createOpaqueToken({ prefix: "sbf" });
+  const opaque = createOpaqueToken({ prefix: 'sbf' });
   const token = opaque.value;
   const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
   const last4 = token.slice(-4);
@@ -53,7 +45,7 @@ async function createTestApiKey(
       userId,
       name,
       keyHash: tokenHash,
-      scopes: ["read:transactions"],
+      scopes: ['read:transactions'],
       expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days
       metadata: { last4 },
       last4,
@@ -63,7 +55,7 @@ async function createTestApiKey(
   return { apiKey, token };
 }
 
-describe("DELETE /v1/tokens/:id - Token Revocation", () => {
+describe('DELETE /v1/tokens/:id - Token Revocation', () => {
   beforeEach(async () => {
     await resetDatabase();
     authEvents.clearHandlers(); // Clear event handlers between tests
@@ -73,8 +65,8 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
     vi.restoreAllMocks();
   });
 
-  describe("Successful Revocation", () => {
-    it("should revoke token successfully", async () => {
+  describe('Successful Revocation', () => {
+    it('should revoke token successfully', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -87,13 +79,13 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken
       );
 
       expect(response.status).toBe(204);
-      expect(await response.text()).toBe("");
+      expect(await response.text()).toBe('');
 
       // Verify token is soft-deleted (revokedAt is set)
       const revokedToken = await prisma.apiKey.findUnique({
@@ -105,7 +97,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(revokedToken!.revokedAt).toBeInstanceOf(Date);
     });
 
-    it("should remove revoked token from active token list", async () => {
+    it('should remove revoked token from active token list', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -117,12 +109,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       const { token: sessionToken } = await createAccessToken(user.id);
 
       // Verify token is in list before revocation
-      const listResponse1 = await makeAuthenticatedRequest(
-        app,
-        "GET",
-        "/v1/tokens",
-        sessionToken
-      );
+      const listResponse1 = await makeAuthenticatedRequest(app, 'GET', '/v1/tokens', sessionToken);
 
       expect(listResponse1.status).toBe(200);
       const listData1 = await listResponse1.json();
@@ -132,7 +119,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       // Revoke token
       const revokeResponse = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken
       );
@@ -140,19 +127,14 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(revokeResponse.status).toBe(204);
 
       // Verify token is not in list after revocation
-      const listResponse2 = await makeAuthenticatedRequest(
-        app,
-        "GET",
-        "/v1/tokens",
-        sessionToken
-      );
+      const listResponse2 = await makeAuthenticatedRequest(app, 'GET', '/v1/tokens', sessionToken);
 
       expect(listResponse2.status).toBe(200);
       const listData2 = await listResponse2.json();
       expect(listData2.tokens).toHaveLength(0);
     });
 
-    it("should preserve token in database for audit trail", async () => {
+    it('should preserve token in database for audit trail', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -164,12 +146,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       const { token: sessionToken } = await createAccessToken(user.id);
 
       // Revoke token
-      await makeAuthenticatedRequest(
-        app,
-        "DELETE",
-        `/v1/tokens/${apiKey.id}`,
-        sessionToken
-      );
+      await makeAuthenticatedRequest(app, 'DELETE', `/v1/tokens/${apiKey.id}`, sessionToken);
 
       // Verify token still exists in database (not hard deleted)
       const revokedToken = await prisma.apiKey.findUnique({
@@ -185,7 +162,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
     });
   });
 
-  describe("Ownership Verification", () => {
+  describe('Ownership Verification', () => {
     it("should return 404 when trying to revoke another user's token", async () => {
       const { user: user1 } = await createTestUser();
       const { user: user2 } = await createTestUser();
@@ -204,7 +181,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken2
       );
@@ -212,7 +189,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(response.status).toBe(404);
 
       const data = await response.json();
-      expect(data.error).toBe("Token not found");
+      expect(data.error).toBe('Token not found');
 
       // Verify token is not revoked
       const token = await prisma.apiKey.findUnique({
@@ -222,27 +199,27 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(token!.revokedAt).toBeNull();
     });
 
-    it("should return 404 for non-existent token", async () => {
+    it('should return 404 for non-existent token', async () => {
       const { user } = await createTestUser();
       const app = createTestApp();
       const { token: sessionToken } = await createAccessToken(user.id);
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
-        "/v1/tokens/non-existent-id",
+        'DELETE',
+        '/v1/tokens/non-existent-id',
         sessionToken
       );
 
       expect(response.status).toBe(404);
 
       const data = await response.json();
-      expect(data.error).toBe("Token not found");
+      expect(data.error).toBe('Token not found');
     });
   });
 
-  describe("Idempotency", () => {
-    it("should return 204 when revoking already revoked token", async () => {
+  describe('Idempotency', () => {
+    it('should return 204 when revoking already revoked token', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -256,7 +233,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       // First revocation
       const response1 = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken
       );
@@ -272,7 +249,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       // Second revocation (should be idempotent)
       const response2 = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken
       );
@@ -287,7 +264,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(revokedToken2!.revokedAt).toEqual(firstRevokedAt);
     });
 
-    it("should not emit audit event on second revocation", async () => {
+    it('should not emit audit event on second revocation', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -299,12 +276,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       const { token: sessionToken } = await createAccessToken(user.id);
 
       // First revocation
-      await makeAuthenticatedRequest(
-        app,
-        "DELETE",
-        `/v1/tokens/${apiKey.id}`,
-        sessionToken
-      );
+      await makeAuthenticatedRequest(app, 'DELETE', `/v1/tokens/${apiKey.id}`, sessionToken);
 
       // Clear event handlers and add new one for second revocation
       authEvents.clearHandlers();
@@ -312,12 +284,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       authEvents.on(eventHandler);
 
       // Second revocation
-      await makeAuthenticatedRequest(
-        app,
-        "DELETE",
-        `/v1/tokens/${apiKey.id}`,
-        sessionToken
-      );
+      await makeAuthenticatedRequest(app, 'DELETE', `/v1/tokens/${apiKey.id}`, sessionToken);
 
       // Wait for async event emission
       await new Promise((resolve) => setTimeout(resolve, 100));
@@ -327,8 +294,8 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
     });
   });
 
-  describe("Audit Event Emission", () => {
-    it("should emit token.revoked event on successful revocation", async () => {
+  describe('Audit Event Emission', () => {
+    it('should emit token.revoked event on successful revocation', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -345,7 +312,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken
       );
@@ -357,7 +324,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       expect(eventHandler).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: "token.revoked",
+          type: 'token.revoked',
           userId: user.id,
           metadata: expect.objectContaining({
             tokenId: apiKey.id,
@@ -366,7 +333,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       );
     });
 
-    it("should include IP and user agent in audit event", async () => {
+    it('should include IP and user agent in audit event', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -383,13 +350,13 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
         sessionToken,
         {
           headers: {
-            "x-forwarded-for": "192.168.1.1",
-            "user-agent": "Test Agent",
+            'x-forwarded-for': '192.168.1.1',
+            'user-agent': 'Test Agent',
           },
         }
       );
@@ -402,16 +369,16 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       expect(eventHandler).toHaveBeenCalledWith(
         expect.objectContaining({
           metadata: expect.objectContaining({
-            ip: "192.168.1.1",
-            userAgent: "Test Agent",
+            ip: '192.168.1.1',
+            userAgent: 'Test Agent',
           }),
         })
       );
     });
   });
 
-  describe("Authentication Requirements", () => {
-    it("should require session authentication", async () => {
+  describe('Authentication Requirements', () => {
+    it('should require session authentication', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -423,15 +390,15 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
-        "" // No session token
+        '' // No session token
       );
 
       expect(response.status).toBe(401);
     });
 
-    it("should reject invalid session token", async () => {
+    it('should reject invalid session token', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -443,17 +410,17 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
 
       const response = await makeAuthenticatedRequest(
         app,
-        "DELETE",
+        'DELETE',
         `/v1/tokens/${apiKey.id}`,
-        "invalid-token"
+        'invalid-token'
       );
 
       expect(response.status).toBe(401);
     });
   });
 
-  describe("Revoked Token Authentication", () => {
-    it("should reject authentication with revoked token", async () => {
+  describe('Revoked Token Authentication', () => {
+    it('should reject authentication with revoked token', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
       const profile = await prisma.profile.findUnique({
@@ -465,12 +432,7 @@ describe("DELETE /v1/tokens/:id - Token Revocation", () => {
       const { token: sessionToken } = await createAccessToken(user.id);
 
       // Revoke token
-      await makeAuthenticatedRequest(
-        app,
-        "DELETE",
-        `/v1/tokens/${apiKey.id}`,
-        sessionToken
-      );
+      await makeAuthenticatedRequest(app, 'DELETE', `/v1/tokens/${apiKey.id}`, sessionToken);
 
       // Try to use revoked token for authentication
       // Note: This would require a PAT authentication middleware test

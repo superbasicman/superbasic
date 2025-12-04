@@ -208,15 +208,18 @@ export class AuthCoreService implements AuthService {
         sessionId: null,
         principalType: 'service',
         serviceId: payload.sub,
+        serviceType: 'external',
         clientId: payload.client_id ?? null,
         clientType: payload.client_type ?? 'other',
+        tokenId: null,
+        membershipId: null,
         activeWorkspaceId,
         allowedWorkspaces,
         scopes: (payload.scp ?? []) as PermissionScope[],
         roles: [],
         profileId: null,
         mfaLevel: 'none',
-        recentlyAuthenticatedAt: payload.reauth_at ? new Date(payload.reauth_at * 1000) : null,
+        authTime: payload.reauth_at ? new Date(payload.reauth_at * 1000) : null,
       };
 
       await this.setContext(this.prisma, {
@@ -237,7 +240,7 @@ export class AuthCoreService implements AuthService {
       typeof payload.sid === 'string' && payload.sid.length > 0 ? payload.sid : null;
     const workspaceHint =
       typeof payload.wid === 'string' && payload.wid.length > 0 ? payload.wid : null;
-    const recentlyAuthenticatedAt =
+    const authTime =
       typeof payload.reauth_at === 'number' && payload.reauth_at > 0
         ? new Date(payload.reauth_at * 1000)
         : payload.iat
@@ -252,7 +255,7 @@ export class AuthCoreService implements AuthService {
       workspacePathParam: input.workspacePathParam ?? null,
       ...(input.requestId ? { requestId: input.requestId } : {}),
       ...(payload.client_type ? { clientTypeClaim: payload.client_type } : {}),
-      recentlyAuthenticatedAt,
+      authTime,
     });
   }
 
@@ -471,7 +474,7 @@ export class AuthCoreService implements AuthService {
     workspacePathParam?: string | null;
     requestId?: string;
     clientTypeClaim?: string | ClientType;
-    recentlyAuthenticatedAt?: Date | null;
+    authTime?: Date | null;
   }): Promise<AuthContext> {
     const user = await this.prisma.user.findUnique({
       where: { id: options.userId },
@@ -550,23 +553,26 @@ export class AuthCoreService implements AuthService {
       mfaLevel,
     });
 
-    // Default to "now" when no explicit recent-auth signal is available
-    const recentAuthAt = options.recentlyAuthenticatedAt ?? session?.lastActivityAt ?? new Date();
+    // Default to "now" when no explicit auth time signal is available
+    const authTimeValue = options.authTime ?? session?.lastActivityAt ?? new Date();
 
     const authContext: AuthContext = {
       userId: user.id,
       sessionId: session?.id ?? null,
       principalType: 'user',
       serviceId,
+      serviceType: null,
       clientId,
       clientType,
+      tokenId: null,
+      membershipId: null,
       activeWorkspaceId: workspaceResolution.workspaceId,
       allowedWorkspaces: workspaceResolution.allowedWorkspaceIds,
       scopes: workspaceResolution.scopes,
       roles: workspaceResolution.roles,
       profileId,
       mfaLevel,
-      recentlyAuthenticatedAt: recentAuthAt,
+      authTime: authTimeValue,
     };
 
     if (options.requestId) {
@@ -650,14 +656,18 @@ export class AuthCoreService implements AuthService {
       sessionId: null,
       principalType: 'user',
       serviceId: null,
+      serviceType: null,
       clientId: null,
       clientType: 'cli',
+      tokenId: token.id,
+      membershipId: null,
       activeWorkspaceId: workspaceResolution.workspaceId,
       allowedWorkspaces: workspaceResolution.allowedWorkspaceIds,
       scopes,
       roles: workspaceResolution.roles,
       profileId,
       mfaLevel: 'none',
+      authTime: token.createdAt,
     };
 
     if (options.request.requestId) {
@@ -841,7 +851,7 @@ export class AuthCoreService implements AuthService {
     user: { id: string; email: string | null },
     identity: CreateSessionInput['identity']
   ) {
-    if (!identity.provider || !identity.providerUserId) {
+    if (!identity.provider || !identity.providerSubject) {
       return;
     }
 
@@ -852,7 +862,7 @@ export class AuthCoreService implements AuthService {
         where: {
           provider_providerSubject: {
             provider: identity.provider as IdentityProvider,
-            providerSubject: identity.providerUserId,
+            providerSubject: identity.providerSubject,
           },
         },
       });
@@ -863,8 +873,8 @@ export class AuthCoreService implements AuthService {
 
       if (existing) {
         const metadataUpdate: { metadata: Prisma.InputJsonValue } | undefined =
-          identity.metadata !== undefined
-            ? { metadata: toJsonInput(identity.metadata) }
+          identity.rawClaims !== undefined
+            ? { metadata: toJsonInput(identity.rawClaims) }
             : undefined;
         await tx.userIdentity.update({
           where: { id: existing.id },
@@ -879,14 +889,14 @@ export class AuthCoreService implements AuthService {
         });
       } else {
         const metadataCreate: { metadata: Prisma.InputJsonValue } | undefined =
-          identity.metadata !== undefined
-            ? { metadata: toJsonInput(identity.metadata) }
+          identity.rawClaims !== undefined
+            ? { metadata: toJsonInput(identity.rawClaims) }
             : undefined;
         await tx.userIdentity.create({
           data: {
             userId: user.id,
             provider: identity.provider as IdentityProvider,
-            providerSubject: identity.providerUserId,
+            providerSubject: identity.providerSubject,
             emailAtProvider: normalizedEmail,
             emailVerifiedAtProvider: identity.emailVerified ?? false,
             ...(metadataCreate ?? {}),

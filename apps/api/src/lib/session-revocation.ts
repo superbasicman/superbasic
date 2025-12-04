@@ -31,7 +31,9 @@ function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClie
   return typeof (client as PrismaClient).$transaction === 'function';
 }
 
-export async function revokeSessionForUser(options: RevokeSessionOptions): Promise<RevokeSessionResult> {
+export async function revokeSessionForUser(
+  options: RevokeSessionOptions
+): Promise<RevokeSessionResult> {
   const client = options.client ?? prisma;
 
   const session = await client.authSession.findFirst({
@@ -57,9 +59,7 @@ export async function revokeSessionForUser(options: RevokeSessionOptions): Promi
 
   const now = new Date();
 
-  const runInTransaction = async (
-    action: (tx: Prisma.TransactionClient) => Promise<void>
-  ) => {
+  const runInTransaction = async (action: (tx: Prisma.TransactionClient) => Promise<void>) => {
     if (isPrismaClient(client)) {
       return client.$transaction((tx) => action(tx as Prisma.TransactionClient));
     }

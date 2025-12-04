@@ -69,7 +69,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const tokens = getStoredTokens();
     const hasValidAccessToken =
-      !!tokens && typeof tokens.accessTokenExpiresAt === 'number' && tokens.accessTokenExpiresAt > Date.now();
+      !!tokens &&
+      typeof tokens.accessTokenExpiresAt === 'number' &&
+      tokens.accessTokenExpiresAt > Date.now();
 
     if (!hasValidAccessToken) {
       clearStoredTokens();
@@ -154,18 +156,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // For external provider callbacks, exchange code without PKCE verifier
       const body = isExternalProvider
         ? new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: CLIENT_ID,
-          code,
-          redirect_uri: REDIRECT_URI,
-        })
+            grant_type: 'authorization_code',
+            client_id: CLIENT_ID,
+            code,
+            redirect_uri: REDIRECT_URI,
+          })
         : new URLSearchParams({
-          grant_type: 'authorization_code',
-          client_id: CLIENT_ID,
-          code,
-          redirect_uri: REDIRECT_URI,
-          code_verifier: verifier!,
-        });
+            grant_type: 'authorization_code',
+            client_id: CLIENT_ID,
+            code,
+            redirect_uri: REDIRECT_URI,
+            code_verifier: verifier!,
+          });
 
       const response = await fetch(`${apiUrl}/v1/oauth/token`, {
         method: 'POST',

@@ -34,7 +34,11 @@ export function getStoredTokens(): StoredTokens | null {
 
   try {
     const parsed = JSON.parse(raw) as StoredTokens;
-    if (parsed && typeof parsed.accessToken === 'string' && typeof parsed.accessTokenExpiresAt === 'number') {
+    if (
+      parsed &&
+      typeof parsed.accessToken === 'string' &&
+      typeof parsed.accessTokenExpiresAt === 'number'
+    ) {
       return parsed;
     }
     return null;

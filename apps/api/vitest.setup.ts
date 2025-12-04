@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 /**
  * Vitest setup file
  * Runs before each test file
- * 
+ *
  * Note: Auth.js error logs are suppressed in vitest.config.ts via onConsoleLog
  * to keep CI output clean. Expected errors like CredentialsSignin, MissingCSRF,
  * and CallbackRouteError are intentional test cases and don't indicate failures.
@@ -22,21 +22,39 @@ vi.mock('bcrypt', () => ({
 // Mock rate limiting to avoid Redis connection issues in tests
 vi.mock('@repo/rate-limit', async () => {
   const actual = await vi.importActual<typeof import('@repo/rate-limit')>('@repo/rate-limit');
-  
+
   return {
     ...actual,
     checkLimit: vi.fn().mockResolvedValue({ success: true }),
     Redis: class MockRedis {
       constructor() {}
-      get() { return Promise.resolve(null); }
-      set() { return Promise.resolve('OK'); }
-      incr() { return Promise.resolve(1); }
-      expire() { return Promise.resolve(1); }
-      del() { return Promise.resolve(1); }
-      zremrangebyscore() { return Promise.resolve(0); }
-      zadd() { return Promise.resolve(1); }
-      zcard() { return Promise.resolve(0); }
-      zrange() { return Promise.resolve([]); }
+      get() {
+        return Promise.resolve(null);
+      }
+      set() {
+        return Promise.resolve('OK');
+      }
+      incr() {
+        return Promise.resolve(1);
+      }
+      expire() {
+        return Promise.resolve(1);
+      }
+      del() {
+        return Promise.resolve(1);
+      }
+      zremrangebyscore() {
+        return Promise.resolve(0);
+      }
+      zadd() {
+        return Promise.resolve(1);
+      }
+      zcard() {
+        return Promise.resolve(0);
+      }
+      zrange() {
+        return Promise.resolve([]);
+      }
     },
   };
 });
@@ -200,7 +218,7 @@ if (shouldMockDatabase) {
                 const workspaceId =
                   typeof where?.workspaceId === 'string'
                     ? where.workspaceId
-                    : (where?.workspaceId as any)?.equals ?? null;
+                    : ((where?.workspaceId as any)?.equals ?? null);
                 const workspaceMatch = workspaceId ? m.workspaceId === workspaceId : true;
                 return profileMatch && workspaceMatch;
               }) ?? null

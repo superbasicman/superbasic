@@ -6,9 +6,9 @@ import { authEvents } from '@repo/auth';
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      })
     : null;
 
 const mockRedis = process.env.NODE_ENV === 'test' ? createMockRedis() : null;
@@ -29,7 +29,7 @@ function failedAuthKey(ip: string): string {
 /**
  * Track failed authentication attempt for rate limiting
  * Should be called when authentication fails (401 response)
- * 
+ *
  * @param ip - IP address of the request
  * @returns Promise that resolves when tracking is complete
  */
@@ -81,7 +81,7 @@ export async function trackFailedAuth(ip: string): Promise<void> {
 /**
  * Check if IP has exceeded failed authentication rate limit
  * Returns true if rate limit is exceeded, false otherwise
- * 
+ *
  * @param ip - IP address to check
  * @returns Promise<boolean> - true if rate limited, false otherwise
  */

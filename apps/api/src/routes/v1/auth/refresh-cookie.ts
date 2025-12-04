@@ -10,7 +10,10 @@ import {
   USE_HOST_PREFIX,
 } from '../../../lib/refresh-cookie-constants.js';
 
-export { REFRESH_CSRF_COOKIE, REFRESH_TOKEN_COOKIE } from '../../../lib/refresh-cookie-constants.js';
+export {
+  REFRESH_CSRF_COOKIE,
+  REFRESH_TOKEN_COOKIE,
+} from '../../../lib/refresh-cookie-constants.js';
 
 function buildCookieOptions(expiresAt?: Date, maxAgeOverride?: number): CookieOptions {
   const sameSiteEnv = process.env.AUTH_COOKIE_SAMESITE;

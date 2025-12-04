@@ -3,8 +3,8 @@
  * Uses bcrypt for secure password storage
  */
 
-import bcrypt from "bcrypt";
-import { BCRYPT_SALT_ROUNDS } from "./constants.js";
+import bcrypt from 'bcrypt';
+import { BCRYPT_SALT_ROUNDS } from './constants.js';
 
 /**
  * Hash a password using bcrypt
@@ -22,9 +22,6 @@ export async function hashPassword(password: string): Promise<string> {
  * @param hashedPassword - Bcrypt hash to compare against
  * @returns Promise resolving to true if password matches
  */
-export async function verifyPassword(
-  password: string,
-  hashedPassword: string
-): Promise<boolean> {
+export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
   return bcrypt.compare(password, hashedPassword);
 }

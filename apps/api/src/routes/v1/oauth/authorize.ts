@@ -21,14 +21,8 @@ const authorizeSchema = z.object({
 const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
 authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
-  const {
-    client_id,
-    redirect_uri,
-    state,
-    code_challenge,
-    code_challenge_method,
-    scope,
-  } = c.req.valid('query');
+  const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope } =
+    c.req.valid('query');
 
   try {
     // 1. Validate Client & Redirect URI
@@ -40,7 +34,11 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
   } catch (error) {
     const errorUrl = new URL(redirect_uri);
     const description =
-      error instanceof AuthorizationError ? error.message : error instanceof Error ? error.message : 'Unknown error';
+      error instanceof AuthorizationError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Unknown error';
     errorUrl.searchParams.set('error', 'invalid_request');
     errorUrl.searchParams.set('error_description', description);
     if (state) {

@@ -4,7 +4,12 @@ vi.unmock('@repo/database');
 
 import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
-import { createTestUser, createAccessToken, makeAuthenticatedRequest, makeRequest } from '../../../test/helpers.js';
+import {
+  createTestUser,
+  createAccessToken,
+  makeAuthenticatedRequest,
+  makeRequest,
+} from '../../../test/helpers.js';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 
 describe('GET /v1/me', () => {
@@ -19,11 +24,11 @@ describe('GET /v1/me', () => {
 
     const response = await makeAuthenticatedRequest(app, 'GET', '/v1/me', token);
 
-  expect(response.status).toBe(200);
-  const data = await response.json();
-  expect(data.user.id).toBe(user.id);
-  expect(data.user.email).toBe(user.primaryEmail);
-  expect(data.user.name).toBe('Profile User');
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.user.id).toBe(user.id);
+    expect(data.user.email).toBe(user.primaryEmail);
+    expect(data.user.name).toBe('Profile User');
     const membership = await prisma.workspaceMember.findFirst({
       where: { userId: user.id, revokedAt: null },
     });
@@ -76,16 +81,16 @@ describe('GET /v1/me', () => {
       data: {
         ownerUserId: user.id,
         name: 'Test Workspace',
-        slug: `ws-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-    },
-  });
-  await prisma.workspaceMember.create({
-    data: {
-      workspaceId: workspace.id,
-      userId: user.id,
-      role: 'owner',
-    },
-  });
+        slug: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      },
+    });
+    await prisma.workspaceMember.create({
+      data: {
+        workspaceId: workspace.id,
+        userId: user.id,
+        role: 'owner',
+      },
+    });
 
     const { token } = await createAccessToken(user.id);
 
@@ -108,9 +113,9 @@ describe('GET /v1/me', () => {
       data: {
         ownerUserId: user.id,
         name: 'PAT Workspace',
-        slug: `ws-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
-    },
-  });
+        slug: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      },
+    });
     await prisma.workspaceMember.create({
       data: {
         workspaceId: workspace.id,
@@ -122,21 +127,21 @@ describe('GET /v1/me', () => {
     const patOpaque = createOpaqueToken({ prefix: 'sbf' });
     const tokenHash = createTokenHashEnvelope(patOpaque.tokenSecret);
 
-  await prisma.apiKey.create({
-    data: {
-      id: patOpaque.tokenId,
-      userId: user.id,
-      workspaceId: workspace.id,
-      name: 'Test PAT',
-      keyHash: tokenHash,
-      scopes: ['read:profile'],
-      metadata: { last4: patOpaque.value.slice(-4) },
-      last4: patOpaque.value.slice(-4),
-      lastUsedAt: null,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      revokedAt: null,
-    },
-  });
+    await prisma.apiKey.create({
+      data: {
+        id: patOpaque.tokenId,
+        userId: user.id,
+        workspaceId: workspace.id,
+        name: 'Test PAT',
+        keyHash: tokenHash,
+        scopes: ['read:profile'],
+        metadata: { last4: patOpaque.value.slice(-4) },
+        last4: patOpaque.value.slice(-4),
+        lastUsedAt: null,
+        expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        revokedAt: null,
+      },
+    });
 
     const response = await makeRequest(app, 'GET', '/v1/me', {
       headers: { Authorization: `Bearer ${patOpaque.value}` },

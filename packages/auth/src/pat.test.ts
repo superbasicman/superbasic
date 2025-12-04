@@ -60,7 +60,7 @@ describe('hashToken', () => {
     const token2 = generateToken();
     const hash1 = hashToken(token1);
     const hash2 = hashToken(token2);
-    
+
     expect(hash1.hash).not.toBe(hash2.hash);
   });
 
@@ -77,7 +77,7 @@ describe('verifyToken', () => {
   it('should verify a valid token against its hash', () => {
     const token = generateToken();
     const hash = hashToken(token);
-    
+
     expect(verifyToken(token, hash)).toBe(true);
   });
 
@@ -85,21 +85,21 @@ describe('verifyToken', () => {
     const token1 = generateToken();
     const token2 = generateToken();
     const hash1 = hashToken(token1);
-    
+
     expect(verifyToken(token2, hash1)).toBe(false);
   });
 
   it('should reject a token with wrong hash', () => {
     const token = generateToken();
     const wrongHash = { ...hashToken(token), hash: 'invalid' };
-    
+
     expect(verifyToken(token, wrongHash)).toBe(false);
   });
 
   it('should use constant-time comparison', () => {
     const token = generateToken();
     const hash = hashToken(token);
-    
+
     // This test verifies the function doesn't throw
     // Actual timing attack resistance is hard to test in unit tests
     expect(() => verifyToken(token, hash)).not.toThrow();
@@ -107,14 +107,19 @@ describe('verifyToken', () => {
 
   it('should handle invalid hash format gracefully', () => {
     const token = generateToken();
-    const invalidHash = { algo: 'hmac-sha256', keyId: 'v1', hash: 'invalid', issuedAt: new Date().toISOString() } as any;
-    
+    const invalidHash = {
+      algo: 'hmac-sha256',
+      keyId: 'v1',
+      hash: 'invalid',
+      issuedAt: new Date().toISOString(),
+    } as any;
+
     expect(verifyToken(token, invalidHash)).toBe(false);
   });
 
   it('should handle empty hash gracefully', () => {
     const token = generateToken();
-    
+
     expect(verifyToken(token, undefined as any)).toBe(false);
   });
 });
@@ -166,7 +171,7 @@ describe('extractTokenFromHeader', () => {
   it('should extract token from valid Bearer header', () => {
     const token = generateToken();
     const header = `Bearer ${token}`;
-    
+
     expect(extractTokenFromHeader(header)).toBe(token);
   });
 
@@ -192,7 +197,7 @@ describe('extractTokenFromHeader', () => {
   it('should handle extra spaces gracefully', () => {
     const token = generateToken();
     const header = `Bearer  ${token}`; // Extra space
-    
+
     // Should return null because split(' ') will create more than 2 parts
     expect(extractTokenFromHeader(header)).toBe(null);
   });

@@ -3,7 +3,12 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
-import { sendMagicLinkEmail, createOpaqueToken, createTokenHashEnvelope, COOKIE_NAME } from '@repo/auth';
+import {
+  sendMagicLinkEmail,
+  createOpaqueToken,
+  createTokenHashEnvelope,
+  COOKIE_NAME,
+} from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { randomBytes } from 'node:crypto';

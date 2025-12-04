@@ -36,7 +36,7 @@ console.log(`Redis key: ${key}`);
 
 try {
   const result = await redis.del(key);
-  
+
   if (result === 1) {
     console.log('✓ Rate limit cleared successfully');
   } else {

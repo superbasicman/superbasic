@@ -2,7 +2,7 @@
 
 /**
  * Check which Neon database branch is currently configured
- * 
+ *
  * Usage:
  *   pnpm tsx tooling/scripts/check-db-branch.ts
  */
@@ -50,7 +50,7 @@ console.log('Hostname:', hostname);
 
 if (hostname.includes('neon.tech')) {
   console.log('\n✅ Connected to Neon database');
-  
+
   // Extract the endpoint identifier (ep-xxx part)
   const epMatch = hostname.match(/ep-([^-]+)/);
   if (epMatch) {

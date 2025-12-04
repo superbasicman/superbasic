@@ -1,19 +1,19 @@
 /**
  * Token Service
- * 
+ *
  * Business logic layer for API token operations
  * Implements business rules, orchestrates repositories, and emits domain events
  */
 
-import type { ApiKey } from "@repo/database";
-import { generateToken, hashToken, validateScopes } from "@repo/auth";
-import type { TokenRepository } from "./token-repository.js";
+import type { ApiKey } from '@repo/database';
+import { generateToken, hashToken, validateScopes } from '@repo/auth';
+import type { TokenRepository } from './token-repository.js';
 import {
   DuplicateTokenNameError,
   InvalidScopesError,
   InvalidExpirationError,
   TokenNotFoundError,
-} from "./token-errors.js";
+} from './token-errors.js';
 import type {
   CreateTokenParams,
   CreateTokenResult,
@@ -21,7 +21,7 @@ import type {
   UpdateTokenParams,
   ListTokensParams,
   RevokeTokenParams,
-} from "./token-types.js";
+} from './token-types.js';
 
 /**
  * Auth events interface for audit logging
@@ -39,16 +39,16 @@ export class TokenService {
   constructor(
     private tokenRepo: TokenRepository,
     private authEvents: AuthEvents
-  ) { }
+  ) {}
 
   /**
    * Create a new API token
-   * 
+   *
    * Business rules:
    * - Token names must be unique per user
    * - Scopes must be valid
    * - Expiration must be between 1-365 days
-   * 
+   *
    * @param params - Token creation parameters
    * @returns Token result with plaintext token (shown once) and metadata
    * @throws {DuplicateTokenNameError} If token name already exists for user
@@ -60,10 +60,7 @@ export class TokenService {
     this.validateTokenParams(params);
 
     // Check for duplicate name
-    const isDuplicate = await this.tokenRepo.existsByUserAndName(
-      params.userId,
-      params.name
-    );
+    const isDuplicate = await this.tokenRepo.existsByUserAndName(params.userId, params.name);
 
     if (isDuplicate) {
       throw new DuplicateTokenNameError(params.name);
@@ -90,7 +87,7 @@ export class TokenService {
 
     // Emit audit event for token creation
     this.authEvents.emit({
-      type: "token.created",
+      type: 'token.created',
       userId: params.userId,
       metadata: {
         tokenId: apiKey.id,
@@ -98,9 +95,9 @@ export class TokenService {
         scopes: params.scopes,
         expiresAt: expiresAt.toISOString(),
         workspaceId: params.workspaceId ?? null,
-        ip: params.requestContext?.ip || "unknown",
-        userAgent: params.requestContext?.userAgent || "unknown",
-        requestId: params.requestContext?.requestId || "unknown",
+        ip: params.requestContext?.ip || 'unknown',
+        userAgent: params.requestContext?.userAgent || 'unknown',
+        requestId: params.requestContext?.requestId || 'unknown',
         timestamp: new Date().toISOString(),
       },
     });
@@ -114,7 +111,7 @@ export class TokenService {
 
   /**
    * List all active tokens for a user
-   * 
+   *
    * @param params - List parameters with userId
    * @returns Array of token metadata (no plaintext tokens)
    */
@@ -125,12 +122,12 @@ export class TokenService {
 
   /**
    * Update token name
-   * 
+   *
    * Business rules:
    * - Token must exist and belong to user
    * - Token must not be revoked
    * - New name must be unique per user
-   * 
+   *
    * @param params - Update parameters with token ID, userId, and new name
    * @returns Updated token metadata
    * @throws {TokenNotFoundError} If token not found, doesn't belong to user, or is revoked
@@ -146,10 +143,7 @@ export class TokenService {
     }
 
     // Check for duplicate name (unique per user)
-    const isDuplicate = await this.tokenRepo.existsByUserAndName(
-      params.userId,
-      params.name
-    );
+    const isDuplicate = await this.tokenRepo.existsByUserAndName(params.userId, params.name);
 
     // If duplicate exists and it's not the current token, reject
     if (isDuplicate) {
@@ -160,25 +154,27 @@ export class TokenService {
     }
 
     // Update token name via repository
-    const updated = await this.tokenRepo.update(params.id, {
-      name: params.name,
-    }).catch((error: unknown) => {
-      if (isPrismaNotFoundError(error)) {
-        throw new TokenNotFoundError(params.id);
-      }
-      throw error;
-    });
+    const updated = await this.tokenRepo
+      .update(params.id, {
+        name: params.name,
+      })
+      .catch((error: unknown) => {
+        if (isPrismaNotFoundError(error)) {
+          throw new TokenNotFoundError(params.id);
+        }
+        throw error;
+      });
 
     const context = params.requestContext || {};
     await this.authEvents.emit({
-      type: "token.updated",
+      type: 'token.updated',
       userId: params.userId,
       metadata: {
         tokenId: params.id,
-        previousName: token.name ?? "",
-        newName: updated.name ?? "",
-        ip: context.ip || "unknown",
-        userAgent: context.userAgent || "unknown",
+        previousName: token.name ?? '',
+        newName: updated.name ?? '',
+        ip: context.ip || 'unknown',
+        userAgent: context.userAgent || 'unknown',
         requestId: context.requestId || null,
         timestamp: new Date().toISOString(),
       },
@@ -189,11 +185,11 @@ export class TokenService {
 
   /**
    * Revoke a token (soft delete)
-   * 
+   *
    * Business rules:
    * - Token must exist and belong to user
    * - Operation is idempotent (already revoked = success)
-   * 
+   *
    * @param params - Revoke parameters with token ID and userId
    * @throws {TokenNotFoundError} If token not found or doesn't belong to user
    */
@@ -218,15 +214,15 @@ export class TokenService {
 
       // Emit audit event (only on first revocation)
       this.authEvents.emit({
-        type: "token.revoked",
+        type: 'token.revoked',
         userId: params.userId,
-      metadata: {
-        tokenId: params.id,
-        tokenName: token.name,
-        workspaceId: token.workspaceId ?? null,
-        ip: params.requestContext?.ip || "unknown",
-        userAgent: params.requestContext?.userAgent || "unknown",
-        requestId: params.requestContext?.requestId || "unknown",
+        metadata: {
+          tokenId: params.id,
+          tokenName: token.name,
+          workspaceId: token.workspaceId ?? null,
+          ip: params.requestContext?.ip || 'unknown',
+          userAgent: params.requestContext?.userAgent || 'unknown',
+          requestId: params.requestContext?.requestId || 'unknown',
           timestamp: new Date().toISOString(),
         },
       });
@@ -234,7 +230,7 @@ export class TokenService {
   }
   /**
    * Validate token creation parameters
-   * 
+   *
    * @param params - Token creation parameters
    * @throws {InvalidScopesError} If scopes are invalid
    * @throws {InvalidExpirationError} If expiration is out of range
@@ -253,7 +249,7 @@ export class TokenService {
 
   /**
    * Calculate expiration date from days
-   * 
+   *
    * @param days - Number of days until expiration
    * @returns Expiration date
    */
@@ -265,20 +261,20 @@ export class TokenService {
 
   /**
    * Map database entity to domain response
-   * 
+   *
    * @param apiKey - Database entity
    * @returns Token response with masked token
    */
   private mapToTokenResponse(apiKey: ApiKey): TokenResponse {
     return {
       id: apiKey.id,
-      name: apiKey.name ?? "Unnamed Token",
+      name: apiKey.name ?? 'Unnamed Token',
       scopes: apiKey.scopes as string[],
       workspaceId: apiKey.workspaceId ?? null,
       createdAt: apiKey.createdAt.toISOString(),
       lastUsedAt: apiKey.lastUsedAt?.toISOString() ?? null,
       expiresAt: apiKey.expiresAt?.toISOString() ?? null,
-      maskedToken: `sbf_****${apiKey.last4 ?? "...."}`,
+      maskedToken: `sbf_****${apiKey.last4 ?? '....'}`,
     };
   }
 }
@@ -286,8 +282,8 @@ export class TokenService {
 function isPrismaNotFoundError(error: unknown): error is { code: string } {
   return Boolean(
     error &&
-    typeof error === "object" &&
-    "code" in error &&
-    (error as { code?: string }).code === "P2025"
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2025'
   );
 }

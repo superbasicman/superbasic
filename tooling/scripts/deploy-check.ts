@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Pre-deployment validation script
- * 
+ *
  * Usage:
  *   pnpm deploy-check           # Quick check (lint + typecheck)
  *   pnpm deploy-check --full    # Full check (lint + typecheck + test + build)
@@ -34,7 +34,10 @@ function log(message: string, color = colors.reset) {
   console.log(`${color}${message}${colors.reset}`);
 }
 
-async function runCommand(command: string, description: string): Promise<{ passed: boolean; output: string }> {
+async function runCommand(
+  command: string,
+  description: string
+): Promise<{ passed: boolean; output: string }> {
   log(`\n${colors.bright}▶ ${description}...${colors.reset}`, colors.blue);
   return new Promise((resolve, reject) => {
     let output = '';
@@ -123,10 +126,7 @@ function writeErrorReport(
     lines.push('', extraMessage);
   }
 
-  lines.push(
-    '',
-    'Review the command output above, fix the issues, and rerun `pnpm deploy-check`.'
-  );
+  lines.push('', 'Review the command output above, fix the issues, and rerun `pnpm deploy-check`.');
 
   writeFileSync(errorReportPath, `${lines.join('\n')}\n`);
 }
@@ -163,7 +163,11 @@ async function checkDatabaseConnectivity() {
     const message =
       `Database unreachable at ${redacted}. ` +
       'Ensure DATABASE_URL points to an accessible test database and the service is up.';
-    return { passed: false, output: error instanceof Error ? error.stack ?? error.message : String(error), extraMessage: message };
+    return {
+      passed: false,
+      output: error instanceof Error ? (error.stack ?? error.message) : String(error),
+      extraMessage: message,
+    };
   }
 }
 
@@ -177,9 +181,9 @@ async function main() {
   log('\n╔════════════════════════════════════════════╗', colors.bright);
   log('║     Pre-Deployment Validation Check        ║', colors.bright);
   log('╚════════════════════════════════════════════╝', colors.bright);
-  
+
   if (fullCheck) {
-  log('\nMode: Full Check (lint + typecheck + test + build)', colors.yellow);
+    log('\nMode: Full Check (lint + typecheck + test + build)', colors.yellow);
   } else {
     log('\nMode: Quick Check (lint + typecheck)', colors.yellow);
     log('Tip: Use --full flag for complete validation', colors.yellow);
@@ -229,7 +233,7 @@ async function main() {
   }
 
   log('\n' + '═'.repeat(46), colors.bright);
-  
+
   if (allPassed) {
     cleanupErrorReport();
     log('\n✓ All checks passed! Ready to deploy.', colors.green);

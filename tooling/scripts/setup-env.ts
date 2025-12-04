@@ -3,7 +3,7 @@
 /**
  * Interactive environment setup wizard
  * Configures all required environment variables for local development
- * 
+ *
  * Usage:
  *   pnpm tsx tooling/scripts/setup-env.ts
  */
@@ -150,11 +150,7 @@ async function main() {
   log('STEP 1: Database Configuration (Neon Postgres)');
   log('═══════════════════════════════════════════════════════════');
 
-  const existingDatabaseUrl = getExistingValue(
-    'DATABASE_URL',
-    existingDbEnv,
-    existingApiEnv
-  );
+  const existingDatabaseUrl = getExistingValue('DATABASE_URL', existingDbEnv, existingApiEnv);
 
   info('Open https://console.neon.tech in your browser');
   console.log('  1. Select your project (or create a new one)');
@@ -396,8 +392,7 @@ async function main() {
   log('STEP 5: Test Database (local Postgres recommended)');
   log('═══════════════════════════════════════════════════════════');
 
-  const defaultLocalTestDb =
-    'postgresql://postgres:postgres@localhost:5432/superbasic_test';
+  const defaultLocalTestDb = 'postgresql://postgres:postgres@localhost:5432/superbasic_test';
   const existingTestDatabaseUrl = getExistingValue(
     'DATABASE_URL',
     existingApiTestEnv,
@@ -436,9 +431,7 @@ async function main() {
     const dockerAvailable = hasDocker();
     const psqlAvailable = hasLocalPostgresTools();
     if (dockerAvailable) {
-      const startDocker = await question(
-        'Start a local Postgres container for tests now? (y/n): '
-      );
+      const startDocker = await question('Start a local Postgres container for tests now? (y/n): ');
       if (startDocker.toLowerCase() === 'y') {
         try {
           execSync(
@@ -706,12 +699,24 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
   log('═══════════════════════════════════════════════════════════');
 
   console.log('\n📋 Configuration Summary:');
-  console.log(`  ${dbConfigured ? '✅' : '⚠️ '} Database (Neon) ${dbConfigured ? 'configured' : 'missing'}`);
-  console.log(`  ${prodDbConfigured ? '✅' : '⏭️ '} Prod database ${prodDbConfigured ? 'configured' : 'skipped/empty'}`);
-  console.log(`  ${authSecretConfigured ? '✅' : '⚠️ '} Auth secret ${authSecretConfigured ? 'set' : 'empty'}`);
-  console.log(`  ${redisConfigured ? '✅' : '⏭️ '} Redis (Upstash) ${redisConfigured ? 'configured' : 'skipped/empty'}`);
-  console.log(`  ${googleConfigured ? '✅' : '⏭️ '} Google OAuth ${googleConfigured ? 'configured' : 'skipped/empty'}`);
-  console.log(`  ${emailConfigured ? '✅' : '⏭️ '} Resend email ${emailConfigured ? 'configured' : 'skipped/empty'}`);
+  console.log(
+    `  ${dbConfigured ? '✅' : '⚠️ '} Database (Neon) ${dbConfigured ? 'configured' : 'missing'}`
+  );
+  console.log(
+    `  ${prodDbConfigured ? '✅' : '⏭️ '} Prod database ${prodDbConfigured ? 'configured' : 'skipped/empty'}`
+  );
+  console.log(
+    `  ${authSecretConfigured ? '✅' : '⚠️ '} Auth secret ${authSecretConfigured ? 'set' : 'empty'}`
+  );
+  console.log(
+    `  ${redisConfigured ? '✅' : '⏭️ '} Redis (Upstash) ${redisConfigured ? 'configured' : 'skipped/empty'}`
+  );
+  console.log(
+    `  ${googleConfigured ? '✅' : '⏭️ '} Google OAuth ${googleConfigured ? 'configured' : 'skipped/empty'}`
+  );
+  console.log(
+    `  ${emailConfigured ? '✅' : '⏭️ '} Resend email ${emailConfigured ? 'configured' : 'skipped/empty'}`
+  );
 
   log('📁 Files created:');
   console.log('  • apps/api/.env.local');

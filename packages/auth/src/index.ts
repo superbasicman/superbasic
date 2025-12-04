@@ -9,12 +9,11 @@
 
 // Auth.js configuration
 
-
 // Password utilities
-export { hashPassword, verifyPassword } from "./password.js";
+export { hashPassword, verifyPassword } from './password.js';
 
 // Authentication events
-export { authEvents } from "./events.js";
+export { authEvents } from './events.js';
 export type {
   AuthEvent,
   AuthEventType,
@@ -29,7 +28,7 @@ export type {
   SessionRevokedEvent,
   RefreshReuseDetectedEvent,
   UserStatusChangedEvent,
-} from "./events.js";
+} from './events.js';
 
 // Constants
 export {
@@ -43,7 +42,7 @@ export {
   LOCAL_MAGIC_LINK_PROVIDER_ID,
   GOOGLE_PROVIDER_ID,
   GITHUB_PROVIDER_ID,
-} from "./constants.js";
+} from './constants.js';
 
 // PAT utilities
 export {
@@ -52,14 +51,14 @@ export {
   verifyToken,
   isValidTokenFormat,
   extractTokenFromHeader,
-} from "./pat.js";
+} from './pat.js';
 export {
   createOpaqueToken,
   parseOpaqueToken,
   createTokenHashEnvelope,
   verifyTokenSecret,
-} from "./token-hash.js";
-export type { TokenHashEnvelope, OpaqueToken } from "./token-hash.js";
+} from './token-hash.js';
+export type { TokenHashEnvelope, OpaqueToken } from './token-hash.js';
 
 // RBAC and scope utilities
 export {
@@ -71,16 +70,16 @@ export {
   hasAnyScope,
   RBAC_SCOPES,
   RBAC_ROLES,
-} from "./rbac.js";
-export type { Scope, RBACScope, RBACRole } from "./rbac.js";
+} from './rbac.js';
+export type { Scope, RBACScope, RBACRole } from './rbac.js';
 
 // Email utilities
-export { sendMagicLinkEmail } from "./email.js";
-export type { SendMagicLinkEmailParams } from "./email.js";
+export { sendMagicLinkEmail } from './email.js';
+export type { SendMagicLinkEmailParams } from './email.js';
 
 // Profile utilities
-export { ensureProfileExists } from "./profile.js";
+export { ensureProfileExists } from './profile.js';
 
 // Session typing & runtime validation
-export { AuthSessionSchema, parseAuthSession } from "./session-schema.js";
-export type { AuthSession } from "./session-schema.js";
+export { AuthSessionSchema, parseAuthSession } from './session-schema.js';
+export type { AuthSession } from './session-schema.js';

@@ -1,12 +1,12 @@
 /**
  * Token Repository
- * 
+ *
  * Data access layer for API tokens
  * Pure Prisma operations with no business logic
  */
 
-import type { PrismaClient, ApiKey } from "@repo/database";
-import type { TokenHashEnvelope } from "@repo/auth";
+import type { PrismaClient, ApiKey } from '@repo/database';
+import type { TokenHashEnvelope } from '@repo/auth';
 
 export interface CreateTokenData {
   userId: string;
@@ -23,7 +23,7 @@ export interface UpdateTokenData {
 }
 
 export class TokenRepository {
-  constructor(private prisma: PrismaClient) { }
+  constructor(private prisma: PrismaClient) {}
 
   /**
    * Check if a token with the given name exists for a user
@@ -77,7 +77,7 @@ export class TokenRepository {
         userId,
         revokedAt: null,
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

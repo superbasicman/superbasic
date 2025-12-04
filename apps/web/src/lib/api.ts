@@ -1,10 +1,9 @@
-import type { LoginInput, RegisterInput, UserResponse } from "@repo/types";
-import { getAccessToken, getAccessTokenExpiry, saveTokens, clearTokens } from "./tokenStorage";
-import { getCookieValue } from "./cookies";
+import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
+import { getAccessToken, getAccessTokenExpiry, saveTokens, clearTokens } from './tokenStorage';
+import { getCookieValue } from './cookies';
 
 // Remove trailing slash from API_URL to prevent double slashes
-const API_URL = (import.meta.env.VITE_API_URL || "http://localhost:3000").replace(/\/$/, "");
-
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 /**
  * API client error class for structured error handling
@@ -16,21 +15,18 @@ export class ApiError extends Error {
     public details?: Record<string, string[]>
   ) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
   }
 }
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 let refreshPromise: Promise<void> | null = null;
-const REFRESH_CSRF_COOKIE = "sb.refresh-csrf";
+const REFRESH_CSRF_COOKIE = 'sb.refresh-csrf';
 
 /**
  * Base fetch wrapper with credentials support, auto-refresh, and error handling
  */
-async function apiFetch<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_URL}${endpoint}`;
 
   await maybeRefreshAccessToken();
@@ -39,7 +35,7 @@ async function apiFetch<T>(
     const headers = buildHeaders(options.headers, token);
     return fetch(url, {
       ...options,
-      credentials: options.credentials ?? "include",
+      credentials: options.credentials ?? 'include',
       headers,
     });
   };
@@ -54,33 +50,29 @@ async function apiFetch<T>(
       response = await performRequest(currentToken);
     } catch (error) {
       clearTokens();
-      throw new ApiError("Unauthorized", 401);
+      throw new ApiError('Unauthorized', 401);
     }
   }
 
   if (response.status === 401) {
-    throw new ApiError("Unauthorized", 401);
+    throw new ApiError('Unauthorized', 401);
   }
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new ApiError(
-      data.error || "An error occurred",
-      response.status,
-      data.details
-    );
+    throw new ApiError(data.error || 'An error occurred', response.status, data.details);
   }
 
   return data;
 }
 
 function buildHeaders(
-  existing: RequestInit["headers"],
+  existing: RequestInit['headers'],
   accessToken?: string | null
 ): Record<string, string> {
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    'Content-Type': 'application/json',
   };
 
   if (existing instanceof Headers) {
@@ -96,7 +88,7 @@ function buildHeaders(
   }
 
   const hasAuthorization = Object.keys(headers).some(
-    (key) => key.toLowerCase() === "authorization"
+    (key) => key.toLowerCase() === 'authorization'
   );
 
   if (accessToken && !hasAuthorization) {
@@ -135,11 +127,11 @@ async function performAccessTokenRefresh() {
   const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
 
   const response = await fetch(`${API_URL}/v1/auth/refresh`, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     headers: {
-      "Content-Type": "application/json",
-      ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      'Content-Type': 'application/json',
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     },
     body: JSON.stringify({}),
   });
@@ -148,20 +140,17 @@ async function performAccessTokenRefresh() {
 
   if (response.status === 401) {
     clearTokens();
-    throw new ApiError("Unauthorized", 401);
+    throw new ApiError('Unauthorized', 401);
   }
 
   if (
     !response.ok ||
     !data ||
-    typeof data.accessToken !== "string" ||
-    typeof data.expiresIn !== "number"
+    typeof data.accessToken !== 'string' ||
+    typeof data.expiresIn !== 'number'
   ) {
     clearTokens();
-    throw new ApiError(
-      "Unable to refresh session",
-      response.status || 500
-    );
+    throw new ApiError('Unable to refresh session', response.status || 500);
   }
 
   saveTokens({
@@ -180,10 +169,10 @@ export const authApi = {
    */
   async login(credentials: LoginInput): Promise<void> {
     const response = await fetch(`${API_URL}/v1/auth/signin/password`, {
-      method: "POST",
-      credentials: "include",
+      method: 'POST',
+      credentials: 'include',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         email: credentials.email,
@@ -192,7 +181,7 @@ export const authApi = {
     });
 
     if (!response.ok) {
-      throw new ApiError("Invalid email or password", response.status || 401);
+      throw new ApiError('Invalid email or password', response.status || 401);
     }
   },
 
@@ -201,8 +190,8 @@ export const authApi = {
    * Does NOT set session cookie - call login() after registration
    */
   async register(data: RegisterInput): Promise<{ user: UserResponse }> {
-    return apiFetch("/v1/register", {
-      method: "POST",
+    return apiFetch('/v1/register', {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   },
@@ -213,10 +202,10 @@ export const authApi = {
   async logout(): Promise<void> {
     clearTokens();
     const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
-    await apiFetch("/v1/auth/logout", {
-      method: "POST",
+    await apiFetch('/v1/auth/logout', {
+      method: 'POST',
       headers: {
-        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
       },
     });
   },
@@ -226,16 +215,16 @@ export const authApi = {
    */
   async sendMagicLink(email: string): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_URL}/v1/auth/magic-link/send`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({ email }),
     });
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
-      throw new ApiError(data.error || "Failed to send magic link", response.status);
+      throw new ApiError(data.error || 'Failed to send magic link', response.status);
     }
 
     return response.json();
@@ -253,12 +242,12 @@ export const authApi = {
           currency: string;
         } | null;
       };
-    }>("/v1/me", {
-      method: "GET",
+    }>('/v1/me', {
+      method: 'GET',
     });
 
     if (!response || !response.user) {
-      throw new ApiError("Not authenticated", 401);
+      throw new ApiError('Not authenticated', 401);
     }
 
     const { user } = response;
@@ -272,7 +261,6 @@ export const authApi = {
       },
     };
   },
-
 };
 
 /**
@@ -282,9 +270,9 @@ export const tokenApi = {
   /**
    * List all API tokens for the authenticated user
    */
-  async list(): Promise<import("@repo/types").ListTokensResponse> {
-    return apiFetch("/v1/tokens", {
-      method: "GET",
+  async list(): Promise<import('@repo/types').ListTokensResponse> {
+    return apiFetch('/v1/tokens', {
+      method: 'GET',
     });
   },
 
@@ -293,10 +281,10 @@ export const tokenApi = {
    * Returns plaintext token (shown once only)
    */
   async create(
-    data: import("@repo/types").CreateTokenRequest
-  ): Promise<import("@repo/types").CreateTokenResponse> {
-    return apiFetch("/v1/tokens", {
-      method: "POST",
+    data: import('@repo/types').CreateTokenRequest
+  ): Promise<import('@repo/types').CreateTokenResponse> {
+    return apiFetch('/v1/tokens', {
+      method: 'POST',
       body: JSON.stringify(data),
     });
   },
@@ -306,7 +294,7 @@ export const tokenApi = {
    */
   async revoke(tokenId: string): Promise<void> {
     return apiFetch(`/v1/tokens/${tokenId}`, {
-      method: "DELETE",
+      method: 'DELETE',
     });
   },
 
@@ -315,10 +303,10 @@ export const tokenApi = {
    */
   async update(
     tokenId: string,
-    data: import("@repo/types").UpdateTokenRequest
-  ): Promise<import("@repo/types").TokenResponse> {
+    data: import('@repo/types').UpdateTokenRequest
+  ): Promise<import('@repo/types').TokenResponse> {
     return apiFetch(`/v1/tokens/${tokenId}`, {
-      method: "PATCH",
+      method: 'PATCH',
       body: JSON.stringify(data),
     });
   },
@@ -328,15 +316,15 @@ export const tokenApi = {
  * Session management API methods
  */
 export const sessionApi = {
-  async list(): Promise<import("@repo/types").ListSessionsResponse> {
-    return apiFetch("/v1/auth/sessions", {
-      method: "GET",
+  async list(): Promise<import('@repo/types').ListSessionsResponse> {
+    return apiFetch('/v1/auth/sessions', {
+      method: 'GET',
     });
   },
 
   async revoke(sessionId: string): Promise<void> {
     return apiFetch(`/v1/auth/sessions/${sessionId}`, {
-      method: "DELETE",
+      method: 'DELETE',
     });
   },
 };

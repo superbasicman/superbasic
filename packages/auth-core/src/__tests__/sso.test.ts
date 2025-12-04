@@ -25,7 +25,7 @@ function binding(overrides: Partial<WorkspaceSsoBinding> = {}): WorkspaceSsoBind
 function identity(overrides: Partial<VerifiedIdentity> = {}): VerifiedIdentity {
   return {
     provider: samlProvider,
-    providerUserId: 'user-123',
+    providerSubject: 'user-123',
     email: 'user@example.com',
     emailVerified: true,
     ...overrides,
@@ -93,10 +93,10 @@ describe('planBackChannelLogout', () => {
 
   it('collects user and active session ids for the logout event', () => {
     const plan = planBackChannelLogout(
-      { provider: samlProvider, providerUserId: 'idp-1' },
+      { provider: samlProvider, providerSubject: 'idp-1' },
       [
-        { provider: samlProvider, providerUserId: 'idp-1', userId: 'user-a' },
-        { provider: 'auth0:other', providerUserId: 'idp-1', userId: 'user-b' },
+        { provider: samlProvider, providerSubject: 'idp-1', userId: 'user-a' },
+        { provider: 'auth0:other', providerSubject: 'idp-1', userId: 'user-b' },
       ],
       sessions
     );
@@ -107,8 +107,8 @@ describe('planBackChannelLogout', () => {
 
   it('honors explicit session ids even when no active session is found', () => {
     const plan = planBackChannelLogout(
-      { provider: samlProvider, providerUserId: 'idp-1', sessionIds: ['custom-session'] },
-      [{ provider: samlProvider, providerUserId: 'idp-1', userId: 'user-a' }],
+      { provider: samlProvider, providerSubject: 'idp-1', sessionIds: ['custom-session'] },
+      [{ provider: samlProvider, providerSubject: 'idp-1', userId: 'user-a' }],
       sessions
     );
 
@@ -119,7 +119,7 @@ describe('planBackChannelLogout', () => {
 describe('resolveSsoLoginUser', () => {
   it('links to existing identity match', () => {
     const result = resolveSsoLoginUser(identity(), [
-      { provider: samlProvider, providerUserId: 'user-123', userId: 'user-a' },
+      { provider: samlProvider, providerSubject: 'user-123', userId: 'user-a' },
     ]);
     expect(result).toEqual({ userId: 'user-a', action: 'link' });
   });
@@ -130,7 +130,7 @@ describe('resolveSsoLoginUser', () => {
       [
         {
           provider: 'saml:other',
-          providerUserId: 'other',
+          providerSubject: 'other',
           userId: 'user-b',
           email: 'user@example.com',
         },

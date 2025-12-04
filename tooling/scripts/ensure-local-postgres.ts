@@ -118,9 +118,7 @@ function ensureLocalRoleAndDb() {
       { stdio: 'ignore' }
     );
   } catch (error) {
-    console.warn(
-      `[local-postgres] Could not ensure role ${DB_USER}: ${(error as Error).message}`
-    );
+    console.warn(`[local-postgres] Could not ensure role ${DB_USER}: ${(error as Error).message}`);
   }
 
   try {

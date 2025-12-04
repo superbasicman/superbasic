@@ -20,9 +20,7 @@ import {
   invalidGrant,
   updateSessionTimestamps,
 } from '../auth/refresh-utils.js';
-import {
-  setRefreshTokenCookie,
-} from '../auth/refresh-cookie.js';
+import { setRefreshTokenCookie } from '../auth/refresh-cookie.js';
 
 const token = new Hono<AppBindings>();
 
@@ -89,8 +87,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
           )
         : [];
       const selectedWorkspace =
-        workspace_id ??
-        (allowedWorkspaces.length === 1 ? allowedWorkspaces[0] : undefined);
+        workspace_id ?? (allowedWorkspaces.length === 1 ? allowedWorkspaces[0] : undefined);
 
       if (!selectedWorkspace && allowedWorkspaces.length > 1) {
         throw new AuthorizationError('workspace_id is required for this client');
@@ -122,12 +119,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
     }
 
     if (body.grant_type === 'authorization_code') {
-      const {
-        client_id,
-        code,
-        redirect_uri,
-        code_verifier,
-      } = body;
+      const { client_id, code, redirect_uri, code_verifier } = body;
 
       // 1. Validate client
       await requireOAuthClient({
@@ -196,7 +188,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         userId: authCode.userId,
         identity: {
           provider: 'local_password',
-          providerUserId: authCode.userId,
+          providerSubject: authCode.userId,
           email: user?.primaryEmail ?? null,
         },
         clientType: client_id === 'mobile' ? 'mobile' : 'web',
@@ -292,7 +284,13 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
     }
 
     const session = tokenRecord.session;
-    if (!session || session.revokedAt || session.expiresAt <= now || !session.user || session.user.userState !== 'active') {
+    if (
+      !session ||
+      session.revokedAt ||
+      session.expiresAt <= now ||
+      !session.user ||
+      session.user.userState !== 'active'
+    ) {
       return invalidGrant(c);
     }
 

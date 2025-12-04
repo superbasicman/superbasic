@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { Button } from "@repo/design-system";
-import type { SessionResponse } from "@repo/types";
-import { sessionApi, ApiError } from "../../lib/api";
-import { useAuth } from "../../contexts/AuthContext";
-import { clearTokens } from "../../lib/tokenStorage";
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '@repo/design-system';
+import type { SessionResponse } from '@repo/types';
+import { sessionApi, ApiError } from '../../lib/api';
+import { useAuth } from '../../contexts/AuthContext';
+import { clearTokens } from '../../lib/tokenStorage';
 
 type SessionDisplay = SessionResponse & {
   displayIp: string;
@@ -11,12 +11,12 @@ type SessionDisplay = SessionResponse & {
 };
 
 function maskIp(ip: string | null): string {
-  if (!ip) return "Unknown";
-  if (ip.includes(":")) {
-    const segments = ip.split(":");
-    return `${segments.slice(0, 3).join(":")}::`;
+  if (!ip) return 'Unknown';
+  if (ip.includes(':')) {
+    const segments = ip.split(':');
+    return `${segments.slice(0, 3).join(':')}::`;
   }
-  const parts = ip.split(".");
+  const parts = ip.split('.');
   if (parts.length === 4) {
     return `${parts[0]}.${parts[1]}.${parts[2]}.x`;
   }
@@ -24,20 +24,20 @@ function maskIp(ip: string | null): string {
 }
 
 function summarizeAgent(userAgent: string | null): string {
-  if (!userAgent) return "Unknown device";
+  if (!userAgent) return 'Unknown device';
   const ua = userAgent.toLowerCase();
-  if (ua.includes("iphone")) return "iPhone";
-  if (ua.includes("ipad")) return "iPad";
-  if (ua.includes("android")) return "Android";
-  if (ua.includes("mac os") || ua.includes("macintosh")) return "Mac";
-  if (ua.includes("windows")) return "Windows";
-  if (ua.includes("linux")) return "Linux";
+  if (ua.includes('iphone')) return 'iPhone';
+  if (ua.includes('ipad')) return 'iPad';
+  if (ua.includes('android')) return 'Android';
+  if (ua.includes('mac os') || ua.includes('macintosh')) return 'Mac';
+  if (ua.includes('windows')) return 'Windows';
+  if (ua.includes('linux')) return 'Linux';
   return userAgent.slice(0, 60);
 }
 
 function formatDate(dateString: string) {
   const date = new Date(dateString);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 export default function Devices() {
@@ -66,7 +66,7 @@ export default function Devices() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Failed to load sessions");
+        setError('Failed to load sessions');
       }
     } finally {
       setLoading(false);
@@ -82,8 +82,8 @@ export default function Devices() {
     const isCurrent = session.isCurrent;
     const confirmed = window.confirm(
       isCurrent
-        ? "Revoke this device? You will be logged out here."
-        : "Revoke this device? It will be signed out immediately."
+        ? 'Revoke this device? You will be logged out here.'
+        : 'Revoke this device? It will be signed out immediately.'
     );
     if (!confirmed) return;
 
@@ -100,7 +100,7 @@ export default function Devices() {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Failed to revoke session");
+        setError('Failed to revoke session');
       }
     } finally {
       setRevokingId(null);
@@ -135,15 +135,11 @@ export default function Devices() {
           </div>
           {currentSession && (
             <div className="rounded-lg border border-primary-100 bg-primary-50 px-4 py-3 text-sm text-primary-800">
-              Current device: <span className="font-medium">{currentSession.displayAgent}</span>{' '}
-              · IP {currentSession.displayIp}
+              Current device: <span className="font-medium">{currentSession.displayAgent}</span> ·
+              IP {currentSession.displayIp}
             </div>
           )}
-          {error && (
-            <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">
-              {error}
-            </div>
-          )}
+          {error && <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">{error}</div>}
         </div>
 
         {sessions.length === 0 ? (
@@ -182,11 +178,12 @@ export default function Devices() {
                       Last active: {formatDate(session.lastUsedAt)}
                     </div>
                     <div className="text-sm text-gray-600">
-                      Started: {formatDate(session.createdAt)} · Expires: {formatDate(session.expiresAt)}
+                      Started: {formatDate(session.createdAt)} · Expires:{' '}
+                      {formatDate(session.expiresAt)}
                     </div>
                     <div className="text-sm text-gray-600">
                       IP: {session.displayIp}
-                      {session.deviceName ? ` · Device: ${session.deviceName}` : ""}
+                      {session.deviceName ? ` · Device: ${session.deviceName}` : ''}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
@@ -195,7 +192,7 @@ export default function Devices() {
                       onClick={() => revoke(session)}
                       disabled={revokingId === session.id}
                     >
-                      {revokingId === session.id ? "Revoking..." : "Revoke"}
+                      {revokingId === session.id ? 'Revoking...' : 'Revoke'}
                     </Button>
                   </div>
                 </div>

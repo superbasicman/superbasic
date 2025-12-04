@@ -1,5 +1,8 @@
 import { createOpaqueToken, createTokenHashEnvelope, verifyTokenSecret } from '@repo/auth';
-import type { OAuthAuthorizationCode as PrismaAuthorizationCode, PrismaClient } from '@repo/database';
+import type {
+  OAuthAuthorizationCode as PrismaAuthorizationCode,
+  PrismaClient,
+} from '@repo/database';
 import { prisma } from '@repo/database';
 import { AuthorizationError } from '@repo/auth-core';
 import type { PermissionScope, PkceChallengeMethod, TokenHashEnvelope } from '@repo/auth-core';

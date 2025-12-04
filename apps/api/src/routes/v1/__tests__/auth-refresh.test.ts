@@ -4,11 +4,7 @@ vi.unmock('@repo/database');
 
 import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
-import {
-  createTestUser,
-  createSessionRecord,
-  makeRequest,
-} from '../../../test/helpers.js';
+import { createTestUser, createSessionRecord, makeRequest } from '../../../test/helpers.js';
 import { authService } from '../../../lib/auth-service.js';
 import { REFRESH_TOKEN_COOKIE, REFRESH_CSRF_COOKIE } from '../auth/refresh-cookie.js';
 import { authEvents } from '@repo/auth';
@@ -44,8 +40,8 @@ describe('POST /v1/auth/refresh', () => {
     expect(data.refreshToken).not.toBe(initial.refreshToken);
 
     const setCookie = response.headers.getSetCookie?.() ?? [];
-    const hasRefreshCookie = setCookie.some((value) =>
-      value.startsWith(`${REFRESH_TOKEN_COOKIE}=`) && value.includes('HttpOnly')
+    const hasRefreshCookie = setCookie.some(
+      (value) => value.startsWith(`${REFRESH_TOKEN_COOKIE}=`) && value.includes('HttpOnly')
     );
     expect(hasRefreshCookie).toBe(true);
 

@@ -400,7 +400,7 @@ test.describe('API Keys E2E Tests', () => {
 
       // Navigate to API keys page and create two tokens
       await page.goto('/settings/api-keys');
-      
+
       // Create first token
       await page.click('button:has-text("Create API Key")');
       await page.fill('input[name="name"]', 'Token One');
@@ -472,7 +472,7 @@ test.describe('API Keys E2E Tests', () => {
       await expect(page.locator('text=Metadata Test')).toBeVisible();
       await expect(page.locator('text=read:transactions')).toBeVisible();
       await expect(page.locator('text=write:budgets')).toBeVisible();
-      
+
       // Should show masked token (sbf_****xxxx format)
       await expect(page.locator('text=/sbf_\\*\\*\\*\\*/i')).toBeVisible();
     });
@@ -544,7 +544,7 @@ test.describe('API Keys E2E Tests', () => {
 
       // Create three tokens
       const tokenNames = ['Token Alpha', 'Token Beta', 'Token Gamma'];
-      
+
       for (const name of tokenNames) {
         await page.click('button:has-text("Create API Key")');
         await page.fill('input[name="name"]', name);

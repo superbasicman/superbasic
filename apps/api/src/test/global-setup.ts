@@ -14,13 +14,13 @@ export async function setup() {
   try {
     const envPath = resolve(process.cwd(), '.env.test');
     const envContent = readFileSync(envPath, 'utf-8');
-    
+
     // Parse .env file format (simple key=value pairs)
-    envContent.split('\n').forEach(line => {
+    envContent.split('\n').forEach((line) => {
       const trimmed = line.trim();
       // Skip comments and empty lines
       if (!trimmed || trimmed.startsWith('#')) return;
-      
+
       // Parse KEY=VALUE format
       const match = trimmed.match(/^([^=]+)=(.*)$/);
       if (match && match[1] && match[2] !== undefined) {
@@ -36,7 +36,7 @@ export async function setup() {
     // Silently fail if .env.test doesn't exist
     // Tests will use existing environment variables
   }
-  
+
   await setupTestDatabase();
 }
 

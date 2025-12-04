@@ -37,9 +37,7 @@ export function RevokeTokenDialog({ token, onConfirm, onCancel }: RevokeTokenDia
                 </svg>
               </div>
               <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                <h3 className="text-lg font-medium leading-6 text-gray-900">
-                  Revoke API Key
-                </h3>
+                <h3 className="text-lg font-medium leading-6 text-gray-900">Revoke API Key</h3>
                 <div className="mt-2">
                   <p className="text-sm text-gray-500">
                     Are you sure you want to revoke the API key{' '}

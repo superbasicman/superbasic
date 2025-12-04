@@ -9,15 +9,18 @@ function buildAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
     sessionId: 'sess-1',
     principalType: 'user',
     serviceId: null,
+    serviceType: null,
     clientId: null,
     clientType: 'web',
+    tokenId: null,
+    membershipId: null,
     activeWorkspaceId: null,
     allowedWorkspaces: [],
     scopes: [],
     roles: [],
     profileId: 'profile-1',
     mfaLevel: 'none',
-    recentlyAuthenticatedAt: new Date(),
+    authTime: new Date(),
     ...overrides,
   };
 }
@@ -25,7 +28,7 @@ function buildAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
 describe('requireRecentAuth', () => {
   it('passes when within window and mfa level meets requirement', () => {
     const auth = buildAuthContext({
-      recentlyAuthenticatedAt: new Date(),
+      authTime: new Date(),
       mfaLevel: 'mfa',
     });
 
@@ -47,7 +50,7 @@ describe('requireRecentAuth', () => {
 
   it('throws AuthorizationError when outside the recent window', () => {
     const auth = buildAuthContext({
-      recentlyAuthenticatedAt: new Date(Date.now() - 20 * 60 * 1000),
+      authTime: new Date(Date.now() - 20 * 60 * 1000),
     });
     expect(() => requireRecentAuth(auth, { withinSeconds: 600 })).toThrow(AuthorizationError);
   });

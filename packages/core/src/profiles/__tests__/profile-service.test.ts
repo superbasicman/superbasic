@@ -1,6 +1,6 @@
 /**
  * Profile Service Unit Tests
- * 
+ *
  * Tests profile service business logic with mocked Prisma client.
  */
 
@@ -99,9 +99,9 @@ describe('ProfileService', () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
       // Act & Assert
-      await expect(
-        profileService.getCurrentProfile({ userId: 'nonexistent' })
-      ).rejects.toThrow(ProfileNotFoundError);
+      await expect(profileService.getCurrentProfile({ userId: 'nonexistent' })).rejects.toThrow(
+        ProfileNotFoundError
+      );
     });
   });
 

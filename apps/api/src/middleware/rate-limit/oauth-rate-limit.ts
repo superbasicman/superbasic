@@ -8,9 +8,9 @@ type OauthFlow = 'authorize' | 'token' | 'revoke' | 'introspect';
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN,
-    })
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN,
+      })
     : null;
 
 const mockRedis = process.env.NODE_ENV === 'test' ? createMockRedis() : null;
