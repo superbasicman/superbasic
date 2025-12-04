@@ -3,14 +3,10 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import { setCookie } from "hono/cookie";
-import { prisma } from "@repo/database";
-import {
-    verifyPassword,
-    LOCAL_PASSWORD_PROVIDER_ID,
-    COOKIE_NAME,
-} from "@repo/auth";
+import { COOKIE_NAME } from "@repo/auth";
 import { authService } from "../../../lib/auth-service.js";
 import { setRefreshTokenCookie } from "./refresh-cookie.js";
+import { authenticatePasswordIdentity } from "../../../lib/identity-provider.js";
 
 const signin = new Hono();
 
@@ -23,25 +19,8 @@ const passwordSchema = z.object({
 
 signin.post("/password", zValidator("json", passwordSchema), async (c) => {
     const { email, password } = c.req.valid("json");
-    const normalizedEmail = email.toLowerCase().trim();
-
-    const user = (await prisma.user.findFirst({
-        where: {
-            primaryEmail: normalizedEmail,
-            deletedAt: null,
-        },
-        include: {
-            password: true,
-        },
-    })) as (Awaited<ReturnType<typeof prisma.user.findFirst>> & { password?: { passwordHash: string } | null }) | null;
-
-    if (!user || !user.password?.passwordHash) {
-        // Return generic error to avoid enumeration
-        return c.json({ error: "Invalid credentials" }, 401);
-    }
-
-    const isValid = await verifyPassword(password, user.password.passwordHash);
-    if (!isValid) {
+    const authResult = await authenticatePasswordIdentity(email, password);
+    if (!authResult) {
         return c.json({ error: "Invalid credentials" }, 401);
     }
 
@@ -49,17 +28,12 @@ signin.post("/password", zValidator("json", passwordSchema), async (c) => {
     const userAgent = c.req.header("user-agent") || null;
 
     const { session, refresh } = await authService.createSessionWithRefresh({
-        userId: user.id,
+        userId: authResult.userId,
         clientType: "web",
         ipAddress,
         userAgent,
         rememberMe: true,
-        identity: {
-            provider: LOCAL_PASSWORD_PROVIDER_ID,
-            providerUserId: user.id,
-            email: user.primaryEmail,
-            emailVerified: !!user.emailVerified,
-        },
+        identity: authResult.identity,
     });
 
     // Set session cookie so OAuth authorize can find the session
@@ -74,7 +48,7 @@ signin.post("/password", zValidator("json", passwordSchema), async (c) => {
     setRefreshTokenCookie(c, refresh.refreshToken, refresh.token.expiresAt);
 
     const { token: accessToken } = await authService.issueAccessToken({
-        userId: user.id,
+        userId: authResult.userId,
         sessionId: session.sessionId,
         clientType: session.clientType,
         mfaLevel: session.mfaLevel,
@@ -84,7 +58,7 @@ signin.post("/password", zValidator("json", passwordSchema), async (c) => {
         success: true,
         accessToken,
         sessionId: session.sessionId,
-        user: { id: user.id, email: user.primaryEmail, name: user.displayName ?? null }
+        user: { id: authResult.userId, email: authResult.identity.email, name: authResult.identity.name ?? null }
     });
 });
 

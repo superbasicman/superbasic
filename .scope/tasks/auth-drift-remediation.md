@@ -36,6 +36,6 @@ Goal: land a clean, doc-aligned auth stack with no leftover legacy compatibility
 - [x] 8. Logging, audit, and rate-limit coverage  
   - Sanity check: Security events emitted for PAT creation, refresh reuse, MFA actions; rate limits cover OAuth authorize/token and PAT use; verified via tests/fixtures in `packages/auth/src/events.test.ts` and `apps/api/src/middleware/rate-limit/*`.
 
-- [ ] 9. Remove legacy/compatibility paths and dead code, dead docs and scripts
+- [x] 9. Remove legacy/compatibility paths and dead code, dead docs and scripts
   - Refactor sign-in routes (`signin.ts`, `google.ts`) to be "thin handlers" that delegate to `auth-core` instead of accessing Prisma directly, aligning with the `VerifiedIdentity` pattern.
   - Sanity check: Deprecated token prefixes/format handlers, unused service identity stubs, and bypass flags are removed or gated only by current formats; `pnpm lint`/`pnpm test -- --run` show no unused code warnings or references to legacy flows.

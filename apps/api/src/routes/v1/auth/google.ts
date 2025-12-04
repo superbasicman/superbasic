@@ -3,11 +3,12 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie, getCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
-import { GOOGLE_PROVIDER_ID, COOKIE_NAME } from '@repo/auth';
+import { COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import { randomBytes } from 'node:crypto';
+import { resolveGoogleIdentity } from '../../../lib/identity-provider.js';
 
 const google = new Hono();
 
@@ -167,35 +168,25 @@ google.get(
 
       const googleUser = await userInfoResponse.json();
 
-      // Normalize to VerifiedIdentity
-      const verifiedIdentity = {
-        provider: GOOGLE_PROVIDER_ID,
+      const { userId, identity } = await resolveGoogleIdentity({
         providerUserId: googleUser.sub,
         email: googleUser.email,
         emailVerified: googleUser.email_verified || false,
         name: googleUser.name,
         picture: googleUser.picture,
-      };
-
-      // Find or create user
-      let user = await findOrCreateUserFromGoogle(verifiedIdentity);
+      });
 
       const ipAddress = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || null;
       const userAgent = c.req.header('user-agent') || null;
 
       // Create session
       const { session, refresh } = await authService.createSessionWithRefresh({
-        userId: user.id,
+        userId,
         clientType: 'web',
         ipAddress,
         userAgent,
         rememberMe: true,
-        identity: {
-          provider: GOOGLE_PROVIDER_ID,
-          providerUserId: googleUser.sub,
-          email: googleUser.email,
-          emailVerified: googleUser.email_verified || false,
-        },
+        identity,
       });
 
       // Set session cookie
@@ -227,7 +218,7 @@ google.get(
       await prisma.oAuthAuthorizationCode.create({
         data: {
           id: opaque.tokenId,
-          userId: user.id,
+          userId,
           clientId: 'web-dashboard',
           redirectUri: `${WEB_APP_URL}/auth/callback`,
           codeHash,
@@ -256,90 +247,4 @@ google.get(
     }
   }
 );
-
-/**
- * Find or create a user from Google OAuth identity
- */
-async function findOrCreateUserFromGoogle(identity: {
-  provider: string;
-  providerUserId: string;
-  email: string;
-  emailVerified: boolean;
-  name?: string;
-  picture?: string;
-}) {
-  // First, try to find by identity
-  const existingIdentity = await prisma.userIdentity.findUnique({
-    where: {
-      provider_providerSubject: {
-        provider: 'google',
-        providerSubject: identity.providerUserId,
-      },
-    },
-    include: {
-      user: true,
-    },
-  });
-
-  if (existingIdentity) {
-    return existingIdentity.user;
-  }
-
-  // Try to find user by email
-  const existingUser = await prisma.user.findFirst({
-    where: {
-      primaryEmail: identity.email.toLowerCase(),
-      deletedAt: null,
-    },
-  });
-
-  if (existingUser) {
-    // Link Google identity to existing user
-    await prisma.userIdentity.create({
-      data: {
-        userId: existingUser.id,
-        provider: 'google',
-        providerSubject: identity.providerUserId,
-        emailAtProvider: identity.email,
-        emailVerifiedAtProvider: identity.emailVerified,
-        rawProfile: {
-          name: identity.name,
-          picture: identity.picture,
-        },
-      },
-    });
-    return existingUser;
-  }
-
-  // Create new user with Google identity
-  const newUser = await prisma.user.create({
-    data: {
-      primaryEmail: identity.email.toLowerCase(),
-      displayName: identity.name || null,
-      emailVerified: identity.emailVerified,
-      userState: 'active',
-      identities: {
-        create: {
-          provider: 'google',
-          providerSubject: identity.providerUserId,
-          emailAtProvider: identity.email,
-          emailVerifiedAtProvider: identity.emailVerified,
-          rawProfile: {
-            name: identity.name,
-            picture: identity.picture,
-          },
-        },
-      },
-      profile: {
-        create: {
-          timezone: 'UTC',
-          currency: 'USD',
-        },
-      },
-    },
-  });
-
-  return newUser;
-}
-
 export { google };

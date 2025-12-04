@@ -3,10 +3,11 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
-import { LOCAL_MAGIC_LINK_PROVIDER_ID, sendMagicLinkEmail, createOpaqueToken, createTokenHashEnvelope, COOKIE_NAME } from '@repo/auth';
+import { sendMagicLinkEmail, createOpaqueToken, createTokenHashEnvelope, COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { randomBytes } from 'node:crypto';
+import { upsertMagicLinkIdentity } from '../../../lib/identity-provider.js';
 
 const magicLink = new Hono();
 
@@ -133,53 +134,19 @@ magicLink.get(
       data: { consumedAt: new Date() },
     });
 
-    // Find the user
-    let user = await prisma.user.findFirst({
-      where: {
-        primaryEmail: normalizedEmail,
-        deletedAt: null,
-      },
-    });
-
-    // If user doesn't exist, create them
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          primaryEmail: normalizedEmail,
-          emailVerified: true,
-          userState: 'active',
-          profile: {
-            create: {
-              timezone: 'UTC',
-              currency: 'USD',
-            },
-          },
-        },
-      });
-    } else if (!user.emailVerified) {
-      // Mark email as verified
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { emailVerified: true },
-      });
-    }
+    const { userId, identity } = await upsertMagicLinkIdentity(normalizedEmail);
 
     const ipAddress = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || null;
     const userAgent = c.req.header('user-agent') || null;
 
     // Create session
     const { session, refresh } = await authService.createSessionWithRefresh({
-      userId: user.id,
+      userId,
       clientType: 'web',
       ipAddress,
       userAgent,
       rememberMe: true,
-      identity: {
-        provider: LOCAL_MAGIC_LINK_PROVIDER_ID,
-        providerUserId: user.id,
-        email: normalizedEmail,
-        emailVerified: true,
-      },
+      identity,
     });
 
     // Set session cookie
@@ -201,7 +168,7 @@ magicLink.get(
     await prisma.oAuthAuthorizationCode.create({
       data: {
         id: opaque.tokenId,
-        userId: user.id,
+        userId,
         clientId: 'web-dashboard',
         redirectUri: `${WEB_APP_URL}/auth/callback`,
         codeHash,
