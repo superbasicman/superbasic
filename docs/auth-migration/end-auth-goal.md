@@ -777,8 +777,8 @@ Core endpoints (end-state design):
 - /oauth/revoke (revoke access/refresh tokens)
 - /oauth/introspect (optional, for resource servers)
 - /openid/userinfo
-- /.well-known/openid-configuration
-- /.well-known/jwks.json
+- /.well-known/openid-configuration (implemented for v1)
+- /.well-known/jwks.json (implemented for v1)
 
 Supported grants:
 
@@ -787,7 +787,7 @@ Supported grants:
 - Client credentials (for service-to-service)
 - No implicit grant
 
-Note: This represents the end-state authorization server. In v1, we will only implement the subset of endpoints and grants required by the v1 simplifications in 5.17 (for example, first-party authorization code + PKCE, refresh token, and only those client credentials flows that are actually needed).
+Note: This represents the end-state authorization server. In v1, we have implemented all core endpoints including OIDC discovery (/.well-known/openid-configuration) and JWKS. Third-party OAuth clients, consent screens, and the oauth_grants table are deferred per section 5.17.
 
 Clients
 

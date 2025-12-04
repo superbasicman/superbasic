@@ -17,17 +17,9 @@ describe('generateToken', () => {
     expect(token).toMatch(/^sbf_/);
   });
 
-  it('should generate a token with correct length (47 characters)', () => {
+  it('should generate a token with correct format (sbf_<uuid>.<secret>)', () => {
     const token = generateToken();
-    // sbf_ (4 chars) + 43 base64url chars = 47 total
-    expect(token).toHaveLength(47);
-  });
-
-  it('should generate tokens with valid base64url characters', () => {
-    const token = generateToken();
-    const tokenBody = token.slice(4); // Remove 'sbf_' prefix
-    // base64url uses A-Z, a-z, 0-9, -, _
-    expect(tokenBody).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(token).toMatch(/^sbf_[0-9a-fA-F-]{36}\.[A-Za-z0-9_-]+$/);
   });
 
   it('should generate unique tokens', () => {
@@ -42,19 +34,16 @@ describe('generateToken', () => {
     expect(tokens.size).toBe(iterations);
   });
 
-  it('should generate tokens with 256 bits of entropy', () => {
+  it('should generate tokens with 256 bits of entropy in secret component', () => {
     const token = generateToken();
-    const tokenBody = token.slice(4); // Remove 'sbf_' prefix
-    
-    // 32 bytes = 256 bits
-    // base64url encoding: 32 bytes -> 43 characters (no padding)
-    expect(tokenBody).toHaveLength(43);
+    const secret = token.split('.')[1];
+    expect(secret).toHaveLength(43); // 32 bytes base64url encoded
   });
 });
 
 describe('hashToken', () => {
   it('should produce a token hash envelope with metadata', () => {
-    const token = 'sbf_test123456789012345678901234567890123';
+    const token = 'sbf_123e4567-e89b-12d3-a456-426614174000.secret';
     const hash = hashToken(token);
 
     expect(hash).toMatchObject({
@@ -62,15 +51,8 @@ describe('hashToken', () => {
       keyId: expect.any(String),
       hash: expect.any(String),
       issuedAt: expect.any(String),
+      salt: expect.any(String),
     });
-  });
-
-  it('should produce consistent hashes for the same input', () => {
-    const token = generateToken();
-    const hash1 = hashToken(token);
-    const hash2 = hashToken(token);
-    
-    expect(hash1.hash).toBe(hash2.hash);
   });
 
   it('should produce different hashes for different inputs', () => {
@@ -82,16 +64,12 @@ describe('hashToken', () => {
     expect(hash1.hash).not.toBe(hash2.hash);
   });
 
-  it('should be deterministic', () => {
-    const token = 'sbf_test123456789012345678901234567890123';
-    const expectedHash = hashToken(token);
-    
-    // Hash the same token multiple times
-    for (let i = 0; i < 10; i++) {
-      const nextHash = hashToken(token);
-      expect(nextHash.hash).toBe(expectedHash.hash);
-      expect(nextHash.keyId).toBe(expectedHash.keyId);
-    }
+  it('should include unique salts for the same input', () => {
+    const token = generateToken();
+    const hash1 = hashToken(token);
+    const hash2 = hashToken(token);
+    expect(hash1.hash).not.toBe(hash2.hash);
+    expect(hash1.salt).not.toBe(hash2.salt);
   });
 });
 
@@ -148,29 +126,29 @@ describe('isValidTokenFormat', () => {
   });
 
   it('should reject token without sbf_ prefix', () => {
-    const token = 'invalid_' + 'a'.repeat(43);
+    const token = 'invalid_123e4567-e89b-12d3-a456-426614174000.secret';
     expect(isValidTokenFormat(token)).toBe(false);
   });
 
   it('should reject token with wrong length', () => {
-    const token = 'sbf_' + 'a'.repeat(42); // Too short
+    const token = 'sbf_123e4567-e89b-12d3-a456-426614174000.short';
     expect(isValidTokenFormat(token)).toBe(false);
   });
 
   it('should reject token with invalid characters', () => {
-    const token = 'sbf_' + 'a'.repeat(42) + '!'; // Invalid character
+    const token = 'sbf_123e4567-e89b-12d3-a456-426614174000.secr!';
     expect(isValidTokenFormat(token)).toBe(false);
   });
 
   it('should reject token with padding characters', () => {
-    const token = 'sbf_' + 'a'.repeat(42) + '='; // base64 padding not allowed
+    const token = 'sbf_123e4567-e89b-12d3-a456-426614174000.secret=';
     expect(isValidTokenFormat(token)).toBe(false);
   });
 
   it('should accept tokens with valid base64url characters', () => {
-    // Test with various valid base64url characters
-    const validChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    const token = 'sbf_' + validChars.slice(0, 43);
+    const secret = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef0123456789-'; // 43 chars
+    expect(secret).toHaveLength(43);
+    const token = `sbf_123e4567-e89b-12d3-a456-426614174000.${secret}`;
     expect(isValidTokenFormat(token)).toBe(true);
   });
 

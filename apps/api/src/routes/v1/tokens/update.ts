@@ -14,6 +14,7 @@ import {
   TokenNotFoundError,
 } from "@repo/core";
 import { authMiddleware } from "../../../middleware/auth.js";
+import { requireRecentMfa } from "../../../middleware/require-recent-mfa.js";
 import { requireScope } from "../../../middleware/scopes.js";
 import { renamePersonalAccessToken } from "../../../lib/pat-tokens.js";
 
@@ -32,6 +33,7 @@ const updateTokenRoute = new Hono<{ Variables: Variables }>();
 updateTokenRoute.patch(
   "/:id",
   authMiddleware, // Requires session auth
+  requireRecentMfa(),
   requireScope("write:accounts"),
   zValidator("json", UpdateTokenRequestSchema, (result, c) => {
     if (!result.success) {

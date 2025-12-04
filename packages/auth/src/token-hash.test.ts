@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createOpaqueToken, parseOpaqueToken } from "./token-hash.js";
 
 describe("parseOpaqueToken", () => {
-  it("returns tokenId and secret for valid opaque tokens", () => {
+  it("returns tokenId and secret for valid opaque tokens (legacy)", () => {
     const token = createOpaqueToken();
 
     const parsed = parseOpaqueToken(token.value);
@@ -21,5 +21,19 @@ describe("parseOpaqueToken", () => {
   it("rejects tokens that don't use a UUID prefix", () => {
     const parsed = parseOpaqueToken("not-a-uuid.secret");
     expect(parsed).toBeNull();
+  });
+
+  it("parses prefixed tokens with expected prefix", () => {
+    const token = createOpaqueToken({ prefix: "pat" });
+
+    const parsed = parseOpaqueToken(token.value, { expectedPrefix: "pat" });
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.prefix).toBe("pat");
+  });
+
+  it("rejects prefixed tokens when expectedPrefix mismatches", () => {
+    const token = createOpaqueToken({ prefix: "pat" });
+    expect(parseOpaqueToken(token.value, { expectedPrefix: "rt" })).toBeNull();
   });
 });

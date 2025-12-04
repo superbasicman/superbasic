@@ -60,8 +60,12 @@ export type WorkspaceSsoBinding = {
 export type AuthContext = {
   userId: string;
   sessionId: string | null;
+  principalType: 'user' | 'service';
+  serviceId: string | null;
+  clientId: string | null;
   clientType: ClientType;
   activeWorkspaceId: string | null;
+  allowedWorkspaces: string[] | null;
   scopes: PermissionScope[];
   roles: WorkspaceRole[];
   profileId: string | null;
@@ -81,6 +85,8 @@ export type VerifyRequestInput = {
   workspaceHeader?: string | null;
   workspacePathParam?: string | null;
   requestId?: string;
+  clientIdClaim?: string | null;
+  serviceIdClaim?: string | null;
 };
 
 export type SessionHandle = {
@@ -199,6 +205,9 @@ export type AccessTokenClaims = {
   aud: string | string[];
   sub: string;
   sid?: string | null;
+  pty?: 'user' | 'service';
+  client_id?: string;
+  awp?: string[];
   wid?: string | null;
   act?: string | null;
   token_use: 'access';
@@ -208,6 +217,7 @@ export type AccessTokenClaims = {
   client_type?: ClientType;
   mfa_level?: MfaLevel;
   reauth_at?: number;
+  scp?: string[];
 };
 
 export type SessionSummary = {

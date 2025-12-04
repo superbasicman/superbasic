@@ -40,12 +40,87 @@ const tokenSchema = z.discriminatedUnion('grant_type', [
     client_id: z.string(),
     refresh_token: z.string(),
   }),
+  z.object({
+    grant_type: z.literal('client_credentials'),
+    client_id: z.string(),
+    client_secret: z.string(),
+    scope: z.string().optional(),
+    workspace_id: z.string().uuid().optional(),
+  }),
 ]);
 
 token.post('/', zValidator('form', tokenSchema), async (c) => {
   const body = c.req.valid('form');
 
   try {
+    if (body.grant_type === 'client_credentials') {
+      const { client_id, client_secret, scope, workspace_id } = body;
+      const serviceIdentity = await prisma.serviceIdentity.findUnique({
+        where: { clientId: client_id },
+        include: {
+          clientSecrets: {
+            where: {
+              revokedAt: null,
+              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      if (!serviceIdentity || serviceIdentity.disabledAt) {
+        throw new AuthorizationError('Invalid client credentials');
+      }
+
+      const [clientSecretRecord] = serviceIdentity.clientSecrets;
+      if (!clientSecretRecord) {
+        throw new AuthorizationError('Invalid client credentials');
+      }
+
+      const hashEnvelope = clientSecretRecord.secretHash as TokenHashEnvelope | null;
+      if (!hashEnvelope || !verifyTokenSecret(client_secret, hashEnvelope)) {
+        throw new AuthorizationError('Invalid client credentials');
+      }
+
+      const allowedWorkspaces = Array.isArray(serviceIdentity.allowedWorkspaces)
+        ? (serviceIdentity.allowedWorkspaces as string[]).filter(
+            (id): id is string => typeof id === 'string' && id.length > 0
+          )
+        : [];
+      const selectedWorkspace =
+        workspace_id ??
+        (allowedWorkspaces.length === 1 ? allowedWorkspaces[0] : undefined);
+
+      if (!selectedWorkspace && allowedWorkspaces.length > 1) {
+        throw new AuthorizationError('workspace_id is required for this client');
+      }
+      if (selectedWorkspace && allowedWorkspaces.length > 0) {
+        if (!allowedWorkspaces.includes(selectedWorkspace)) {
+          throw new AuthorizationError('workspace_id is not permitted for this client');
+        }
+      }
+
+      const scopes = scope ? scope.split(' ').filter(Boolean) : [];
+      const { token: accessToken, claims } = await generateAccessToken({
+        userId: serviceIdentity.id,
+        sessionId: null,
+        principalType: 'service',
+        clientId: client_id,
+        workspaceId: selectedWorkspace ?? null,
+        clientType: 'partner',
+        scopes,
+        allowedWorkspaces,
+      });
+
+      return c.json({
+        access_token: accessToken,
+        token_type: 'Bearer',
+        expires_in: claims.exp - claims.iat,
+        scope: scopes.join(' '),
+      });
+    }
+
     if (body.grant_type === 'authorization_code') {
       const {
         client_id,

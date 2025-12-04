@@ -5,16 +5,17 @@ import type { TokenHashEnvelope } from '../types.js';
 
 function buildToken(overrides: Partial<PrismaRefreshToken> = {}): PrismaRefreshToken {
   const now = new Date('2025-01-01T00:00:00.000Z');
+  const hashEnvelope: TokenHashEnvelope = {
+    algo: 'hmac-sha256',
+    keyId: 'v1',
+    hash: 'hash-secret',
+    issuedAt: now.toISOString(),
+  };
   return {
     id: 'tok_123',
     userId: 'user_123',
     sessionId: 'sess_123',
-    hashEnvelope: {
-      algo: 'hmac-sha256',
-      keyId: 'v1',
-      hash: 'hash-secret',
-      issuedAt: now.toISOString(),
-    } as any, // TokenHashEnvelope is compatible with JsonValue
+    hashEnvelope: hashEnvelope as unknown as PrismaRefreshToken['hashEnvelope'],
     last4: 'cret',
     familyId: 'family_123',
     lastUsedAt: null,
@@ -43,7 +44,7 @@ describe('TokenService.issueRefreshToken', () => {
   const mockTokenFactory = vi.fn().mockReturnValue({
     tokenId: 'tok_abc',
     tokenSecret: 'secret-abc',
-    value: 'tok_abc.secret-abc',
+    value: 'rt_tok_abc.secret-abc',
   });
 
   const hashEnvelope = {
@@ -93,7 +94,7 @@ describe('TokenService.issueRefreshToken', () => {
       }),
     });
 
-    expect(result.refreshToken).toBe('tok_abc.secret-abc');
+    expect(result.refreshToken).toBe('rt_tok_abc.secret-abc');
     expect(result.token.familyId).toBeNull();
     expect(result.token.sessionId).toBe('sess_123');
     expect(result.token.expiresAt.toISOString()).toBe(expiresAt.toISOString());

@@ -40,6 +40,15 @@ export async function setPostgresContext(
   }
 }
 
+export async function resetPostgresContext(client: PrismaClientOrTransaction): Promise<void> {
+  return setPostgresContext(client, {
+    userId: null,
+    profileId: null,
+    workspaceId: null,
+    mfaLevel: null,
+  });
+}
+
 function buildMfaLevelStatement(guc: string, value: PostgresAppContext['mfaLevel']): string | null {
   if (!value) {
     return `RESET ${guc};`;

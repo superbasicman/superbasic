@@ -34,7 +34,7 @@ export class TokenService {
     }
 
     const familyId = input.familyId ?? this.familyIdFactory();
-    const opaque = this.tokenFactory();
+    const opaque = this.tokenFactory({ prefix: 'rt' });
     const tokenHash = this.hashFactory(opaque.tokenSecret);
 
     // const refreshMetadata = input.metadata !== undefined ? toJsonInput(input.metadata) : undefined;

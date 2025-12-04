@@ -15,6 +15,7 @@ import { tokenCreationRateLimitMiddleware } from "../../../middleware/rate-limit
 import { requireScope } from "../../../middleware/scopes.js";
 import type { PermissionScope } from "@repo/auth-core";
 import { issuePersonalAccessToken } from "../../../lib/pat-tokens.js";
+import { requireRecentMfa } from "../../../middleware/require-recent-mfa.js";
 
 type Variables = {
   userId: string;
@@ -27,6 +28,7 @@ const createTokenRoute = new Hono<{ Variables: Variables }>();
 createTokenRoute.post(
   "/",
   authMiddleware, // Requires session auth
+  requireRecentMfa(),
   requireScope("write:accounts"),
   tokenCreationRateLimitMiddleware, // 10 tokens per hour per user
   zValidator("json", CreateTokenRequestSchema, (result, c) => {

@@ -2,7 +2,8 @@ import type { Context, Next } from "hono";
 import { parseOpaqueToken } from "@repo/auth";
 import type { PermissionScope } from "@repo/auth-core";
 import { authService } from "../lib/auth-service.js";
-import { prisma } from "@repo/database";
+import { prisma, resetPostgresContext } from "@repo/database";
+import { AuthorizationError } from "@repo/auth-core";
 import { checkFailedAuthRateLimit, trackFailedAuth } from "./rate-limit/index.js";
 
 export async function patMiddleware(c: Context, next: Next) {
@@ -11,6 +12,20 @@ export async function patMiddleware(c: Context, next: Next) {
     c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ||
     c.req.header("x-real-ip") ||
     "unknown";
+  let contextTouched = false;
+
+  const resetContext = async () => {
+    if (!contextTouched) {
+      return;
+    }
+    try {
+      await resetPostgresContext(prisma);
+    } catch (contextError) {
+      console.error("[pat] Failed to reset Postgres context", contextError);
+    } finally {
+      contextTouched = false;
+    }
+  };
 
   try {
     try {
@@ -76,6 +91,7 @@ export async function patMiddleware(c: Context, next: Next) {
     c.set("tokenId", tokenId ?? undefined);
     c.set("tokenScopes", authWithPatScopes.scopes);
     c.set("tokenScopesRaw", tokenScopesRaw.length ? tokenScopesRaw : authWithPatScopes.scopes);
+    contextTouched = true;
 
     await next();
   } catch (error) {
@@ -85,6 +101,12 @@ export async function patMiddleware(c: Context, next: Next) {
     } catch (e) {
       console.error("Failed to track auth failure:", e);
     }
+    if (error instanceof AuthorizationError) {
+      await resetContext();
+      return c.json({ error: error.message || "Invalid workspace selection" }, 400);
+    }
     return c.json({ error: "Unauthorized" }, 401);
+  } finally {
+    await resetContext();
   }
 }

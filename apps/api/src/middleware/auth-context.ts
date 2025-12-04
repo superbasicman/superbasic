@@ -1,9 +1,9 @@
 import type { Context, Next } from 'hono';
 import { parseOpaqueToken } from '@repo/auth';
-import type { VerifyRequestInput } from '@repo/auth-core';
+import { AuthorizationError, type VerifyRequestInput } from '@repo/auth-core';
 import type { AppBindings } from '../types/context.js';
 import { authService } from '../lib/auth-service.js';
-import { prisma, setPostgresContext } from '@repo/database';
+import { prisma, resetPostgresContext, setPostgresContext, type PostgresAppContext } from '@repo/database';
 
 function extractBearer(header: string | undefined): string | null {
   if (!header) {
@@ -20,21 +20,41 @@ function extractBearer(header: string | undefined): string | null {
 export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
   const authorizationHeader = c.req.header('authorization');
   const bearer = extractBearer(authorizationHeader);
+  let contextTouched = false;
+
+  const resetContext = async () => {
+    if (!contextTouched) {
+      return;
+    }
+    try {
+      await resetPostgresContext(prisma);
+    } catch (contextError) {
+      console.error('[auth-context] Failed to reset Postgres context', contextError);
+    } finally {
+      contextTouched = false;
+    }
+  };
+
+  const setContext = async (context: PostgresAppContext) => {
+    try {
+      await setPostgresContext(prisma, context);
+      contextTouched = true;
+    } catch (contextError) {
+      console.error('[auth-context] Failed to set Postgres context', contextError);
+    }
+  };
 
   if (bearer?.startsWith('sbf_')) {
     // Personal access tokens are handled by patMiddleware/unifiedAuthMiddleware
     c.set('auth', null);
-    try {
-      await setPostgresContext(prisma, {
-        userId: null,
-        profileId: null,
-        workspaceId: null,
-        mfaLevel: null,
-      });
-    } catch (contextError) {
-      console.error('[auth-context] Failed to reset Postgres context for PAT request', contextError);
-    }
+    await setContext({
+      userId: null,
+      profileId: null,
+      workspaceId: null,
+      mfaLevel: null,
+    });
     await next();
+    await resetContext();
     return;
   }
 
@@ -92,6 +112,11 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
 
       c.set('userId', authContext.userId);
       c.set('profileId', authContext.profileId ?? null);
+      c.set('workspaceId', authContext.activeWorkspaceId ?? null);
+      c.set('allowedWorkspaces', authContext.allowedWorkspaces ?? []);
+      c.set('principalType', authContext.principalType);
+      c.set('serviceId', authContext.serviceId ?? null);
+      c.set('clientId', authContext.clientId ?? null);
       c.set('authType', isPat ? 'pat' : 'session');
       if (isPat) {
         c.set('tokenScopes', authContext.scopes);
@@ -100,43 +125,32 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
           c.set('tokenId', tokenInfo.tokenId);
         }
       }
-      try {
-        await setPostgresContext(prisma, {
-          userId: authContext.userId,
-          profileId: authContext.profileId,
-          workspaceId: authContext.activeWorkspaceId,
-          mfaLevel: authContext.mfaLevel,
-        });
-      } catch (contextError) {
-        console.error('[auth-context] Failed to set Postgres context', contextError);
-      }
+      await setContext({
+        userId: authContext.userId,
+        profileId: authContext.profileId,
+        workspaceId: authContext.activeWorkspaceId,
+        mfaLevel: authContext.mfaLevel,
+      });
     } else {
-      try {
-        await setPostgresContext(prisma, {
-          userId: null,
-          profileId: null,
-          workspaceId: null,
-          mfaLevel: null,
-        });
-      } catch (contextError) {
-        console.error('[auth-context] Failed to reset Postgres context for unauthenticated request', contextError);
-      }
-    }
-
-    await next();
-  } catch (error) {
-    console.error('[auth-context] Failed to verify request', error);
-    try {
-      await setPostgresContext(prisma, {
+      await setContext({
         userId: null,
         profileId: null,
         workspaceId: null,
         mfaLevel: null,
       });
-    } catch (contextError) {
-      console.error('[auth-context] Failed to reset Postgres context after auth error', contextError);
     }
+
+    await next();
+  } catch (error) {
+    console.error('[auth-context] Failed to verify request', error);
     c.set('auth', null);
+    if (error instanceof AuthorizationError) {
+      await resetContext();
+      return c.json({ error: error.message || 'Invalid workspace selection' }, 400);
+    }
+    await resetContext();
     return c.json({ error: 'Unauthorized' }, 401);
+  } finally {
+    await resetContext();
   }
 }

@@ -42,7 +42,7 @@ async function createTestApiKey(
 ) {
   const name = maybeName ?? profileIdOrName ?? "Test Token";
   const prisma = getTestPrisma();
-  const opaque = createOpaqueToken();
+  const opaque = createOpaqueToken({ prefix: "sbf" });
   const token = opaque.value;
   const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);
   const last4 = token.slice(-4);

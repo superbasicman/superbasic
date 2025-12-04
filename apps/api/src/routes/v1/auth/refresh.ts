@@ -6,7 +6,6 @@ import type { AppBindings } from '../../../types/context.js';
 import { prisma, Prisma } from '@repo/database';
 import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
-import { generateAccessToken } from '@repo/auth-core';
 import {
   getRefreshTokenFromCookie,
   setRefreshTokenCookie,
@@ -179,12 +178,11 @@ export async function refreshTokens(c: Context<AppBindings>) {
     },
   });
 
-  const { token: accessToken, claims } = await generateAccessToken({
+  const { token: accessToken, claims } = await authService.issueAccessToken({
     userId: tokenRecord.userId,
     sessionId: session.id,
     clientType,
     mfaLevel: session.mfaLevel,
-    reauthenticatedAt: Math.floor(now.getTime() / 1000),
   });
 
   setRefreshTokenCookie(c, rotated.refreshToken, rotated.token.expiresAt);

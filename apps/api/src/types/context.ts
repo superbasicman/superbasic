@@ -12,6 +12,10 @@ export type ContextVariables = {
   profileId?: string | null;
   authType?: "session" | "pat";
   workspaceId?: string | null;
+  allowedWorkspaces?: string[];
+  principalType?: "user" | "service";
+  serviceId?: string | null;
+  clientId?: string | null;
   tokenId?: string;
   tokenScopes?: string[];
   tokenScopesRaw?: string[];

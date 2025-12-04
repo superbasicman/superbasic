@@ -23,69 +23,17 @@ import type { AppBindings } from "../types/context.js";
 export function requireScope(requiredScope: PermissionScope) {
   return async (c: Context<AppBindings>, next: Next) => {
     const auth = c.get("auth");
-    const authType = c.get("authType");
-    const tokenId = c.get("tokenId") as string | undefined;
     const tokenScopes = ((c.get("tokenScopes") as string[]) || []).map((scope) => scope.toString());
-    const tokenScopesRaw = ((c.get("tokenScopesRaw") as string[]) || []).map((scope) =>
-      scope.toString()
-    );
-
-    // Session auth has full access (legacy behavior; scopes enforced for PATs only)
-    if (authType === "session") {
-      await next();
-      return;
-    }
 
     try {
-      const isPat = authType === "pat" || auth?.clientType === "cli";
-
-      if (isPat) {
-        console.warn("[requireScope][pat] evaluation", {
-          requiredScope,
-          authScopes: auth?.scopes,
-          tokenScopesRaw,
-          tokenScopes,
-          authType,
-          tokenId,
-        });
-        const scopeSource = auth?.scopes ?? [];
-        const scoped = scopeSource.includes("admin") || scopeSource.includes(requiredScope);
-        // Debug log for PAT scope evaluation
-        if (!scoped) {
-          console.warn("[requireScope][pat] insufficient scope", {
-            requiredScope,
-            authScopes: auth?.scopes,
-            tokenScopesRaw,
-            tokenScopes,
-            authType,
-            tokenId: c.get("tokenId"),
-          });
-        }
-        if (!scoped) {
-          return c.json(
-            {
-              error: "Insufficient permissions",
-              required: requiredScope,
-            },
-            403
-          );
-        }
-        await next();
-        return;
-      }
-
+      const scopes = auth?.scopes ?? tokenScopes;
+      const hasAdmin = scopes.includes("admin");
       if (auth) {
-        if (auth.scopes.includes("admin")) {
-          await next();
-          return;
+        if (!hasAdmin) {
+          authz.requireScope(auth, requiredScope);
         }
-        authz.requireScope(auth, requiredScope);
       } else {
-        if (tokenScopes.includes("admin")) {
-          await next();
-          return;
-        }
-        const hasRequired = tokenScopes.includes(requiredScope);
+        const hasRequired = hasAdmin || scopes.includes(requiredScope);
         if (!hasRequired) {
           return c.json(
             {

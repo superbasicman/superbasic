@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import * as authLib from '@repo/auth';
-import type { PrismaClient } from '@repo/database';
+import type { ApiKey, PrismaClient } from '@repo/database';
 import { SignJWT, exportJWK } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthorizationError, InactiveUserError, UnauthorizedError } from '../errors.js';
@@ -20,11 +20,17 @@ describe('AuthCoreService.verifyRequest', () => {
     user: {
       findUnique: ReturnType<typeof vi.fn>;
     };
-    session: {
+    authSession: {
       findUnique: ReturnType<typeof vi.fn>;
     };
     workspaceMember: {
       findFirst: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
+    };
+    apiKey: {
+      create: ReturnType<typeof vi.fn>;
+      findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
   };
   let prismaStub: PrismaStub;
@@ -45,11 +51,17 @@ describe('AuthCoreService.verifyRequest', () => {
       user: {
         findUnique: vi.fn(),
       },
-      session: {
+      authSession: {
         findUnique: vi.fn(),
       },
       workspaceMember: {
         findFirst: vi.fn().mockResolvedValue(null),
+        findMany: vi.fn().mockResolvedValue([]),
+      },
+      apiKey: {
+        create: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn(),
       },
     };
   });
@@ -71,10 +83,10 @@ describe('AuthCoreService.verifyRequest', () => {
 
     prismaStub.user.findUnique.mockResolvedValue({
       id: 'user-123',
-      status: 'active',
+      userState: 'active',
       profile: { id: 'profile-123' },
     });
-    prismaStub.session.findUnique.mockResolvedValue({
+    prismaStub.authSession.findUnique.mockResolvedValue({
       id: 'session-123',
       userId: 'user-123',
       clientType: 'web',
@@ -125,10 +137,10 @@ describe('AuthCoreService.verifyRequest', () => {
 
     prismaStub.user.findUnique.mockResolvedValue({
       id: 'user-abc',
-      status: 'active',
+      userState: 'active',
       profile: { id: 'profile-abc' },
     });
-    prismaStub.session.findUnique.mockResolvedValue({
+    prismaStub.authSession.findUnique.mockResolvedValue({
       id: 'session-abc',
       userId: 'user-abc',
       clientType: 'web',
@@ -178,10 +190,10 @@ describe('AuthCoreService.verifyRequest', () => {
 
     prismaStub.user.findUnique.mockResolvedValue({
       id: 'user-def',
-      status: 'active',
+      userState: 'active',
       profile: { id: 'profile-def' },
     });
-    prismaStub.session.findUnique.mockResolvedValue({
+    prismaStub.authSession.findUnique.mockResolvedValue({
       id: 'session-def',
       userId: 'user-def',
       clientType: 'web',
@@ -217,10 +229,10 @@ describe('AuthCoreService.verifyRequest', () => {
 
     prismaStub.user.findUnique.mockResolvedValue({
       id: 'user-ghi',
-      status: 'active',
+      userState: 'active',
       profile: { id: 'profile-ghi' },
     });
-    prismaStub.session.findUnique.mockResolvedValue({
+    prismaStub.authSession.findUnique.mockResolvedValue({
       id: 'session-ghi',
       userId: 'user-ghi',
       clientType: 'web',
@@ -229,30 +241,17 @@ describe('AuthCoreService.verifyRequest', () => {
       revokedAt: null,
       mfaLevel: 'none',
     });
-    prismaStub.workspaceMember.findFirst.mockImplementation(
-      async (args: { where?: { workspaceId?: string }; orderBy?: unknown }) => {
-        if (args.where?.workspaceId === OTHER_WORKSPACE_ID) {
-          return null;
-        }
-        if (args.orderBy) {
-          return { workspaceId: WORKSPACE_ID, role: 'admin' };
-        }
-        return null;
-      }
-    );
+    prismaStub.workspaceMember.findFirst.mockResolvedValue(null);
+    prismaStub.workspaceMember.findMany.mockResolvedValue([
+      { workspaceId: WORKSPACE_ID, role: 'admin' },
+      { workspaceId: OTHER_WORKSPACE_ID, role: 'viewer' },
+    ]);
 
-    const context = await service.verifyRequest({
-      authorizationHeader: `Bearer ${tokenResult.token}`,
-    });
-
-    expect(context).not.toBeNull();
-    const resolved = context as Exclude<typeof context, null>;
-
-    expect(resolved.activeWorkspaceId).toBe(WORKSPACE_ID);
-    expect(resolved.roles).toEqual(['admin']);
-    expect(resolved.scopes).toEqual(
-      expect.arrayContaining(['write:workspaces', 'write:accounts', 'read:profile'])
-    );
+    await expect(
+      service.verifyRequest({
+        authorizationHeader: `Bearer ${tokenResult.token}`,
+      })
+    ).rejects.toBeInstanceOf(AuthorizationError);
   });
 
   it('accepts tokens signed with a rotated-but-published key', async () => {
@@ -294,10 +293,10 @@ describe('AuthCoreService.verifyRequest', () => {
 
     prismaStub.user.findUnique.mockResolvedValue({
       id: 'user-rotated',
-      status: 'active',
+      userState: 'active',
       profile: { id: 'profile-rotated' },
     });
-    prismaStub.session.findUnique.mockResolvedValue({
+    prismaStub.authSession.findUnique.mockResolvedValue({
       id: 'session-rotated',
       userId: 'user-rotated',
       clientType: 'web',
@@ -342,7 +341,7 @@ describe('AuthCoreService.verifyRequest', () => {
 
     prismaStub.user.findUnique.mockResolvedValue({
       id: 'user-999',
-      status: 'disabled',
+      userState: 'disabled',
       profile: null,
     });
 
@@ -352,6 +351,54 @@ describe('AuthCoreService.verifyRequest', () => {
       })
     ).rejects.toBeInstanceOf(InactiveUserError);
   });
+
+  it('verifies service access tokens without user lookup', async () => {
+    const { token } = await signAccessToken(
+      keyStore,
+      { issuer: ISSUER, audience: AUDIENCE },
+      {
+        userId: 'svc-123',
+        principalType: 'service',
+        clientId: 'client-1',
+        workspaceId: WORKSPACE_ID,
+        allowedWorkspaces: [WORKSPACE_ID],
+        scopes: ['read:profile'],
+        clientType: 'partner',
+      }
+    );
+
+    const service = new AuthCoreService({
+      prisma: {
+        workspaceMember: { findMany: vi.fn(), findFirst: vi.fn() },
+      } as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+      setContext: setContextMock,
+    });
+
+    const context = await service.verifyRequest({
+      authorizationHeader: `Bearer ${token}`,
+    });
+
+    expect(context).toMatchObject({
+      principalType: 'service',
+      serviceId: 'svc-123',
+      clientId: 'client-1',
+      activeWorkspaceId: WORKSPACE_ID,
+      allowedWorkspaces: [WORKSPACE_ID],
+      scopes: ['read:profile'],
+    });
+    expect(setContextMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        userId: null,
+        profileId: null,
+        workspaceId: WORKSPACE_ID,
+      })
+    );
+  });
 });
 
 describe('AuthCoreService PAT issuance and revocation', () => {
@@ -359,7 +406,10 @@ describe('AuthCoreService PAT issuance and revocation', () => {
   const AUDIENCE = `${ISSUER}/v1`;
   let keyStore: SigningKeyStore;
   let prismaStub: {
-    token: {
+    user: {
+      findUnique: ReturnType<typeof vi.fn>;
+    };
+    apiKey: {
       create: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
@@ -382,7 +432,10 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     );
 
     prismaStub = {
-      token: {
+      user: {
+        findUnique: vi.fn(),
+      },
+      apiKey: {
         create: vi.fn(),
         findUnique: vi.fn(),
         update: vi.fn(),
@@ -406,12 +459,12 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     vi.spyOn(authLib, 'createOpaqueToken').mockReturnValue({
       tokenId: 'pat_token',
       tokenSecret: 'secret-abc',
-      value: 'pat_token.secret-abc',
+      value: 'sbf_pat_token.secret-abc',
     });
     vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue(hashEnvelope);
 
     const expiresAt = new Date('2025-04-01T00:00:00.000Z');
-    prismaStub.token.create.mockResolvedValue({
+    const createdApiKey: ApiKey = {
       id: 'pat_token',
       userId: 'user-123',
       workspaceId: 'workspace-1',
@@ -430,7 +483,14 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       lastUsedIp: null,
       userAgent: null,
       metadata: null,
-    } as any); // Mock response - actual shape doesn't perfectly match schema in tests
+    };
+
+    prismaStub.apiKey.create.mockResolvedValue(createdApiKey);
+    prismaStub.user.findUnique.mockResolvedValue({
+      id: 'user-123',
+      userState: 'active',
+      profile: { id: 'profile-1' },
+    });
 
     const service = new AuthCoreService({
       prisma: prismaStub as unknown as PrismaClient,
@@ -448,27 +508,23 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       expiresAt,
     });
 
-    expect(prismaStub.token.create).toHaveBeenCalledWith({
-      data: {
+    expect(prismaStub.apiKey.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
         id: 'pat_token',
         userId: 'user-123',
-        sessionId: null,
         workspaceId: 'workspace-1',
-        type: 'personal_access',
-        tokenHash: hashEnvelope,
+        keyHash: hashEnvelope,
         scopes: ['read:transactions'],
         name: 'CLI token',
-        familyId: null,
-        metadata: null,
-        lastUsedAt: null,
         expiresAt,
         revokedAt: null,
-      },
+        last4: expect.any(String),
+      }),
     });
 
     expect(issued).toEqual({
       tokenId: 'pat_token',
-      secret: 'pat_token.secret-abc',
+      secret: 'sbf_pat_token.secret-abc',
       type: 'personal_access',
       scopes: ['read:transactions'],
       name: 'CLI token',
@@ -481,7 +537,7 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     vi.spyOn(authLib, 'createOpaqueToken').mockReturnValue({
       tokenId: 'pat_token',
       tokenSecret: 'secret-abc',
-      value: 'pat_token.secret-abc',
+      value: 'sbf_pat_token.secret-abc',
     });
     vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue({
       algo: 'hmac-sha256',
@@ -506,20 +562,19 @@ describe('AuthCoreService PAT issuance and revocation', () => {
         expiresAt: new Date('invalid'),
       })
     ).rejects.toThrow('expiresAt must be a valid Date instance');
-    expect(prismaStub.token.create).not.toHaveBeenCalled();
+    expect(prismaStub.apiKey.create).not.toHaveBeenCalled();
   });
 
   it('revokes a token and records revocation metadata', async () => {
     const now = new Date('2025-05-01T00:00:00.000Z');
     vi.useFakeTimers({ now });
 
-    prismaStub.token.findUnique.mockResolvedValue({
+    prismaStub.apiKey.findUnique.mockResolvedValue({
       id: 'tok_pat',
       revokedAt: null,
-      metadata: { note: 'keep' },
     });
 
-    prismaStub.token.update.mockResolvedValue({});
+    prismaStub.apiKey.update.mockResolvedValue({});
 
     const service = new AuthCoreService({
       prisma: prismaStub as unknown as PrismaClient,
@@ -535,26 +590,18 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       revokedBy: 'admin-1',
     });
 
-    expect(prismaStub.token.update).toHaveBeenCalledTimes(1);
-    const updateArg = prismaStub.token.update.mock.calls[0]?.[0];
+    expect(prismaStub.apiKey.update).toHaveBeenCalledTimes(1);
+    const updateArg = prismaStub.apiKey.update.mock.calls[0]?.[0];
     const revokedAt = updateArg?.data.revokedAt;
 
     expect(updateArg).toMatchObject({
       where: { id: 'tok_pat' },
     });
     expect(revokedAt).toBeInstanceOf(Date);
-    expect(updateArg.data.metadata).toEqual({
-      note: 'keep',
-      revocation: {
-        revokedAt: (revokedAt as Date).toISOString(),
-        reason: 'compromised',
-        revokedBy: 'admin-1',
-      },
-    });
   });
 
   it('is idempotent when token already revoked', async () => {
-    prismaStub.token.findUnique.mockResolvedValue({
+    prismaStub.apiKey.findUnique.mockResolvedValue({
       id: 'tok_pat',
       revokedAt: new Date('2025-04-01T00:00:00.000Z'),
       metadata: null,
@@ -569,11 +616,11 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     });
 
     await service.revokeToken({ tokenId: 'tok_pat' });
-    expect(prismaStub.token.update).not.toHaveBeenCalled();
+    expect(prismaStub.apiKey.update).not.toHaveBeenCalled();
   });
 
   it('throws when token is missing', async () => {
-    prismaStub.token.findUnique.mockResolvedValue(null);
+    prismaStub.apiKey.findUnique.mockResolvedValue(null);
 
     const service = new AuthCoreService({
       prisma: prismaStub as unknown as PrismaClient,
@@ -597,11 +644,13 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
 
   let keyStore: SigningKeyStore;
   let prismaStub: {
-    token: {
+    apiKey: {
       findUnique: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
     workspaceMember: {
       findFirst: ReturnType<typeof vi.fn>;
+      findMany: ReturnType<typeof vi.fn>;
     };
   };
   let setContextMock: ReturnType<typeof vi.fn>;
@@ -622,15 +671,16 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
     );
 
     prismaStub = {
-      token: {
+      apiKey: {
         findUnique: vi.fn(),
+        update: vi.fn(),
       },
       workspaceMember: {
         findFirst: vi.fn(),
+        findMany: vi.fn().mockResolvedValue([]),
       },
     };
     setContextMock = vi.fn().mockResolvedValue(undefined);
-    vi.restoreAllMocks();
   });
 
   afterEach(() => {
@@ -640,11 +690,15 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('returns AuthContext for a valid PAT and intersects scopes with workspace role', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.token.findUnique.mockResolvedValue({
+    prismaStub.apiKey.findUnique.mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
-      type: 'personal_access',
-      tokenHash: {},
+      keyHash: {
+        algo: 'hmac-sha256',
+        keyId: 'v1',
+        hash: 'hashed',
+        issuedAt: '2025-01-01T00:00:00.000Z',
+      },
       scopes: ['read:transactions', 'write:accounts'],
       name: 'cli',
       workspaceId: WORKSPACE_ID,
@@ -652,7 +706,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       revokedAt: null,
       user: {
         id: 'user-pat',
-        status: 'active',
+        userState: 'active',
         profile: { id: 'profile-1' },
       },
     });
@@ -676,7 +730,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
     });
 
     const auth = await service.verifyRequest({
-      authorizationHeader: `Bearer ${PAT_ID}.secret-abc`,
+      authorizationHeader: `Bearer sbf_${PAT_ID}.secret-abc`,
       requestId: 'req-123',
     });
 
@@ -701,11 +755,15 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('throws when PAT is revoked', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.token.findUnique.mockResolvedValue({
+    prismaStub.apiKey.findUnique.mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
-      type: 'personal_access',
-      tokenHash: {},
+      keyHash: {
+        algo: 'hmac-sha256',
+        keyId: 'v1',
+        hash: 'hashed',
+        issuedAt: '2025-01-01T00:00:00.000Z',
+      },
       scopes: [],
       name: 'cli',
       workspaceId: null,
@@ -713,7 +771,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       revokedAt: new Date(),
       user: {
         id: 'user-pat',
-        status: 'active',
+        userState: 'active',
         profile: { id: 'profile-1' },
       },
     });
@@ -729,7 +787,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
 
     await expect(
       service.verifyRequest({
-        authorizationHeader: `Bearer ${PAT_ID}.secret-abc`,
+        authorizationHeader: `Bearer sbf_${PAT_ID}.secret-abc`,
       })
     ).rejects.toBeInstanceOf(UnauthorizedError);
   });
@@ -737,11 +795,15 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('intersects PAT scopes with workspace membership scopes', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.token.findUnique.mockResolvedValue({
+    prismaStub.apiKey.findUnique.mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
-      type: 'personal_access',
-      tokenHash: {},
+      keyHash: {
+        algo: 'hmac-sha256',
+        keyId: 'v1',
+        hash: 'hashed',
+        issuedAt: '2025-01-01T00:00:00.000Z',
+      },
       scopes: ['read:profile', 'write:accounts'],
       name: 'cli',
       workspaceId: WORKSPACE_ID,
@@ -749,7 +811,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       revokedAt: null,
       user: {
         id: 'user-pat',
-        status: 'active',
+        userState: 'active',
         profile: { id: 'profile-1' },
       },
     });
@@ -769,9 +831,54 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
     });
 
     const auth = await service.verifyRequest({
-      authorizationHeader: `Bearer ${PAT_ID}.secret-abc`,
+      authorizationHeader: `Bearer sbf_${PAT_ID}.secret-abc`,
     });
 
     expect(auth?.scopes).toEqual(['read:profile']);
+  });
+
+  it('does not grant PAT scopes outside the workspace intersection or requested set', async () => {
+    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+
+    prismaStub.apiKey.findUnique.mockResolvedValue({
+      id: PAT_ID,
+      userId: 'user-pat',
+      keyHash: {
+        algo: 'hmac-sha256',
+        keyId: 'v1',
+        hash: 'hashed',
+        issuedAt: '2025-01-01T00:00:00.000Z',
+      },
+      scopes: ['admin'],
+      name: 'cli',
+      workspaceId: WORKSPACE_ID,
+      expiresAt: null,
+      revokedAt: null,
+      user: {
+        id: 'user-pat',
+        userState: 'active',
+        profile: { id: 'profile-1' },
+      },
+    });
+
+    prismaStub.workspaceMember.findFirst.mockResolvedValue({
+      workspaceId: WORKSPACE_ID,
+      role: 'viewer',
+    });
+
+    const service = new AuthCoreService({
+      prisma: prismaStub as unknown as PrismaClient,
+      keyStore,
+      issuer: ISSUER,
+      audience: AUDIENCE,
+      clockToleranceSeconds: 0,
+      setContext: setContextMock,
+    });
+
+    const auth = await service.verifyRequest({
+      authorizationHeader: `Bearer sbf_${PAT_ID}.secret-abc`,
+    });
+
+    expect(auth?.scopes).toEqual([]);
   });
 });

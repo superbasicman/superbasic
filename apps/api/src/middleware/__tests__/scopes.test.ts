@@ -1,6 +1,6 @@
 /**
  * Integration tests for scope enforcement middleware
- * Tests that PAT tokens are properly restricted by scopes while session auth has full access
+ * Tests that scopes are enforced for both PAT and session auth based on the auth context
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -86,14 +86,14 @@ describe('Scope Enforcement Middleware', () => {
   });
 
   describe('Profile Endpoints - read:profile scope', () => {
-    it('should allow session auth to access GET /v1/me without scope check', async () => {
+    it('should allow session auth with required scopes to access GET /v1/me', async () => {
       const { user } = await createTestUser({
         name: 'Test User',
       });
 
       const { token } = await createAccessToken(user.id);
 
-      // Make request with session auth (should bypass scope check)
+      // Make request with session auth (scopes resolved from auth context)
       const response = await makeAuthenticatedRequest(
         testApp,
         'GET',
@@ -170,11 +170,26 @@ describe('Scope Enforcement Middleware', () => {
       const profile = await prisma.profile.findUnique({
         where: { userId: user.id },
       });
+      const workspace = await prisma.workspace.create({
+        data: {
+          ownerUserId: user.id,
+          name: 'Admin Scope Workspace',
+          slug: `admin-scope-${Date.now()}`,
+        },
+      });
+      await prisma.workspaceMember.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: user.id,
+          role: 'owner',
+        },
+      });
 
       // Create token with admin scope (grants all permissions)
   const { token } = await createApiToken(user.id, profile!.id, user.email, {
     name: 'Admin Token',
     scopes: ['admin'],
+    workspaceId: workspace.id,
   });
 
       // Make request with Bearer token
@@ -193,14 +208,14 @@ describe('Scope Enforcement Middleware', () => {
   });
 
   describe('Profile Endpoints - write:profile scope', () => {
-    it('should allow session auth to access PATCH /v1/me without scope check', async () => {
+    it('should allow session auth with required scopes to access PATCH /v1/me', async () => {
       const { user } = await createTestUser({
         name: 'Test User',
       });
 
       const { token } = await createAccessToken(user.id);
 
-      // Make request with session auth (should bypass scope check)
+      // Make request with session auth (scopes resolved from auth context)
       const response = await makeAuthenticatedRequest(
         testApp,
         'PATCH',
@@ -415,7 +430,7 @@ describe('Scope Enforcement Middleware', () => {
   });
 
   describe('Session vs PAT Auth Behavior', () => {
-    it('should allow session auth full access regardless of endpoint scope', async () => {
+    it('should allow session auth when required scopes are present in context', async () => {
       const { user } = await createTestUser();
       const { token } = await createAccessToken(user.id);
 
@@ -443,7 +458,7 @@ describe('Scope Enforcement Middleware', () => {
       expect(writeResponse.status).toBe(200);
     });
 
-    it('should enforce scopes for PAT auth but not session auth', async () => {
+    it('should enforce scopes for PAT auth while session auth succeeds due to granted scopes', async () => {
       const { user } = await createTestUser();
       const prisma = getTestPrisma();
 
@@ -483,6 +498,51 @@ describe('Scope Enforcement Middleware', () => {
         }
       );
       expect(sessionWriteResponse.status).toBe(200);
+    });
+  });
+
+  describe('Session scope enforcement for workspace-scoped endpoints', () => {
+    it('should deny session auth without workspace membership for read:accounts operations', async () => {
+      const { user } = await createTestUser();
+      const { token } = await createAccessToken(user.id, { ensureWorkspace: false });
+
+      const response = await makeAuthenticatedRequest(testApp, 'GET', '/v1/tokens', token);
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should allow session auth with workspace membership scopes for read:accounts operations', async () => {
+      const { user } = await createTestUser();
+      const prisma = getTestPrisma();
+      const workspace = await prisma.workspace.create({
+        data: {
+          name: 'Session Scope Workspace',
+          slug: `session-scope-${Date.now()}`,
+          ownerUserId: user.id,
+        },
+      });
+      await prisma.workspaceMember.create({
+        data: {
+          workspaceId: workspace.id,
+          userId: user.id,
+          role: 'owner',
+        },
+      });
+
+      const { token } = await createAccessToken(user.id);
+      const response = await makeAuthenticatedRequest(
+        testApp,
+        'GET',
+        '/v1/tokens',
+        token,
+        {
+          headers: {
+            'x-workspace-id': workspace.id,
+          },
+        }
+      );
+
+      expect(response.status).toBe(200);
     });
   });
 });

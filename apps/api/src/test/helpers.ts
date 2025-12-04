@@ -3,10 +3,11 @@
  * Provides utilities for making requests to Hono app and handling cookies
  */
 
-import type { Hono } from 'hono';
-import { createOpaqueToken, hashPassword, SESSION_MAX_AGE_SECONDS } from '@repo/auth';
-import type { PermissionScope } from '@repo/auth-core';
+import { SESSION_MAX_AGE_SECONDS, createOpaqueToken, hashPassword } from '@repo/auth';
+import type { ClientType, MfaLevel, PermissionScope } from '@repo/auth-core';
 import { generateAccessToken } from '@repo/auth-core';
+import type { Prisma } from '@repo/database';
+import type { Env, Hono } from 'hono';
 import { authService } from '../lib/auth-service.js';
 import { getTestPrisma } from './setup.js';
 
@@ -22,15 +23,15 @@ export interface RequestOptions {
 
 /**
  * Make an HTTP request to the Hono app
- * 
+ *
  * @param app - Hono application instance
  * @param method - HTTP method (GET, POST, etc.)
  * @param path - Request path (e.g., '/v1/login')
  * @param options - Request options (body, headers, cookies)
  * @returns Response object
  */
-export async function makeRequest(
-  app: Hono<any>,
+export async function makeRequest<E extends Env>(
+  app: Hono<E>,
   method: string,
   path: string,
   options: RequestOptions = {}
@@ -63,14 +64,14 @@ export async function makeRequest(
 
   // Make request to Hono app
   const request = new Request(`http://localhost${path}`, init);
-  return app.fetch(request, env as any);
+  return app.fetch(request, env as Record<string, unknown> | undefined);
 }
 
 /**
  * Make an authenticated HTTP request with a Bearer access token.
  */
-export async function makeAuthenticatedRequest(
-  app: Hono<any>,
+export async function makeAuthenticatedRequest<E extends Env>(
+  app: Hono<E>,
   method: string,
   path: string,
   accessToken: string,
@@ -87,7 +88,7 @@ export async function makeAuthenticatedRequest(
 
 /**
  * Extract a cookie value from response headers
- * 
+ *
  * @param response - Response object
  * @param name - Cookie name to extract
  * @returns Cookie value or null if not found
@@ -97,15 +98,13 @@ export function extractCookie(response: Response, name: string): string | null {
 
   for (const header of setCookieHeaders) {
     const match = header.match(new RegExp(`${name}=([^;]+)`));
-    if (match && match[1]) {
+    if (match?.[1]) {
       return match[1];
     }
   }
 
   return null;
 }
-
-
 
 /**
  * Test user credentials for factories
@@ -118,7 +117,7 @@ export interface TestUserCredentials {
 
 /**
  * Create test user credentials with unique email
- * 
+ *
  * @param overrides - Optional overrides for default values
  * @returns Test user credentials
  */
@@ -137,13 +136,11 @@ export function createTestUserCredentials(
 
 /**
  * Create a test user in the database with profile
- * 
+ *
  * @param overrides - Optional overrides for user data
  * @returns Created user object with profile
  */
-export async function createTestUser(
-  overrides: Partial<TestUserCredentials> = {}
-) {
+export async function createTestUser(overrides: Partial<TestUserCredentials> = {}) {
   const credentials = createTestUserCredentials(overrides);
   const prisma = getTestPrisma();
 
@@ -202,6 +199,38 @@ function computeSessionTimestamps(expiresInSeconds: number) {
   return { now, expiresAt };
 }
 
+async function ensureWorkspaceMembership(userId: string) {
+  const prisma = getTestPrisma();
+  const existingMembership = await prisma.workspaceMember.findFirst({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+  });
+
+  if (existingMembership) {
+    return existingMembership.workspaceId;
+  }
+
+  const workspace = await prisma.workspace.create({
+    data: {
+      name: 'Test Workspace',
+      slug: `test-workspace-${userId}-${Date.now()}`,
+      ownerUserId: userId,
+    },
+  });
+
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: workspace.id,
+      userId,
+      role: 'owner',
+    },
+  });
+
+  return workspace.id;
+}
+
 export async function createSessionToken(
   userId: string,
   _email?: string,
@@ -228,7 +257,7 @@ export async function createSessionToken(
 
 export async function createSessionRecord(
   userId: string,
-  options: { expiresInSeconds?: number } = {}
+  options: { expiresInSeconds?: number; mfaLevel?: MfaLevel } = {}
 ) {
   ensureTokenHashKeys();
   const prisma = getTestPrisma();
@@ -241,20 +270,31 @@ export async function createSessionRecord(
       expiresAt,
       clientInfo: { type: 'web' },
       lastActivityAt: now,
-      mfaLevel: 'none',
+      mfaLevel: options.mfaLevel ?? 'mfa',
     },
   });
 }
 
 export async function createAccessToken(
   userId: string,
-  options: { expiresInSeconds?: number } = {}
+  options: { expiresInSeconds?: number; ensureWorkspace?: boolean; mfaLevel?: MfaLevel } = {}
 ) {
-  const session = await createSessionRecord(userId, options);
+  if (options.ensureWorkspace !== false) {
+    await ensureWorkspaceMembership(userId);
+  }
+  const sessionOptions: { expiresInSeconds?: number; mfaLevel?: MfaLevel } = {};
+  if (options.expiresInSeconds !== undefined) {
+    sessionOptions.expiresInSeconds = options.expiresInSeconds;
+  }
+  if (options.mfaLevel) {
+    sessionOptions.mfaLevel = options.mfaLevel;
+  }
+  const session = await createSessionRecord(userId, sessionOptions);
   const { token } = await generateAccessToken({
     userId,
     sessionId: session.id,
-    clientType: (session.clientInfo as any)?.type ?? 'web',
+    clientType: ((session.clientInfo as { type?: string | null } | null)?.type ??
+      'web') as ClientType,
   });
 
   return { token, session };
@@ -303,7 +343,22 @@ export async function createPersonalAccessToken(options: {
       }
     }
     if (options.workspaceId) {
-      const workspaceExists = await (authPrisma as any)?.workspace?.findUnique?.({
+      type WorkspaceClient = {
+        workspace?: {
+          findUnique?: (args: { where: { id: string } }) => Promise<{ id: string } | null>;
+          create?: (args: {
+            data: { id: string; name: string; ownerUserId: string };
+          }) => Promise<unknown>;
+        };
+        workspaceMember?: {
+          create?: (args: {
+            data: { workspaceId: string; userId: string; role: string };
+          }) => Promise<unknown>;
+        };
+      };
+      const workspaceClient = authPrisma as unknown as WorkspaceClient;
+
+      const workspaceExists = await workspaceClient.workspace?.findUnique?.({
         where: { id: options.workspaceId },
       });
       if (!workspaceExists) {
@@ -320,14 +375,14 @@ export async function createPersonalAccessToken(options: {
               currency: 'USD',
             },
           }));
-        await (authPrisma as any).workspace.create({
+        await workspaceClient.workspace?.create?.({
           data: {
             id: options.workspaceId,
             name: 'Workspace Token',
             ownerUserId: options.userId,
           },
         });
-        await authPrisma.workspaceMember.create({
+        await workspaceClient.workspaceMember?.create?.({
           data: {
             workspaceId: options.workspaceId,
             userId: ensuredProfile.userId,
@@ -359,14 +414,17 @@ export async function createPersonalAccessToken(options: {
   // Intentionally silent during normal runs.
 
   if (options.revokedAt) {
-    const updateData = { where: { id: issued.tokenId }, data: { revokedAt: options.revokedAt } };
+    const updateData: Prisma.ApiKeyUpdateArgs = {
+      where: { id: issued.tokenId },
+      data: { revokedAt: options.revokedAt },
+    };
     try {
       const prisma = getTestPrisma();
       await prisma.apiKey.update(updateData);
     } catch {
       try {
         const { prisma } = await import('@repo/database');
-        await prisma.apiKey.update(updateData as any);
+        await prisma.apiKey.update(updateData);
       } catch {
         // If neither real nor mocked Prisma is available, skip the revocation stamp
       }

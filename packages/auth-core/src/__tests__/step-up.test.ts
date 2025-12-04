@@ -7,8 +7,12 @@ function buildAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
   return {
     userId: 'user-1',
     sessionId: 'sess-1',
+    principalType: 'user',
+    serviceId: null,
+    clientId: null,
     clientType: 'web',
     activeWorkspaceId: null,
+    allowedWorkspaces: [],
     scopes: [],
     roles: [],
     profileId: 'profile-1',

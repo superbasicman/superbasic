@@ -14,6 +14,7 @@ describe('GET /v1/me', () => {
 
   it('returns profile data for a valid access token', async () => {
     const { user } = await createTestUser({ name: 'Profile User' });
+    const prisma = getTestPrisma();
     const { token } = await createAccessToken(user.id);
 
     const response = await makeAuthenticatedRequest(app, 'GET', '/v1/me', token);
@@ -23,8 +24,12 @@ describe('GET /v1/me', () => {
   expect(data.user.id).toBe(user.id);
   expect(data.user.email).toBe(user.primaryEmail);
   expect(data.user.name).toBe('Profile User');
-    expect(data.workspaceContext?.activeWorkspaceId).toBeNull();
-    expect(data.workspaceContext?.currentSettingWorkspaceId).toBeNull();
+    const membership = await prisma.workspaceMember.findFirst({
+      where: { userId: user.id, revokedAt: null },
+    });
+    const expectedWorkspaceId = membership?.workspaceId ?? null;
+    expect(data.workspaceContext?.activeWorkspaceId).toBe(expectedWorkspaceId);
+    expect(data.workspaceContext?.currentSettingWorkspaceId).toBe(expectedWorkspaceId);
   });
 
   it('returns 404 when the authenticated user is missing a profile', async () => {
@@ -114,7 +119,7 @@ describe('GET /v1/me', () => {
       },
     });
 
-    const patOpaque = createOpaqueToken();
+    const patOpaque = createOpaqueToken({ prefix: 'sbf' });
     const tokenHash = createTokenHashEnvelope(patOpaque.tokenSecret);
 
   await prisma.apiKey.create({

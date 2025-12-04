@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const DEFAULT_CLOCK_SKEW_TOLERANCE_SECONDS = 60;
 
+export const ACCESS_TOKEN_TTL_SECONDS = 10 * 60; // 10 minutes
+export const REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 export type AuthCoreEnvironment = {
   issuer: string;
   audience: string;

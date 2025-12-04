@@ -73,7 +73,7 @@ describe("TokenService", () => {
 
       // Assert
       expect(result.token).toMatch(/^sbf_/);
-      expect(result.token).toHaveLength(47); // sbf_ + 43 base64url chars
+      expect(result.token).toMatch(/^sbf_[0-9a-fA-F-]{36}\.[A-Za-z0-9_-]{43}$/);
       expect(result.apiKey.name).toBe("My Token");
       expect(result.apiKey.scopes).toEqual(["read:transactions"]);
       expect(result.apiKey.maskedToken).toBe("sbf_****abcd");

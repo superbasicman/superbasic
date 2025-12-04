@@ -5,9 +5,10 @@
  * PATs are hashed using SHA-256 before storage; plaintext is shown only once on creation.
  */
 
-import crypto from "node:crypto";
 import {
+  createOpaqueToken,
   createTokenHashEnvelope,
+  parseOpaqueToken,
   verifyTokenSecret,
   type TokenHashEnvelope,
 } from "./token-hash.js";
@@ -15,7 +16,7 @@ import {
 /**
  * PAT prefix for easy identification and secret scanning
  */
-const PAT_PREFIX = 'sbf_';
+const PAT_PREFIX = "sbf";
 
 /**
  * Length of the random token portion (in bytes)
@@ -26,30 +27,23 @@ const TOKEN_LENGTH = 32;
 /**
  * Generate a new Personal Access Token
  *
- * Token format: sbf_<base64url>
- * - sbf_ prefix enables secret scanning in code repositories
- * - 32 bytes of entropy = 256 bits (cryptographically secure)
- * - base64url encoding (URL-safe, no padding)
+ * Token format: sbf_<tokenId>.<secret>
+ * - sbf prefix enables secret scanning in code repositories
+ * - tokenId is UUIDv4, secret is 32 bytes base64url
  *
  * @returns Plaintext token (show once to user)
  */
 export function generateToken(): string {
-  const bytes = crypto.randomBytes(TOKEN_LENGTH);
-  const base64url = bytes
-    .toString('base64')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=/g, '');
-
-  return `${PAT_PREFIX}${base64url}`;
+  const opaque = createOpaqueToken({ secretLength: TOKEN_LENGTH, prefix: PAT_PREFIX });
+  return opaque.value;
 }
 
 /**
- * Hash token using SHA-256
+ * Hash token using HMAC envelope
  * Stored in database for verification
  *
  * @param token - The plaintext token
- * @returns SHA-256 hash as hex string
+ * @returns Hash envelope
  */
 export function hashToken(token: string): TokenHashEnvelope {
   return createTokenHashEnvelope(token);
@@ -69,15 +63,17 @@ export function verifyToken(token: string, hash: TokenHashEnvelope): boolean {
 
 /**
  * Validate token format
- * Returns true if token matches sbf_<base64url> pattern
+ * Returns true if token matches sbf_<uuid>.<secret> pattern
  *
  * @param token - The token to validate
  * @returns True if the token has the correct format
  */
 export function isValidTokenFormat(token: string): boolean {
-  // Token should be: sbf_ (4 chars) + 43 base64url chars = 47 total
-  // 32 bytes base64url encoded = 43 characters (no padding)
-  return /^sbf_[A-Za-z0-9_-]{43}$/.test(token);
+  const parsed = parseOpaqueToken(token, { expectedPrefix: PAT_PREFIX, allowLegacy: false });
+  if (!parsed) {
+    return false;
+  }
+  return /^[A-Za-z0-9_-]{43}$/.test(parsed.tokenSecret);
 }
 
 /**
@@ -91,8 +87,8 @@ export function extractTokenFromHeader(authHeader: string | undefined): string |
     return null;
   }
 
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
     return null;
   }
 

@@ -11,7 +11,6 @@ import {
 } from "@repo/auth";
 import { authService } from "../../../lib/auth-service.js";
 import { setRefreshTokenCookie } from "./refresh-cookie.js";
-import { generateAccessToken } from "@repo/auth-core";
 
 const signin = new Hono();
 
@@ -74,12 +73,11 @@ signin.post("/password", zValidator("json", passwordSchema), async (c) => {
 
     setRefreshTokenCookie(c, refresh.refreshToken, refresh.token.expiresAt);
 
-    const { token: accessToken } = await generateAccessToken({
+    const { token: accessToken } = await authService.issueAccessToken({
         userId: user.id,
         sessionId: session.sessionId,
         clientType: session.clientType,
         mfaLevel: session.mfaLevel,
-        reauthenticatedAt: Math.floor(Date.now() / 1000),
     });
 
     return c.json({

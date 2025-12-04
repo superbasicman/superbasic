@@ -42,7 +42,7 @@ async function createApiToken(
   }
 ) {
   const prisma = getTestPrisma();
-  const opaque = createOpaqueToken();
+  const opaque = createOpaqueToken({ prefix: "sbf" });
   const token = opaque.value;
   const last4 = token.slice(-4);
   const tokenHash = createTokenHashEnvelope(opaque.tokenSecret);

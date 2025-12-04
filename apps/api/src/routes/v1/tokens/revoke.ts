@@ -11,6 +11,7 @@ import { authMiddleware } from "../../../middleware/auth.js";
 import { requireScope } from "../../../middleware/scopes.js";
 import { TokenNotFoundError } from "@repo/core";
 import { revokePersonalAccessToken } from "../../../lib/pat-tokens.js";
+import { requireRecentMfa } from "../../../middleware/require-recent-mfa.js";
 
 type Variables = {
   userId: string;
@@ -25,7 +26,7 @@ function isValidUuid(value: string): boolean {
 
 const revokeTokenRoute = new Hono<{ Variables: Variables }>();
 
-revokeTokenRoute.delete("/:id", authMiddleware, requireScope("write:accounts"), async (c) => {
+revokeTokenRoute.delete("/:id", authMiddleware, requireRecentMfa(), requireScope("write:accounts"), async (c) => {
   const userId = c.get("userId") as string;
   const requestId = c.get("requestId") || "unknown";
   const tokenId = c.req.param("id");

@@ -1,6 +1,10 @@
 import { createPrivateKey, createPublicKey, randomUUID } from 'node:crypto';
 import { type JWK, type JWTPayload, type KeyLike, SignJWT, exportJWK } from 'jose';
-import type { AuthCoreEnvironment, VerificationKeyConfig } from './config.js';
+import {
+  ACCESS_TOKEN_TTL_SECONDS,
+  type AuthCoreEnvironment,
+  type VerificationKeyConfig,
+} from './config.js';
 import type { AccessTokenClaims, ClientType, MfaLevel } from './types.js';
 
 export type SigningKey = {
@@ -102,6 +106,8 @@ export async function buildVerificationKey(config: VerificationKeyConfig): Promi
 export type SignAccessTokenParams = {
   userId: string;
   sessionId?: string | null;
+  principalType?: 'user' | 'service';
+  clientId?: string | null;
   workspaceId?: string | null;
   actorSub?: string | null;
   clientType?: ClientType;
@@ -109,6 +115,8 @@ export type SignAccessTokenParams = {
   reauthenticatedAt?: number;
   expiresInSeconds?: number;
   jti?: string;
+  scopes?: string[];
+  allowedWorkspaces?: string[] | null;
 };
 
 export async function signAccessToken(
@@ -118,13 +126,16 @@ export async function signAccessToken(
 ): Promise<{ token: string; claims: AccessTokenClaims }> {
   const key = keyStore.getActiveKey();
   const issuedAt = Math.floor(Date.now() / 1000);
-  const expiresInSeconds = params.expiresInSeconds ?? 15 * 60;
+  const expiresInSeconds = params.expiresInSeconds ?? ACCESS_TOKEN_TTL_SECONDS;
   const exp = issuedAt + expiresInSeconds;
   const jti = params.jti ?? randomUUID();
 
   const payload: JWTPayload = {
     sub: params.userId,
     sid: params.sessionId ?? undefined,
+    pty: params.principalType ?? 'user',
+    client_id: params.clientId ?? undefined,
+    awp: params.allowedWorkspaces ?? undefined,
     wid: params.workspaceId ?? undefined,
     act: params.actorSub ?? undefined,
     token_use: 'access',
@@ -132,6 +143,7 @@ export async function signAccessToken(
     client_type: params.clientType ?? 'web',
     mfa_level: params.mfaLevel ?? 'none',
     reauth_at: params.reauthenticatedAt ?? issuedAt,
+    scp: params.scopes,
   };
 
   const token = await new SignJWT(payload)
