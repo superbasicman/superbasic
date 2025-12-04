@@ -7,6 +7,7 @@ import { prisma } from "@repo/database";
 import {
     verifyPassword,
     LOCAL_PASSWORD_PROVIDER_ID,
+    COOKIE_NAME,
 } from "@repo/auth";
 import { authService } from "../../../lib/auth-service.js";
 import { setRefreshTokenCookie } from "./refresh-cookie.js";
@@ -63,7 +64,7 @@ signin.post("/password", zValidator("json", passwordSchema), async (c) => {
     });
 
     // Set session cookie so OAuth authorize can find the session
-    setCookie(c, 'authjs.session-token', session.sessionId, {
+    setCookie(c, COOKIE_NAME, session.sessionId, {
         path: '/',
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,

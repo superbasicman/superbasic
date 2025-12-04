@@ -10,7 +10,7 @@ import {
   generateAccessToken,
 } from '@repo/auth-core';
 import type { ClientType } from '@repo/auth-core';
-import { parseOpaqueToken, verifyTokenSecret } from '@repo/auth';
+import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
 import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import type { AppBindings } from '../../../types/context.js';
@@ -137,7 +137,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
       });
 
       // Set session + refresh cookies
-      setCookie(c, 'authjs.session-token', result.session.sessionId, {
+      setCookie(c, COOKIE_NAME, result.session.sessionId, {
         path: '/',
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,

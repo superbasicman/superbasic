@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
-import { LOCAL_MAGIC_LINK_PROVIDER_ID, sendMagicLinkEmail, createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { LOCAL_MAGIC_LINK_PROVIDER_ID, sendMagicLinkEmail, createOpaqueToken, createTokenHashEnvelope, COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { randomBytes } from 'node:crypto';
@@ -183,7 +183,7 @@ magicLink.get(
     });
 
     // Set session cookie
-    setCookie(c, 'authjs.session-token', session.sessionId, {
+    setCookie(c, COOKIE_NAME, session.sessionId, {
       path: '/',
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,

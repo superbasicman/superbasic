@@ -82,7 +82,7 @@ This document explains how authentication works today across the SuperBasic code
 - Token creation: 10 tokens/hour/user (`tokenCreationRateLimitMiddleware`).
 
 ## Cookies, Headers, and CSRF
-- Auth.js cookies (`authjs.session-token` / `authjs.csrf-token`) are stripped from responses; CSRF checks are skipped in Auth.js handlers. API endpoints require Bearer access tokens obtained via auth-core refresh flow; Auth.js cookies alone are ignored by middleware.
+- Auth.js cookies (`sb.session-token` / `authjs.csrf-token`) are stripped from responses; CSRF checks are skipped in Auth.js handlers. API endpoints require Bearer access tokens obtained via auth-core refresh flow; Auth.js cookies alone are ignored by middleware.
 - Refresh flow uses `sb.refresh-token` (+ host prefix in prod) httpOnly cookie and non-httpOnly `sb.refresh-csrf` for double-submit. The refresh CSRF token is also echoed in `X-Refresh-Csrf` header after Auth.js callbacks for SPAs.
 - Access tokens are returned in JSON bodies for refresh and via `X-Access-Token` headers during Auth.js callback bridging.
 

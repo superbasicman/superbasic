@@ -86,7 +86,8 @@ export function useAuthForm(): UseAuthFormReturn {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        console.error('Registration error:', err);
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
       }
     } finally {
       setIsLoading(false);
@@ -109,7 +110,8 @@ export function useAuthForm(): UseAuthFormReturn {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError('An unexpected error occurred. Please try again.');
+        console.error('Registration error:', err);
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
       }
     } finally {
       setIsLoading(false);

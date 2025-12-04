@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { getCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
 import { normalizeRedirectUri, requireOAuthClient, AuthorizationError } from '@repo/auth-core';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope, COOKIE_NAME } from '@repo/auth';
 
 const authorize = new Hono();
 
@@ -50,7 +50,7 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
   }
 
   // 2. Check for existing session
-  const sessionToken = getCookie(c, 'authjs.session-token');
+  const sessionToken = getCookie(c, COOKIE_NAME);
 
   // Validate session token is a valid UUID before querying
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

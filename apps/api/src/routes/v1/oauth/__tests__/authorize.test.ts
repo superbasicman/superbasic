@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { parseOpaqueToken, verifyTokenSecret } from '@repo/auth';
+import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
 
 vi.unmock('@repo/database');
 
@@ -46,7 +46,7 @@ describe('GET /v1/oauth/authorize', () => {
       `/v1/oauth/authorize?${params.toString()}`,
       {
         headers: {
-          Cookie: `authjs.session-token=${session.id}`,
+          Cookie: `${COOKIE_NAME}=${session.id}`,
         },
       }
     );
@@ -124,7 +124,7 @@ describe('GET /v1/oauth/authorize', () => {
       '/v1/oauth/authorize?response_type=code&client_id=mobile&redirect_uri=sb://not-allowed&code_challenge=abc',
       {
         headers: {
-          Cookie: `authjs.session-token=${session.id}`,
+          Cookie: `${COOKIE_NAME}=${session.id}`,
         },
       }
     );

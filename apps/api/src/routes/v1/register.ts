@@ -4,7 +4,7 @@ import { setCookie } from 'hono/cookie';
 import { RegisterSchema } from '@repo/types';
 import { userService } from '../../services/index.js';
 import { DuplicateEmailError, InvalidEmailError, WeakPasswordError } from '@repo/core';
-import { LOCAL_PASSWORD_PROVIDER_ID } from '@repo/auth';
+import { LOCAL_PASSWORD_PROVIDER_ID, COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../lib/auth-service.js';
 
 const registerRoute = new Hono();
@@ -41,7 +41,7 @@ registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
     });
 
     // Set session cookie so OAuth authorize can find the session
-    setCookie(c, 'authjs.session-token', session.sessionId, {
+    setCookie(c, COOKIE_NAME, session.sessionId, {
       path: '/',
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,

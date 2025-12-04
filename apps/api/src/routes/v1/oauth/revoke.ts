@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { deleteCookie, getCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
+import { COOKIE_NAME } from '@repo/auth';
 
 const revoke = new Hono();
 
 revoke.post('/', async (c) => {
-    const sessionId = getCookie(c, 'authjs.session-token');
+    const sessionId = getCookie(c, COOKIE_NAME);
 
     if (sessionId) {
         try {
@@ -25,7 +26,7 @@ revoke.post('/', async (c) => {
         }
     }
 
-    deleteCookie(c, 'authjs.session-token');
+    deleteCookie(c, COOKIE_NAME);
     return c.json({ success: true });
 });
 

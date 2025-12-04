@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie, getCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
-import { GOOGLE_PROVIDER_ID } from '@repo/auth';
+import { GOOGLE_PROVIDER_ID, COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
@@ -199,7 +199,7 @@ google.get(
       });
 
       // Set session cookie
-      setCookie(c, 'authjs.session-token', session.sessionId, {
+      setCookie(c, COOKIE_NAME, session.sessionId, {
         path: '/',
         secure: process.env.NODE_ENV === 'production',
         httpOnly: true,

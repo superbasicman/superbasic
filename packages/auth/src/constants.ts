@@ -8,15 +8,14 @@ export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60; // 30 days
 export const SESSION_ABSOLUTE_MAX_AGE_SECONDS = 180 * 24 * 60 * 60; // 180 days hard cap
 
 // Cookie configuration
-// Auth.js uses 'authjs.session-token' by default (or '__Secure-authjs.session-token' in production)
-// We use the Auth.js default to maintain compatibility
-export const COOKIE_NAME = "authjs.session-token";
+// We use 'sb.session-token' for SuperBasic Finance sessions
+export const COOKIE_NAME = "sb.session-token";
 
 // Password hashing
 export const BCRYPT_SALT_ROUNDS = 10;
 
 // JWT configuration
-export const JWT_SALT = "authjs.session-token"; // Auth.js v5 default
+export const JWT_SALT = "sb.session-token";
 
 // Clock skew tolerance for token validation
 export const CLOCK_SKEW_TOLERANCE_SECONDS = 60;

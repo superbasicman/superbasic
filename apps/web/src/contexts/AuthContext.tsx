@@ -4,6 +4,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
@@ -92,11 +93,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  // Track if callback has been handled to prevent double-invocation in Strict Mode
+  const callbackHandled = useRef(false);
+
   /**
    * Handle OAuth Callback
    * Exchanges authorization code for tokens
    */
   async function handleCallback() {
+    if (callbackHandled.current) return;
+    callbackHandled.current = true;
+
     setIsLoading(true);
     const code = searchParams.get('code');
     const state = searchParams.get('state');
@@ -147,18 +154,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // For external provider callbacks, exchange code without PKCE verifier
       const body = isExternalProvider
         ? new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: CLIENT_ID,
-            code,
-            redirect_uri: REDIRECT_URI,
-          })
+          grant_type: 'authorization_code',
+          client_id: CLIENT_ID,
+          code,
+          redirect_uri: REDIRECT_URI,
+        })
         : new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: CLIENT_ID,
-            code,
-            redirect_uri: REDIRECT_URI,
-            code_verifier: verifier!,
-          });
+          grant_type: 'authorization_code',
+          client_id: CLIENT_ID,
+          code,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: verifier!,
+        });
 
       const response = await fetch(`${apiUrl}/v1/oauth/token`, {
         method: 'POST',
@@ -266,6 +273,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await authApi.login(credentials);
       window.location.href = returnTo;
       return;
+    }
+
+    // If credentials are provided, authenticate first to establish session
+    if (credentials) {
+      await authApi.login(credentials);
     }
 
     await initiateOAuthFlow();
