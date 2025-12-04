@@ -269,8 +269,12 @@ class AuthEventEmitter {
       timestamp: new Date(),
     };
 
+    const tasks = this.handlers.map((handler) =>
+      Promise.resolve().then(() => handler(fullEvent))
+    );
+
     // Fire and forget - don't block auth flow
-    Promise.all(this.handlers.map((h) => h(fullEvent))).catch((err) => {
+    Promise.all(tasks).catch((err) => {
       console.error("Auth event handler error:", err);
     });
   }

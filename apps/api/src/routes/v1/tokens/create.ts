@@ -39,6 +39,7 @@ createTokenRoute.post(
   async (c) => {
     const userId = c.get("userId") as string;
     const profileId = c.get("profileId") as string | undefined;
+    const workspaceId = c.get("workspaceId") as string | undefined;
     const requestId = c.get("requestId") || "unknown";
     const { name, scopes: rawScopes, expiresInDays } = c.req.valid("json");
     const scopes = rawScopes as PermissionScope[];
@@ -57,6 +58,7 @@ createTokenRoute.post(
         ip: c.req.header("x-forwarded-for") || c.req.header("x-real-ip") || "unknown",
         userAgent: c.req.header("user-agent") || "unknown",
         requestId,
+        workspaceId: workspaceId ?? null,
       };
 
       const result = await issuePersonalAccessToken({
@@ -66,6 +68,7 @@ createTokenRoute.post(
         scopes,
         expiresInDays,
         requestContext,
+        workspaceId: workspaceId ?? null,
       });
 
       return c.json(result, 201);

@@ -1,5 +1,30 @@
 import { authEvents, type AuthEvent } from '@repo/auth';
+import { prisma, Prisma } from '@repo/database';
 import { logger } from '@repo/observability';
+
+type SecurityEventPayload = {
+  userId?: string | null;
+  workspaceId?: string | null;
+  serviceId?: string | null;
+  eventType: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  metadata?: Prisma.InputJsonValue;
+};
+
+const SECURITY_EVENT_TYPES = new Set<AuthEvent['type']>([
+  'token.created',
+  'token.updated',
+  'token.revoked',
+  'refresh.reuse_detected',
+  'auth.failed_rate_limited',
+  'user.mfa_enrolled',
+  'user.mfa_challenged',
+  'user.mfa_challenge_failed',
+  'user.step_up',
+  'user.step_up_failed',
+  'session.revoked',
+]);
 
 /**
  * Initialize audit logging for authentication events
@@ -122,4 +147,53 @@ async function handleAuthEvent(event: AuthEvent) {
     default:
       logger.info(logEntry, 'Authentication event');
   }
+
+  // Persist high-value security events into the audit table
+  try {
+    const payload = mapSecurityEvent(event);
+    if (payload) {
+      await prisma.securityEvent.create({ data: payload });
+    }
+  } catch (error) {
+    logger.error({ err: error, eventType: type }, 'Failed to persist security event');
+  }
+}
+
+function mapSecurityEvent(event: AuthEvent): SecurityEventPayload | null {
+  if (!SECURITY_EVENT_TYPES.has(event.type)) {
+    return null;
+  }
+
+  const metadata = (event.metadata ?? {}) as Record<string, unknown>;
+  const workspaceId = toUuid(metadata.workspaceId);
+  const serviceId = toUuid(metadata.serviceId ?? metadata.clientId);
+  const ipAddress = pickString(metadata.ip) ?? event.ip ?? null;
+  const userAgent = pickString(metadata.userAgent);
+
+  const payload: SecurityEventPayload = {
+    userId: event.userId ?? null,
+    workspaceId,
+    serviceId,
+    eventType: event.type,
+    ipAddress: ipAddress ?? null,
+    userAgent: userAgent ?? null,
+  };
+
+  if (Object.keys(metadata).length > 0) {
+    payload.metadata = metadata as Prisma.InputJsonValue;
+  }
+
+  return payload;
+}
+
+function pickString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function toUuid(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed && /^[0-9a-fA-F-]{32,36}$/.test(trimmed) ? trimmed : null;
 }

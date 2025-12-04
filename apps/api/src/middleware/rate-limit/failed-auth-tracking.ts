@@ -1,4 +1,4 @@
-import { Redis, createRateLimiter } from '@repo/rate-limit';
+import { Redis, createRateLimiter, createMockRedis } from '@repo/rate-limit';
 import { logger } from '@repo/observability';
 import { authEvents } from '@repo/auth';
 
@@ -6,12 +6,19 @@ import { authEvents } from '@repo/auth';
 const redis =
   process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
     ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      })
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    })
     : null;
 
-const limiter = redis ? createRateLimiter(redis) : null;
+const mockRedis = process.env.NODE_ENV === 'test' ? createMockRedis() : null;
+
+const limiter =
+  process.env.NODE_ENV === 'test'
+    ? createRateLimiter(mockRedis)
+    : redis
+      ? createRateLimiter(redis)
+      : null;
 const RATE_LIMIT = 100; // Max 100 failed auth attempts per hour
 const WINDOW_SECONDS = 3600;
 
@@ -104,5 +111,11 @@ export async function checkFailedAuthRateLimit(ip: string): Promise<boolean> {
       'Failed to evaluate failed auth rate limit'
     );
     return false;
+  }
+}
+
+export function resetFailedAuthRateLimit() {
+  if (mockRedis && typeof (mockRedis as any).flushall === 'function') {
+    (mockRedis as any).flushall();
   }
 }

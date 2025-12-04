@@ -11,3 +11,4 @@ export { authRateLimitMiddleware } from './auth-rate-limit.js';
 export { tokenCreationRateLimitMiddleware } from './token-rate-limit.js';
 export { credentialsRateLimitMiddleware } from './credentials-rate-limit.js';
 export { trackFailedAuth, checkFailedAuthRateLimit } from './failed-auth-tracking.js';
+export { oauthRateLimitMiddleware, resetOauthRateLimitMocks } from './oauth-rate-limit.js';

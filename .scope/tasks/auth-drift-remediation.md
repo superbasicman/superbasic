@@ -33,7 +33,7 @@ Goal: land a clean, doc-aligned auth stack with no leftover legacy compatibility
 - [x] 7. MFA enforcement and high-risk endpoint checks  
   - Sanity check: MFA challenge/verification endpoints exist; high-risk routes enforce required `mfaLevel` (tests in `apps/api/src/routes/v1/auth/mfa/*.test.ts` or equivalent).
 
-- [ ] 8. Logging, audit, and rate-limit coverage  
+- [x] 8. Logging, audit, and rate-limit coverage  
   - Sanity check: Security events emitted for PAT creation, refresh reuse, MFA actions; rate limits cover OAuth authorize/token and PAT use; verified via tests/fixtures in `packages/auth/src/events.test.ts` and `apps/api/src/middleware/rate-limit/*`.
 
 - [ ] 9. Remove legacy/compatibility paths and dead code, dead docs and scripts

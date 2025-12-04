@@ -97,6 +97,7 @@ export class TokenService {
         tokenName: params.name,
         scopes: params.scopes,
         expiresAt: expiresAt.toISOString(),
+        workspaceId: params.workspaceId ?? null,
         ip: params.requestContext?.ip || "unknown",
         userAgent: params.requestContext?.userAgent || "unknown",
         requestId: params.requestContext?.requestId || "unknown",
@@ -219,12 +220,13 @@ export class TokenService {
       this.authEvents.emit({
         type: "token.revoked",
         userId: params.userId,
-        metadata: {
-          tokenId: params.id,
-          tokenName: token.name,
-          ip: params.requestContext?.ip || "unknown",
-          userAgent: params.requestContext?.userAgent || "unknown",
-          requestId: params.requestContext?.requestId || "unknown",
+      metadata: {
+        tokenId: params.id,
+        tokenName: token.name,
+        workspaceId: token.workspaceId ?? null,
+        ip: params.requestContext?.ip || "unknown",
+        userAgent: params.requestContext?.userAgent || "unknown",
+        requestId: params.requestContext?.requestId || "unknown",
           timestamp: new Date().toISOString(),
         },
       });

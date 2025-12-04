@@ -14,6 +14,7 @@ type RequestContext = {
   ip?: string;
   userAgent?: string;
   requestId?: string;
+  workspaceId?: string | null;
 };
 
 const MIN_EXPIRATION_DAYS = 1;
@@ -26,6 +27,7 @@ export async function issuePersonalAccessToken(options: {
   name: string;
   scopes: PermissionScope[];
   expiresInDays?: number;
+  workspaceId?: string | null;
   requestContext?: RequestContext;
 }) {
   validateCreateParams(options.scopes, options.expiresInDays);
@@ -38,6 +40,7 @@ export async function issuePersonalAccessToken(options: {
   const expiresAt = calculateExpiresAt(options.expiresInDays);
   const issued = await authService.issuePersonalAccessToken({
     userId: options.userId,
+    workspaceId: options.workspaceId ?? options.requestContext?.workspaceId ?? null,
     scopes: options.scopes,
     name: options.name,
     expiresAt,
@@ -57,6 +60,7 @@ export async function issuePersonalAccessToken(options: {
     metadata: {
       tokenId: issued.tokenId,
       profileId: options.profileId,
+      workspaceId: issued.workspaceId ?? options.workspaceId ?? null,
       tokenName: options.name,
       scopes: options.scopes,
       expiresAt: expiresAt?.toISOString() ?? null,
@@ -135,7 +139,7 @@ export async function revokePersonalAccessToken(options: {
 }) {
   const token = await prisma.apiKey.findUnique({
     where: { id: options.tokenId },
-    select: { id: true, userId: true, revokedAt: true },
+    select: { id: true, userId: true, revokedAt: true, name: true, workspaceId: true },
   });
 
   if (!token || token.userId !== options.userId) {
@@ -154,6 +158,8 @@ export async function revokePersonalAccessToken(options: {
       userId: options.userId,
       metadata: {
         tokenId: options.tokenId,
+        tokenName: token.name ?? '',
+        workspaceId: token.workspaceId ?? null,
         ip: options.requestContext?.ip ?? 'unknown',
         userAgent: options.requestContext?.userAgent ?? 'unknown',
         requestId: options.requestContext?.requestId ?? 'unknown',
