@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono';
 import { parseOpaqueToken } from '@repo/auth';
-import { AuthorizationError, type VerifyRequestInput } from '@repo/auth-core';
+import { AuthorizationError, UnauthorizedError, type VerifyRequestInput } from '@repo/auth-core';
 import type { AppBindings } from '../types/context.js';
 import { authService } from '../lib/auth-service.js';
 import {
@@ -152,10 +152,16 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
     c.set('auth', null);
     if (error instanceof AuthorizationError) {
       await resetContext();
-      return c.json({ error: error.message || 'Invalid workspace selection' }, 400);
+      return c.json({ error: error.message || 'Invalid workspace selection' }, 403);
     }
+    if (error instanceof UnauthorizedError) {
+      await resetContext();
+      return c.json({ error: error.message || 'Unauthorized' }, 401);
+    }
+
+    // Infrastructure failures (DB down, etc) should return 503
     await resetContext();
-    return c.json({ error: 'Unauthorized' }, 401);
+    return c.json({ error: 'Service Unavailable', message: 'Authentication service temporarily unavailable' }, 503);
   } finally {
     await resetContext();
   }

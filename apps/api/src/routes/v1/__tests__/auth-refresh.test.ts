@@ -118,9 +118,11 @@ describe('POST /v1/auth/refresh', () => {
     });
 
     // Mark the first as reused/revoked.
+    // Mark the first as reused/revoked.
+    // Set revocation time to > 10s ago to bypass the benign race window
     await prisma().refreshToken.update({
       where: { id: first.token.id },
-      data: { revokedAt: now },
+      data: { revokedAt: new Date(Date.now() - 15000) },
     });
 
     // Create another in the same family to simulate sibling active token.

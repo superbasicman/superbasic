@@ -359,7 +359,7 @@ export class AuthCoreService implements AuthService {
         scopes: input.scopes,
         // No metadata field in ApiKey schema
         ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
-        expiresAt: input.expiresAt ?? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Default 1 year
+        expiresAt: input.expiresAt ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Default 90 days
         revokedAt: null,
       },
     });

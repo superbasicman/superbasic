@@ -19,15 +19,15 @@
 
 ### Step 2.2: Session & Refresh Token Alignment
 
-- [ ] 8. Refresh token reuse handling does NOT follow v1 spec: implementation revokes entire family on first reuse instead of treating first incident as benign race (apps/api/src/routes/v1/auth/refresh-utils.ts handleRevokedTokenReuse)
+- [x] 8. Refresh token reuse handling does NOT follow v1 spec: implementation revokes entire family on first reuse instead of treating first incident as benign race (apps/api/src/routes/v1/auth/refresh-utils.ts handleRevokedTokenReuse) - FIXED: added benign race check (10s window)
 
 ### Step 2.3: PAT/API Key Alignment
 
-- [ ] 9. PAT default expiration is 1 year (365 days), exceeds spec's max of 90 days (packages/auth-core/src/service.ts issuePersonalAccessToken)
+- [x] 9. PAT default expiration is 1 year (365 days), exceeds spec's max of 90 days (packages/auth-core/src/service.ts issuePersonalAccessToken) - FIXED: changed default to 90 days
 
 ### Step 2.5: Security Parameters
 
-- [ ] 10. Refresh token idle timeout is 7 days, spec says 14 days (apps/api/src/routes/v1/auth/refresh-utils.ts DEFAULT_INACTIVITY_WINDOW_SECONDS)
+- [x] 10. Refresh token idle timeout is 7 days, spec says 14 days (apps/api/src/routes/v1/auth/refresh-utils.ts DEFAULT_INACTIVITY_WINDOW_SECONDS) - FIXED: changed default to 14 days
 
 ## Phase 3: OAuth 2.1 Endpoints Review
 
@@ -41,7 +41,7 @@
 
 ### Error Semantics
 
-- [ ] 11. Infrastructure failures return 401 instead of spec's 503 (apps/api/src/middleware/auth-context.ts)
+- [x] 11. Infrastructure failures return 401 instead of spec's 503 (apps/api/src/middleware/auth-context.ts) - FIXED: updated error handling to return 503 for unknown errors
 
 ## Phase 6: MFA & Security Controls Review
 
@@ -51,19 +51,19 @@
 
 ### Events Not Persisted to DB
 
-- [ ] 12. Login events (user.login.success, user.login.failed) are logged via structured logger but NOT persisted to SecurityEvent table - missing from SECURITY_EVENT_TYPES set (apps/api/src/lib/audit-logger.ts)
+- [x] 12. Login events (user.login.success, user.login.failed) are logged via structured logger but NOT persisted to SecurityEvent table - missing from SECURITY_EVENT_TYPES set (apps/api/src/lib/audit-logger.ts) - FIXED: added events to SECURITY_EVENT_TYPES
 
 ## Phase 8: Rate Limiting Review
 
 ### Missing Rate Limiting
 
-- [ ] 13. Password login endpoint (/v1/auth/signin/password) has NO rate limiting - credentialsRateLimitMiddleware exists but is not applied (apps/api/src/app.ts, apps/api/src/routes/v1/auth/signin.ts)
-- [ ] 14. Google OAuth endpoint (/v1/auth/google) has NO rate limiting (apps/api/src/app.ts)
-- [ ] 15. Magic link endpoint (/v1/auth/magic-link) has NO rate limiting (apps/api/src/app.ts)
+- [x] 13. Password login endpoint (/v1/auth/signin/password) has NO rate limiting - credentialsRateLimitMiddleware exists but is not applied (apps/api/src/app.ts, apps/api/src/routes/v1/auth/signin.ts) - FIXED: applied credentialsRateLimitMiddleware
+- [x] 14. Google OAuth endpoint (/v1/auth/google) has NO rate limiting (apps/api/src/app.ts) - FIXED: applied authRateLimitMiddleware
+- [x] 15. Magic link endpoint (/v1/auth/magic-link) has NO rate limiting (apps/api/src/app.ts) - FIXED: applied authRateLimitMiddleware
 
 ### Per-User Tracking
 
-- [ ] 16. Failed login attempts tracked per-IP only, spec indicates per-user tracking - failed-auth-tracking.ts uses key `failed-auth:${ip}` (apps/api/src/middleware/rate-limit/failed-auth-tracking.ts)
+- [x] 16. Failed login attempts tracked per-IP only, spec indicates per-user tracking - failed-auth-tracking.ts uses key `failed-auth:${ip}` (apps/api/src/middleware/rate-limit/failed-auth-tracking.ts) - FIXED: updated to track per-user (email) in addition to IP
 
 ## Phase 9: OIDC / id_token Semantics Review
 

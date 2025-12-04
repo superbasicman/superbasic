@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { corsMiddleware } from './middleware/cors.js';
-import { authRateLimitMiddleware } from './middleware/rate-limit/index.js';
+import { authRateLimitMiddleware, credentialsRateLimitMiddleware } from './middleware/rate-limit/index.js';
 import { requestIdMiddleware } from './middleware/request-id.js';
 import { healthRoute } from './routes/v1/health.js';
 import { meRoute } from './routes/v1/me.js';
@@ -56,6 +56,10 @@ authRoutes.post('/refresh', refreshTokenValidator, refreshTokens);
 authRoutes.post('/logout', logout);
 authRoutes.post('/sso/logout', ssoLogoutValidator, handleSsoLogout);
 // Mount routes
+authRoutes.use('/signin/*', credentialsRateLimitMiddleware);
+authRoutes.use('/google', authRateLimitMiddleware);
+authRoutes.use('/magic-link', authRateLimitMiddleware);
+
 authRoutes.route('/signin', signin);
 authRoutes.route('/google', google);
 authRoutes.route('/magic-link', magicLink);

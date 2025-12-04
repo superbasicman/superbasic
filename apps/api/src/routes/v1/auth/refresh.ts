@@ -97,18 +97,24 @@ export async function refreshTokens(c: Context<AppBindings>) {
   const requestId = c.get('requestId') ?? null;
 
   if (tokenRecord.revokedAt) {
-    await handleRevokedTokenReuse(
-      {
-        tokenId: tokenRecord.id,
-        sessionId: tokenRecord.sessionId,
-        familyId: tokenRecord.familyId,
-        userId: tokenRecord.userId,
-        ipAddress,
-        userAgent,
-        requestId,
-      },
-      now
-    );
+    const timeSinceRevocation = now.getTime() - tokenRecord.revokedAt.getTime();
+    // 10 second window for benign race conditions (e.g. network retries)
+    const BENIGN_RACE_THRESHOLD_MS = 10000;
+
+    if (timeSinceRevocation > BENIGN_RACE_THRESHOLD_MS) {
+      await handleRevokedTokenReuse(
+        {
+          tokenId: tokenRecord.id,
+          sessionId: tokenRecord.sessionId,
+          familyId: tokenRecord.familyId,
+          userId: tokenRecord.userId,
+          ipAddress,
+          userAgent,
+          requestId,
+        },
+        now
+      );
+    }
     return invalidGrant(c);
   }
 

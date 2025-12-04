@@ -4,7 +4,7 @@ import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import type { Context } from 'hono';
 import type { AppBindings } from '../../../types/context.js';
 
-export const DEFAULT_INACTIVITY_WINDOW_SECONDS = 7 * 24 * 60 * 60;
+export const DEFAULT_INACTIVITY_WINDOW_SECONDS = 14 * 24 * 60 * 60;
 
 export function invalidGrant(c: Context<AppBindings>) {
   clearRefreshTokenCookie(c);

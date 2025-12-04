@@ -23,6 +23,8 @@ const SECURITY_EVENT_TYPES = new Set<AuthEvent['type']>([
   'user.mfa_challenge_failed',
   'user.step_up',
   'user.step_up_failed',
+  'user.login.success',
+  'user.login.failed',
   'session.revoked',
 ]);
 

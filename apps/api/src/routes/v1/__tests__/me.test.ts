@@ -62,7 +62,7 @@ describe('GET /v1/me', () => {
 
     expect(response.status).toBe(401);
     const data = await response.json();
-    expect(data.error).toBe('Unauthorized');
+    expect(data.error).toBe('Invalid access token');
   });
 
   it('returns 401 when the backing session has expired', async () => {
