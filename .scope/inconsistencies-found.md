@@ -93,11 +93,11 @@
 
 ### CSRF Protection
 
-- [ ] 23. No explicit CSRF token mechanism for cookie-based mutation endpoints - only SameSite=Lax provides basic protection; spec indicates CSRF tokens recommended for state-changing routes (apps/api/src/routes/v1/oauth/revoke.ts has no CSRF validation)
+- [x] 23. No explicit CSRF token mechanism for cookie-based mutation endpoints - FIXED: Implemented double-submit cookie pattern; CSRF middleware applied to /oauth/revoke and automatically exempts Bearer token auth (mobile/API); CSRF tokens generated in all auth flows (password, Google OAuth, magic-link)
 
 ### Email Cooling-Off
 
-- [ ] 24. No email uniqueness cooling-off period enforced - spec indicates cooling-off rules for email changes; current implementation allows immediate email linking (apps/api/src/lib/identity-provider.ts resolveGoogleIdentity)
+- [x] 24. No email uniqueness cooling-off period enforced - FIXED: Implemented 7-day cooling-off check in resolveGoogleIdentity and upsertMagicLinkIdentity; prevents immediate relinking after unlink events tracked in SecurityEvent table
 
 ## Phase 13: Admin/Support & Operational Controls Review
 

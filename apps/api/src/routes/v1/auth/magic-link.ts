@@ -13,6 +13,7 @@ import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { randomBytes } from 'node:crypto';
 import { upsertMagicLinkIdentity } from '../../../lib/identity-provider.js';
+import { generateCsrfToken, setCsrfCookie } from '../../../middleware/csrf.js';
 
 const magicLink = new Hono();
 
@@ -164,6 +165,10 @@ magicLink.get(
     });
 
     setRefreshTokenCookie(c, refresh.refreshToken, refresh.token.expiresAt);
+
+    // Set CSRF token for browser-based flows
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(c, csrfToken);
 
     // Generate authorization code for frontend callback
     const opaque = createOpaqueToken();

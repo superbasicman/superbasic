@@ -9,6 +9,7 @@ import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import { randomBytes } from 'node:crypto';
 import { resolveGoogleIdentity } from '../../../lib/identity-provider.js';
+import { generateCsrfToken, setCsrfCookie } from '../../../middleware/csrf.js';
 
 const google = new Hono();
 
@@ -203,6 +204,10 @@ google.get(
       // Clear OAuth state cookies
       setCookie(c, 'google_oauth_state', '', { path: '/', maxAge: 0 });
       setCookie(c, 'google_oauth_return_to', '', { path: '/', maxAge: 0 });
+
+      // Set CSRF token for browser-based flows
+      const csrfToken = generateCsrfToken();
+      setCsrfCookie(c, csrfToken);
 
       // Check if there's a pending OAuth authorization flow to return to
       const returnTo = getCookie(c, 'google_oauth_return_to');

@@ -41,6 +41,14 @@ export async function upsertMagicLinkIdentity(email: string) {
   });
 
   if (!user) {
+    // Check cooling-off period to prevent claiming recently unlinked emails
+    const recentUnlink = await checkEmailCoolingOff(normalizedEmail);
+    if (recentUnlink) {
+      throw new Error(
+        'This email was recently unlinked from another account. Please wait before using it again.'
+      );
+    }
+
     user = await prisma.user.create({
       data: {
         primaryEmail: normalizedEmail,
@@ -99,6 +107,14 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
   });
 
   if (existingUser) {
+    // Check cooling-off period to prevent immediate relinking after unlink
+    const recentUnlink = await checkEmailCoolingOff(normalizedEmail);
+    if (recentUnlink) {
+      throw new Error(
+        'This email was recently unlinked from another account. Please wait before linking it again.'
+      );
+    }
+
     await prisma.userIdentity.create({
       data: {
         userId: existingUser.id,
@@ -150,4 +166,31 @@ function toVerifiedGoogleIdentity(profile: GoogleProfile): VerifiedIdentity {
   }
 
   return identity;
+}
+
+/**
+ * Check if an email was recently unlinked from another account.
+ * Returns true if the email is within the cooling-off period.
+ * 
+ * Cooling-off period: 7 days
+ * Purpose: Prevents attackers from immediately claiming an email after
+ * tricking a user into unlinking it.
+ */
+async function checkEmailCoolingOff(email: string): Promise<boolean> {
+  const COOLING_OFF_DAYS = 7;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - COOLING_OFF_DAYS);
+
+  const recentUnlink = await prisma.securityEvent.findFirst({
+    where: {
+      eventType: 'identity.unlinked',
+      metadata: {
+        path: ['email'],
+        equals: email,
+      },
+      createdAt: { gte: cutoff },
+    },
+  });
+
+  return !!recentUnlink;
 }
