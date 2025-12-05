@@ -476,7 +476,7 @@ async function main() {
     console.log('  3. Configure OAuth consent screen if prompted');
     console.log('  4. Application type: Web application');
     console.log('  5. Add authorized redirect URI:');
-    console.log('     http://localhost:3000/v1/auth/callback/google');
+    console.log('     http://localhost:3000/v1/auth/google/callback');
     console.log('  6. Click "Create"');
     console.log('  7. Copy Client ID and Client Secret');
 
@@ -621,6 +621,16 @@ PRODUCTION_DATABASE_URL=${config.PRODUCTION_DATABASE_URL ?? ''}
   writeFileSync(webEnvPath, webEnvContent);
   success('Created apps/web/.env.local');
 
+  // Write root .env.local (for root scripts like seed:dev, seed:prod)
+  const rootEnvPath = resolve(process.cwd(), '.env.local');
+  // Combine all configs for root .env.local
+  const rootEnvContent = `${envContent}
+# Web Configuration
+VITE_API_URL=${webApiUrl}
+`;
+  writeFileSync(rootEnvPath, rootEnvContent);
+  success('Created .env.local (root)');
+
   // Write apps/api/.env.test (use local Postgres by default)
   const apiEnvTestPath = resolve(process.cwd(), 'apps/api/.env.test');
   const testEnvContent = `# Server Configuration
@@ -722,6 +732,7 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
   console.log('  • apps/api/.env.local');
   console.log('  • packages/database/.env.local');
   console.log('  • apps/web/.env.local');
+  console.log('  • .env.local (root)');
   console.log('  • apps/api/.env.test');
 
   log('🚀 Next steps:');
