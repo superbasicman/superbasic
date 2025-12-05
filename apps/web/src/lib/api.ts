@@ -1,6 +1,6 @@
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
 import { getAccessToken, getAccessTokenExpiry, saveTokens, clearTokens } from './tokenStorage';
-import { getCookieValue } from './cookies';
+
 
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
@@ -21,14 +21,6 @@ export class ApiError extends Error {
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 let refreshPromise: Promise<void> | null = null;
-const REFRESH_CSRF_COOKIE_HOST_NAME = '__Host-sb.refresh-csrf';
-
-function getRefreshCsrfToken() {
-  return (
-    getCookieValue(REFRESH_CSRF_COOKIE_HOST_NAME) || getCookieValue('sb.refresh-csrf')
-  );
-}
-
 /**
  * Base fetch wrapper with credentials support, auto-refresh, and error handling
  */
@@ -130,14 +122,11 @@ export async function refreshAccessToken(force = false) {
 }
 
 async function performAccessTokenRefresh() {
-  const csrfToken = getRefreshCsrfToken();
-
   const response = await fetch(`${API_URL}/v1/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
     },
     body: JSON.stringify({}),
   });
@@ -206,12 +195,8 @@ export const authApi = {
    * Logout - revokes AuthCore session and clears tokens
    */
   async logout(): Promise<void> {
-    const csrfToken = getRefreshCsrfToken();
     await apiFetch('/v1/auth/logout', {
       method: 'POST',
-      headers: {
-        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
-      },
     });
     clearTokens();
   },

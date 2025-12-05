@@ -4,8 +4,6 @@ import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import type { AppBindings } from '../../../types/context.js';
 import {
   clearRefreshTokenCookie,
-  getRefreshTokenFromCookie,
-  validateRefreshCsrf,
 } from './refresh-cookie.js';
 
 export async function logout(c: Context<AppBindings>) {
@@ -16,10 +14,7 @@ export async function logout(c: Context<AppBindings>) {
   }
 
   // If a refresh cookie is present, require the CSRF double-submit header.
-  const hasRefreshCookie = Boolean(getRefreshTokenFromCookie(c));
-  if (hasRefreshCookie && !validateRefreshCsrf(c)) {
-    return c.json({ error: 'invalid_csrf', message: 'CSRF token missing or invalid.' }, 403);
-  }
+  // CSRF check removed in favor of SameSite=Lax/Strict
 
   const ipAddress = extractIp(c) ?? null;
   const userAgent = c.req.header('user-agent') ?? null;

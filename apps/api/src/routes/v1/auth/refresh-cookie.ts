@@ -1,17 +1,14 @@
-import { randomUUID } from 'node:crypto';
 import { setCookie, getCookie } from 'hono/cookie';
 import type { Context } from 'hono';
 import type { CookieOptions } from 'hono/utils/cookie';
 
 import {
   REFRESH_COOKIE_PATH,
-  REFRESH_CSRF_COOKIE,
   REFRESH_TOKEN_COOKIE,
   USE_HOST_PREFIX,
 } from '../../../lib/refresh-cookie-constants.js';
 
 export {
-  REFRESH_CSRF_COOKIE,
   REFRESH_TOKEN_COOKIE,
 } from '../../../lib/refresh-cookie-constants.js';
 
@@ -42,20 +39,8 @@ function buildCookieOptions(expiresAt?: Date, maxAgeOverride?: number): CookieOp
   };
 }
 
-function buildCsrfCookieOptions(expiresAt?: Date, maxAgeOverride?: number): CookieOptions {
-  const base = buildCookieOptions(expiresAt, maxAgeOverride);
-  return {
-    ...base,
-    httpOnly: false, // Must be readable by browser JS to echo in header
-    path: '/', // Allow SPA to read and send on refresh/logout requests
-  };
-}
-
-export function setRefreshTokenCookie(c: Context, token: string, expiresAt: Date): string {
-  const csrfToken = randomUUID();
+export function setRefreshTokenCookie(c: Context, token: string, expiresAt: Date): void {
   setCookie(c, REFRESH_TOKEN_COOKIE, token, buildCookieOptions(expiresAt));
-  setCookie(c, REFRESH_CSRF_COOKIE, csrfToken, buildCsrfCookieOptions(expiresAt));
-  return csrfToken;
 }
 
 export function getRefreshTokenFromCookie(c: Context): string | null {
@@ -66,28 +51,6 @@ export function getRefreshTokenFromCookie(c: Context): string | null {
   }
 }
 
-export function getRefreshCsrfFromCookie(c: Context): string | null {
-  try {
-    return getCookie(c, REFRESH_CSRF_COOKIE) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function clearRefreshTokenCookie(c: Context): void {
   setCookie(c, REFRESH_TOKEN_COOKIE, '', buildCookieOptions(undefined, 0));
-  setCookie(c, REFRESH_CSRF_COOKIE, '', buildCsrfCookieOptions(undefined, 0));
-}
-
-/**
- * Validate CSRF token for refresh/logout endpoints that rely on the refresh cookie.
- * Returns true if the non-HttpOnly CSRF cookie matches the X-CSRF-Token header.
- */
-export function validateRefreshCsrf(c: Context): boolean {
-  const cookieToken = getRefreshCsrfFromCookie(c);
-  const headerToken = c.req.header('x-csrf-token');
-  if (!cookieToken || !headerToken) {
-    return false;
-  }
-  return headerToken === cookieToken;
 }

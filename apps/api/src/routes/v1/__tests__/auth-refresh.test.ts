@@ -6,7 +6,7 @@ import app from '../../../app.js';
 import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
 import { createTestUser, createSessionRecord, makeRequest } from '../../../test/helpers.js';
 import { authService } from '../../../lib/auth-service.js';
-import { REFRESH_TOKEN_COOKIE, REFRESH_CSRF_COOKIE } from '../auth/refresh-cookie.js';
+import { REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
 import { authEvents } from '@repo/auth';
 
 describe('POST /v1/auth/refresh', () => {
@@ -156,15 +156,9 @@ describe('POST /v1/auth/refresh', () => {
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
-    const csrfToken = 'test-csrf';
-
     const response = await makeRequest(app, 'POST', '/v1/auth/refresh', {
       cookies: {
         [REFRESH_TOKEN_COOKIE]: initial.refreshToken,
-        [REFRESH_CSRF_COOKIE]: csrfToken,
-      },
-      headers: {
-        'X-CSRF-Token': csrfToken,
       },
       body: {},
     });

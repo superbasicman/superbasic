@@ -9,7 +9,6 @@ import { authService } from '../../../lib/auth-service.js';
 import {
   getRefreshTokenFromCookie,
   setRefreshTokenCookie,
-  validateRefreshCsrf,
 } from './refresh-cookie.js';
 import {
   extractIp,
@@ -53,10 +52,7 @@ export async function refreshTokens(c: Context<AppBindings>) {
 
   // If the refresh token came from a cookie, require double-submit CSRF header.
   if (!payload.refreshToken) {
-    const csrfOk = validateRefreshCsrf(c);
-    if (!csrfOk) {
-      return c.json({ error: 'invalid_csrf', message: 'CSRF token missing or invalid.' }, 403);
-    }
+    // CSRF check removed in favor of SameSite=Lax/Strict
   }
 
   const parsed = parseOpaqueToken(presentedToken);
