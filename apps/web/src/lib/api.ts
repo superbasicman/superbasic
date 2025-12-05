@@ -113,7 +113,7 @@ async function maybeRefreshAccessToken() {
   await refreshAccessToken();
 }
 
-async function refreshAccessToken(force = false) {
+export async function refreshAccessToken(force = false) {
   if (refreshPromise && !force) {
     return refreshPromise;
   }
@@ -200,7 +200,6 @@ export const authApi = {
    * Logout - revokes AuthCore session and clears tokens
    */
   async logout(): Promise<void> {
-    clearTokens();
     const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
     await apiFetch('/v1/auth/logout', {
       method: 'POST',
@@ -208,6 +207,7 @@ export const authApi = {
         ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
       },
     });
+    clearTokens();
   },
 
   /**

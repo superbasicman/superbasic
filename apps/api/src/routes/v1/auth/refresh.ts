@@ -91,6 +91,8 @@ export async function refreshTokens(c: Context<AppBindings>) {
   }
 
   const now = new Date();
+  // 10 second window for benign race conditions (e.g. network retries, multiple tabs)
+  const BENIGN_RACE_THRESHOLD_MS = 10000;
 
   const ipAddress = extractIp(c) ?? null;
   const userAgent = c.req.header('user-agent') ?? null;
@@ -98,8 +100,6 @@ export async function refreshTokens(c: Context<AppBindings>) {
 
   if (tokenRecord.revokedAt) {
     const timeSinceRevocation = now.getTime() - tokenRecord.revokedAt.getTime();
-    // 10 second window for benign race conditions (e.g. network retries)
-    const BENIGN_RACE_THRESHOLD_MS = 10000;
 
     if (timeSinceRevocation > BENIGN_RACE_THRESHOLD_MS) {
       await handleRevokedTokenReuse(
@@ -151,19 +151,31 @@ export async function refreshTokens(c: Context<AppBindings>) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-      // Token was already revoked (race condition or reuse)
-      await handleRevokedTokenReuse(
-        {
-          tokenId: tokenRecord.id,
-          sessionId: session.id,
-          familyId: tokenRecord.familyId,
-          userId: tokenRecord.userId,
-          ipAddress,
-          userAgent,
-          requestId,
-        },
-        now
-      );
+      // Token was already revoked - check if this is a benign race or true reuse
+      const freshToken = await prisma.refreshToken.findUnique({
+        where: { id: tokenRecord.id },
+        select: { revokedAt: true },
+      });
+
+      if (freshToken?.revokedAt) {
+        const timeSinceRevocation = now.getTime() - freshToken.revokedAt.getTime();
+        if (timeSinceRevocation > BENIGN_RACE_THRESHOLD_MS) {
+          // Token was revoked more than 10s ago - this is true reuse, revoke family
+          await handleRevokedTokenReuse(
+            {
+              tokenId: tokenRecord.id,
+              sessionId: session.id,
+              familyId: tokenRecord.familyId,
+              userId: tokenRecord.userId,
+              ipAddress,
+              userAgent,
+              requestId,
+            },
+            now
+          );
+        }
+        // Within 10s window - treat as benign race, just reject without revoking family
+      }
       return invalidGrant(c);
     }
     throw error;

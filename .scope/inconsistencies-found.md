@@ -19,7 +19,7 @@
 
 ### Step 2.2: Session & Refresh Token Alignment
 
-- [x] 8. Refresh token reuse handling does NOT follow v1 spec: implementation revokes entire family on first reuse instead of treating first incident as benign race (apps/api/src/routes/v1/auth/refresh-utils.ts handleRevokedTokenReuse) - FIXED: added benign race check (10s window)
+- [x] 8. Refresh token reuse handling does NOT follow v1 spec: implementation revokes entire family on first reuse instead of treating first incident as benign race (apps/api/src/routes/v1/auth/refresh-utils.ts handleRevokedTokenReuse) - FIXED: added 10s benign race window in BOTH code paths (pre-check when token already revoked AND P2025 catch block for concurrent update race); family revocation only triggered if token was revoked more than 10s ago
 
 ### Step 2.3: PAT/API Key Alignment
 
@@ -108,13 +108,13 @@
 
 ### Explicit Deferrals Not Documented
 
-- [ ] 25. V1 simplifications not explicitly documented as acknowledged deferrals - refresh reuse heuristics, PAT-first integrations, pairwise subs should be tracked (no explicit deferral tracking in codebase)
+- [x] 25. V1 simplifications not explicitly documented as acknowledged deferrals - FIXED: Created docs/V1_DEFERRALS.md tracking refresh reuse heuristics, PAT workflows, pairwise subs, MFA step-up, identity unlinking, session management, and webhooks
 
 ## Phase 15: Core Invariants & Security Fundamentals Review
 
 ### Token Storage
 
-- [ ] 26. Access tokens stored in localStorage instead of memory-only - spec requires access tokens in memory only (web); current implementation uses localStorage (apps/web/src/lib/tokenStorage.ts stores accessToken in localStorage)
+- [x] 26. Access tokens stored in localStorage instead of memory-only - FIXED: Refactored tokenStorage.ts to use in-memory storage only (module-level variable); tokens are cleared on page refresh as intended for security
 
 ### Auth Decisions Through AuthContext
 

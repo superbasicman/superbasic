@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
-import { authApi, ApiError } from '../lib/api';
+import { authApi, ApiError, refreshAccessToken } from '../lib/api';
 import { getStoredTokens, clearTokens as clearStoredTokens, saveTokens } from '../lib/tokenStorage';
 import { generateCodeVerifier, generateCodeChallenge, generateState } from '../lib/pkce';
 
@@ -69,15 +69,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const tokens = getStoredTokens();
     const hasValidAccessToken =
-      !!tokens &&
+      tokens &&
       typeof tokens.accessTokenExpiresAt === 'number' &&
       tokens.accessTokenExpiresAt > Date.now();
 
+    // If no in-memory token, attempt silent refresh via HttpOnly cookie
     if (!hasValidAccessToken) {
-      clearStoredTokens();
-      setUser(null);
-      setIsLoading(false);
-      return;
+      try {
+        await refreshAccessToken();
+        // If refresh succeeded, we now have a valid token
+      } catch {
+        // Refresh failed - user is actually logged out
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
@@ -156,18 +162,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // For external provider callbacks, exchange code without PKCE verifier
       const body = isExternalProvider
         ? new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: CLIENT_ID,
-            code,
-            redirect_uri: REDIRECT_URI,
-          })
+          grant_type: 'authorization_code',
+          client_id: CLIENT_ID,
+          code,
+          redirect_uri: REDIRECT_URI,
+        })
         : new URLSearchParams({
-            grant_type: 'authorization_code',
-            client_id: CLIENT_ID,
-            code,
-            redirect_uri: REDIRECT_URI,
-            code_verifier: verifier!,
-          });
+          grant_type: 'authorization_code',
+          client_id: CLIENT_ID,
+          code,
+          redirect_uri: REDIRECT_URI,
+          code_verifier: verifier!,
+        });
 
       const response = await fetch(`${apiUrl}/v1/oauth/token`, {
         method: 'POST',
@@ -334,9 +340,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
    */
   async function logout(): Promise<void> {
     try {
-      // Call revoke endpoint
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-      await fetch(`${apiUrl}/v1/oauth/revoke`, { method: 'POST' });
+      await authApi.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
