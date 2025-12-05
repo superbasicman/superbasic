@@ -24,12 +24,9 @@ let refreshPromise: Promise<void> | null = null;
 const REFRESH_CSRF_COOKIE_HOST_NAME = '__Host-sb.refresh-csrf';
 
 function getRefreshCsrfToken() {
-  const hostCookie = getCookieValue(REFRESH_CSRF_COOKIE_HOST_NAME);
-  if (hostCookie || !import.meta.env.DEV) {
-    return hostCookie;
-  }
-  // In dev over plain http://localhost the host-only cookie is not set; fall back to legacy name.
-  return getCookieValue('sb.refresh-csrf');
+  return (
+    getCookieValue(REFRESH_CSRF_COOKIE_HOST_NAME) || getCookieValue('sb.refresh-csrf')
+  );
 }
 
 /**
