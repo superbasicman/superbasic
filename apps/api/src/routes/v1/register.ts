@@ -6,6 +6,7 @@ import { userService } from '../../services/index.js';
 import { DuplicateEmailError, InvalidEmailError, WeakPasswordError } from '@repo/core';
 import { LOCAL_PASSWORD_PROVIDER_ID, COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../lib/auth-service.js';
+import { generateCsrfToken, setCsrfCookie } from '../../middleware/csrf.js';
 
 const registerRoute = new Hono();
 
@@ -48,6 +49,10 @@ registerRoute.post('/', zValidator('json', RegisterSchema), async (c) => {
       maxAge: 30 * 24 * 60 * 60, // 30 days
       sameSite: 'Lax',
     });
+
+    // Set CSRF token for browser-based flows
+    const csrfToken = generateCsrfToken();
+    setCsrfCookie(c, csrfToken);
 
     // Return success response
     return c.json(result, 201);
