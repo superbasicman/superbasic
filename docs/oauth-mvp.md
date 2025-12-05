@@ -30,7 +30,7 @@ Goal: single OAuth 2.1 path for the web dashboard, matching `docs/auth-migration
 - SPA callback: validates `state`, surfaces `error`/`error_description` query params, fails fast on missing PKCE params.
 
 ## Testing checklist
-- Seed client: `pnpm seed:local` (or `seed:dev/seed:prod`).
+- Seed client: `pnpm db:seed --target test` (or `local`/`prod`).
 - Auth code happy path: /login → /authorize → /token returns access+refresh, cookie set.
 - Refresh: POST /v1/oauth/token with `grant_type=refresh_token` rotates refresh tokens, issues new access token.
 - Negative: PKCE mismatch, reused/expired auth code, revoked session, invalid redirect URI → errors as above.

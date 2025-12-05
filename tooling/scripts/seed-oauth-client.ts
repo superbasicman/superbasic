@@ -22,7 +22,7 @@ type SeedConfig = {
   type?: 'public' | 'confidential';
 };
 
-function normalizeRedirectUris(envValue: string | undefined, fallback: string[]): string[] {
+function normalizeRedirectUris(envValue: string | undefined, fallback: string[], allowEmpty = false): string[] {
   const uris = Array.from(
     new Set(
       (envValue ?? fallback.join(','))
@@ -32,7 +32,7 @@ function normalizeRedirectUris(envValue: string | undefined, fallback: string[])
     )
   );
 
-  if (uris.length === 0) {
+  if (uris.length === 0 && !allowEmpty) {
     throw new Error('At least one redirect URI must be provided for each OAuth client');
   }
 
@@ -50,12 +50,17 @@ function buildSeedConfigs(): SeedConfig[] {
     type: 'public',
   };
 
+  const additionalUris = normalizeRedirectUris(process.env.ADDITIONAL_REDIRECT_URIS, [], true);
+
   const webDashboard: SeedConfig = {
     clientId: (process.env.WEB_OAUTH_CLIENT_ID ?? 'web-dashboard').trim(),
     name: process.env.WEB_OAUTH_CLIENT_NAME?.trim() || 'SuperBasic Web Dashboard',
-    redirectUris: normalizeRedirectUris(process.env.WEB_OAUTH_REDIRECT_URIS, [
-      'http://localhost:5173/auth/callback',
-    ]),
+    redirectUris: [
+      ...normalizeRedirectUris(process.env.WEB_OAUTH_REDIRECT_URIS, [
+        'http://localhost:5173/auth/callback',
+      ]),
+      ...additionalUris,
+    ],
     type: 'public',
   };
 

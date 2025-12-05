@@ -47,18 +47,18 @@ pnpm --filter=@repo/web test:e2e:run auth.spec.ts
 # Generate Prisma client (must run after schema changes)
 pnpm db:generate
 
-# Run migrations
-pnpm db:migrate
+# Run migrations (options: test, local, prod)
+pnpm db:migrate --target local
 
 # Open Prisma Studio
 pnpm db:studio
 
 # Seed OAuth client (required for OAuth flows)
-pnpm seed:local   # For local postgres
-pnpm seed:dev     # For dev environment
+pnpm db:seed --target test  # For local test DB
+pnpm db:seed --target local # For dev env (Neon branch)
 
-# Reset test database
-pnpm db:reset-envtest
+# Reset database (wipes data and reseeds)
+pnpm db:reset --target local
 ```
 
 ### Code Quality

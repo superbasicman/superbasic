@@ -241,14 +241,14 @@ pnpm format
 # Generate Prisma client
 pnpm db:generate
 
-# Run migrations
-pnpm db:migrate
+# Run migrations (options: test, local, prod)
+pnpm db:migrate --target local
 
-# Open Prisma Studio
-pnpm db:studio
+# Seed database (options: test, local, prod)
+pnpm db:seed --target local
 
-# Reset database (dev only)
-pnpm db:reset
+# Reset database (wipes data and reseeds)
+pnpm db:reset --target local
 ```
 
 ### OpenAPI & SDK
