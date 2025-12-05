@@ -41,14 +41,6 @@ magicLink.post(
     const tokenHash = createTokenHashEnvelope(token);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-    // Find or note the user (don't reveal if user exists)
-    const user = await prisma.user.findFirst({
-      where: {
-        primaryEmail: normalizedEmail,
-        deletedAt: null,
-      },
-    });
-
     // Create a unique token ID for lookup
     const tokenId = randomBytes(16).toString('base64url');
 
@@ -66,17 +58,16 @@ magicLink.post(
     // Build magic link URL
     const magicLinkUrl = `${API_URL}/v1/auth/magic-link/verify?token=${encodeURIComponent(token)}&email=${encodeURIComponent(normalizedEmail)}`;
 
-    // Send email (only if user exists, but always return success for security)
-    if (user) {
-      try {
-        await sendMagicLinkEmail({
-          to: normalizedEmail,
-          url: magicLinkUrl,
-        });
-      } catch (error) {
-        console.error('Failed to send magic link email:', error);
-        // Don't reveal error to prevent email enumeration
-      }
+    // Send magic link email - always send regardless of whether user exists
+    // New users will be created when they verify the link via upsertMagicLinkIdentity
+    try {
+      await sendMagicLinkEmail({
+        to: normalizedEmail,
+        url: magicLinkUrl,
+      });
+    } catch (error) {
+      console.error('Failed to send magic link email:', error);
+      // Don't reveal error to prevent email enumeration
     }
 
     // Always return success to prevent email enumeration
