@@ -109,7 +109,7 @@
 
 ## Phase 13: Admin/Support & Operational Controls Review
 
-- [x] No dedicated admin routes found - appears deferred
+- [ ] 30. No dedicated admin/support routes or audit for admin actions — admin tooling is deferred; spec expects RLS-safe admin access with explicit logging of admin actions (currently only refresh.reuse_detected logs at error level)
 - [x] High-severity security events trigger logging at error level (refresh.reuse_detected)
 
 ## Phase 14: Backwards Compatibility & V1 Simplifications Review
