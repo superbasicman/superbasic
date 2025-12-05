@@ -44,6 +44,7 @@
     "start-db": "tsx tooling/scripts/ensure-local-postgres.ts",
     "stop-db": "tsx tooling/scripts/stop-local-postgres.ts",
     "db:reset-envtest": "pnpm exec dotenv -e apps/api/.env.test -- sh -c 'psql \"$DATABASE_URL\" -c \"DROP SCHEMA public CASCADE; CREATE SCHEMA public;\" && pnpm --filter @repo/database exec prisma migrate deploy && pnpm db:seed-oauth'",
+    "db:reset:prod": "dotenv -e packages/database/.env.local -- sh -c 'export DATABASE_URL=\"$PRODUCTION_DATABASE_URL\"; pnpm --filter @repo/database exec prisma migrate reset --force && pnpm db:seed-oauth'",
     "db:migrate:local": "cd packages/database && DATABASE_URL=postgresql://superbasic:superbasic@localhost:5432/superbasic_test pnpm exec prisma migrate dev --skip-generate",
     "postinstall": "pnpm --filter @repo/database run generate && pnpm run db:ensure-local",
     "curl-test": "bash tooling/scripts/curl-test.sh"

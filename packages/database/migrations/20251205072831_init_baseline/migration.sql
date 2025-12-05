@@ -1,0 +1,1330 @@
+-- CreateEnum
+CREATE TYPE "UserState" AS ENUM ('active', 'disabled', 'locked');
+
+-- CreateEnum
+CREATE TYPE "IdentityProvider" AS ENUM ('google', 'github', 'auth0', 'local_password', 'local_magic_link');
+
+-- CreateEnum
+CREATE TYPE "WorkspaceType" AS ENUM ('personal', 'shared');
+
+-- CreateEnum
+CREATE TYPE "WorkspaceRole" AS ENUM ('owner', 'admin', 'member', 'viewer');
+
+-- CreateEnum
+CREATE TYPE "MfaLevel" AS ENUM ('none', 'mfa', 'phishing_resistant');
+
+-- CreateEnum
+CREATE TYPE "VerificationTokenType" AS ENUM ('email_verification', 'password_reset', 'magic_link', 'invite');
+
+-- CreateEnum
+CREATE TYPE "ServiceType" AS ENUM ('internal', 'external');
+
+-- CreateEnum
+CREATE TYPE "OAuthClientType" AS ENUM ('public', 'confidential');
+
+-- CreateEnum
+CREATE TYPE "OAuthGrantType" AS ENUM ('authorization_code', 'refresh_token', 'client_credentials', 'device_code');
+
+-- CreateEnum
+CREATE TYPE "PkceChallengeMethod" AS ENUM ('S256', 'plain');
+
+-- CreateEnum
+CREATE TYPE "AuthMethod" AS ENUM ('none', 'client_secret_post', 'client_secret_basic', 'private_key_jwt');
+
+-- CreateEnum
+CREATE TYPE "ClientType" AS ENUM ('web', 'mobile', 'cli', 'service', 'other');
+
+-- CreateTable
+CREATE TABLE "users" (
+    "id" UUID NOT NULL,
+    "parimary_email" TEXT NOT NULL,
+    "email_verified" BOOLEAN NOT NULL DEFAULT false,
+    "display_name" TEXT,
+    "picture" TEXT,
+    "user_state" "UserState" NOT NULL DEFAULT 'active',
+    "default_workspace_id" UUID,
+    "last_login_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_passwords" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "password_hash" TEXT NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_passwords_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_identities" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "provider" "IdentityProvider" NOT NULL,
+    "provider_subject" TEXT NOT NULL,
+    "email_at_provider" TEXT,
+    "email_verified_at_provider" BOOLEAN,
+    "raw_profile" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "linked_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "user_identities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "verification_tokens" (
+    "id" UUID NOT NULL,
+    "identifier" TEXT NOT NULL,
+    "token_id" TEXT NOT NULL,
+    "hash_envelope" JSONB NOT NULL,
+    "type" "VerificationTokenType" NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "consumed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "verification_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "auth_sessions" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "last_activity_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "mfa_level" "MfaLevel" NOT NULL DEFAULT 'none',
+    "mfa_completed_at" TIMESTAMP(3),
+    "client_info" JSONB,
+    "ip_address" TEXT,
+    "revoked_at" TIMESTAMP(3),
+
+    CONSTRAINT "auth_sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "refresh_tokens" (
+    "id" TEXT NOT NULL,
+    "user_id" UUID NOT NULL,
+    "session_id" UUID NOT NULL,
+    "family_id" UUID NOT NULL,
+    "hash_envelope" JSONB NOT NULL,
+    "last4" TEXT,
+    "issued_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "last_used_at" TIMESTAMP(3),
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "revoked_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_by_ip" TEXT,
+    "last_used_ip" TEXT,
+    "user_agent" TEXT,
+    "rotated_from_id" TEXT,
+
+    CONSTRAINT "refresh_tokens_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "api_keys" (
+    "id" TEXT NOT NULL,
+    "user_id" UUID NOT NULL,
+    "workspace_id" UUID,
+    "key_hash" JSONB NOT NULL,
+    "last4" TEXT,
+    "scopes" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "name" TEXT,
+    "issued_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "last_used_at" TIMESTAMP(3),
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "revoked_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "created_by_ip" TEXT,
+    "last_used_ip" TEXT,
+    "user_agent" TEXT,
+    "metadata" JSONB,
+
+    CONSTRAINT "api_keys_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "service_identities" (
+    "id" UUID NOT NULL,
+    "name" TEXT NOT NULL,
+    "serviceType" "ServiceType" NOT NULL DEFAULT 'internal',
+    "allowed_workspaces" JSONB DEFAULT '[]',
+    "client_id" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "disabled_at" TIMESTAMP(3),
+
+    CONSTRAINT "service_identities_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "client_secrets" (
+    "id" UUID NOT NULL,
+    "service_identity_id" UUID NOT NULL,
+    "secret_hash" JSONB NOT NULL,
+    "last4" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "expires_at" TIMESTAMP(3),
+    "revoked_at" TIMESTAMP(3),
+
+    CONSTRAINT "client_secrets_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "security_events" (
+    "id" UUID NOT NULL,
+    "user_id" UUID,
+    "workspace_id" UUID,
+    "service_id" UUID,
+    "event_type" TEXT NOT NULL,
+    "ip_address" TEXT,
+    "user_agent" TEXT,
+    "metadata" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "security_events_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspaces" (
+    "id" UUID NOT NULL,
+    "owner_user_id" UUID,
+    "name" TEXT NOT NULL,
+    "slug" TEXT NOT NULL,
+    "workspace_type" "WorkspaceType" NOT NULL DEFAULT 'personal',
+    "settings" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "workspaces_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspace_memberships" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "role" "WorkspaceRole" NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "invited_at" TIMESTAMP(3),
+    "accepted_at" TIMESTAMP(3),
+    "revoked_at" TIMESTAMP(3),
+
+    CONSTRAINT "workspace_memberships_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "oauth_clients" (
+    "id" UUID NOT NULL,
+    "client_id" TEXT NOT NULL,
+    "client_type" "OAuthClientType" NOT NULL,
+    "name" TEXT NOT NULL,
+    "redirect_uris" TEXT[],
+    "allowed_grant_types" "OAuthGrantType"[] DEFAULT ARRAY[]::"OAuthGrantType"[],
+    "allowed_scopes" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "token_endpoint_auth_method" "AuthMethod" NOT NULL DEFAULT 'none',
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "disabled_at" TIMESTAMP(3),
+
+    CONSTRAINT "oauth_clients_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "oauth_authorization_codes" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "client_id" TEXT NOT NULL,
+    "redirect_uri" TEXT NOT NULL,
+    "code_hash" JSONB NOT NULL,
+    "code_challenge" TEXT NOT NULL,
+    "code_challenge_method" "PkceChallengeMethod" NOT NULL DEFAULT 'S256',
+    "scopes" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "nonce" TEXT,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "consumed_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "oauth_authorization_codes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "profiles" (
+    "id" UUID NOT NULL,
+    "user_id" UUID NOT NULL,
+    "timezone" TEXT NOT NULL DEFAULT 'UTC',
+    "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
+    "settings" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "profiles_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "subscriptions" (
+    "id" UUID NOT NULL,
+    "profile_id" UUID NOT NULL,
+    "stripe_customer_id" TEXT,
+    "stripe_subscription_id" TEXT,
+    "slot_limit" INTEGER,
+    "status" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "saved_views" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "name" TEXT,
+    "is_default" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "saved_views_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_filters" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "payload" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_filters_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_sorts" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "payload" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_sorts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_group_by" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "payload" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_group_by_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_rule_overrides" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "payload" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_rule_overrides_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_category_groups" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "payload" JSONB NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_category_groups_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_category_overrides" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "source_category_id" UUID,
+    "target_category_id" UUID,
+    "workspace_source_category_id" UUID,
+    "workspace_target_category_id" UUID,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "view_category_overrides_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_shares" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "profile_id" UUID NOT NULL,
+    "can_edit" BOOLEAN NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_shares_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "view_links" (
+    "id" UUID NOT NULL,
+    "view_id" UUID NOT NULL,
+    "token_id" UUID NOT NULL,
+    "token_hash" JSONB NOT NULL,
+    "passcode_hash" JSONB,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "created_by_profile_id" UUID NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "view_links_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "account_groups" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "name" TEXT,
+    "color" TEXT,
+    "sort" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "account_groups_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "account_group_memberships" (
+    "id" UUID NOT NULL,
+    "group_id" UUID NOT NULL,
+    "account_id" UUID NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "account_group_memberships_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspace_connection_links" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "granted_by_profile_id" UUID NOT NULL,
+    "account_scope_json" JSONB,
+    "expires_at" TIMESTAMP(3),
+    "revoked_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "workspace_connection_links_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspace_allowed_accounts" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "bank_account_id" UUID NOT NULL,
+    "granted_by_profile_id" UUID NOT NULL,
+    "revoked_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "workspace_allowed_accounts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "categories" (
+    "id" UUID NOT NULL,
+    "profile_id" UUID,
+    "parent_id" UUID,
+    "slug" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "sort" INTEGER,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "categories_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "profile_category_overrides" (
+    "id" UUID NOT NULL,
+    "profile_id" UUID NOT NULL,
+    "source_category_id" UUID NOT NULL,
+    "target_category_id" UUID,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "profile_category_overrides_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspace_categories" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "parent_id" UUID,
+    "slug" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "sort" INTEGER,
+    "color" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "workspace_categories_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "workspace_category_overrides" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "source_category_id" UUID,
+    "target_category_id" UUID,
+    "system_source_category_id" UUID,
+    "system_target_category_id" UUID,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "workspace_category_overrides_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "connections" (
+    "id" UUID NOT NULL,
+    "owner_profile_id" UUID NOT NULL,
+    "provider" TEXT NOT NULL,
+    "provider_item_id" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "tx_cursor" TEXT,
+    "config" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "connections_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "connection_sponsor_history" (
+    "id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "from_profile_id" UUID,
+    "to_profile_id" UUID NOT NULL,
+    "changed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "connection_sponsor_history_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "connection_secrets" (
+    "id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "access_token_ciphertext" TEXT,
+    "processor_token_ciphertext" TEXT,
+    "webhook_secret_ciphertext" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "connection_secrets_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "bank_accounts" (
+    "id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "external_account_id" TEXT NOT NULL,
+    "institution" TEXT,
+    "subtype" TEXT,
+    "mask" TEXT,
+    "name" TEXT,
+    "balance_cents" BIGINT,
+    "currency" VARCHAR(3) NOT NULL,
+    "hidden" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "bank_accounts_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "transactions" (
+    "id" UUID NOT NULL,
+    "account_id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "provider_tx_id" TEXT NOT NULL,
+    "posted_at" TIMESTAMP(3) NOT NULL,
+    "authorized_at" TIMESTAMP(3),
+    "amount_cents" BIGINT NOT NULL,
+    "currency" VARCHAR(3) NOT NULL,
+    "system_category_id" UUID,
+    "merchant_raw" TEXT,
+    "raw_payload" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "transactions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "transaction_overlays" (
+    "id" UUID NOT NULL,
+    "transaction_id" UUID NOT NULL,
+    "profile_id" UUID NOT NULL,
+    "category_id" UUID,
+    "notes" TEXT,
+    "tags" TEXT[] DEFAULT ARRAY[]::TEXT[],
+    "splits" JSONB NOT NULL DEFAULT '[]',
+    "merchant_correction" TEXT,
+    "exclude" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "transaction_overlays_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "transaction_audit_log" (
+    "id" UUID NOT NULL,
+    "transaction_id" UUID NOT NULL,
+    "sync_session_id" UUID,
+    "event" TEXT NOT NULL,
+    "details" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "transaction_audit_log_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "budget_plans" (
+    "id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "owner_profile_id" UUID NOT NULL,
+    "name" TEXT,
+    "currency" VARCHAR(3) NOT NULL,
+    "rollup_mode" TEXT NOT NULL,
+    "view_id" UUID,
+    "view_filter_snapshot" JSONB,
+    "view_filter_hash" TEXT,
+    "is_template" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "budget_plans_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "budget_versions" (
+    "id" UUID NOT NULL,
+    "plan_id" UUID NOT NULL,
+    "version_no" INTEGER NOT NULL,
+    "effective_from" TIMESTAMP(3) NOT NULL,
+    "effective_to" TIMESTAMP(3),
+    "period" TEXT NOT NULL,
+    "carryover_mode" TEXT NOT NULL,
+    "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "budget_versions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "budget_envelopes" (
+    "id" UUID NOT NULL,
+    "version_id" UUID NOT NULL,
+    "category_id" UUID,
+    "label" TEXT NOT NULL,
+    "limit_cents" BIGINT NOT NULL,
+    "warn_at_pct" INTEGER,
+    "group_label" TEXT,
+    "metadata" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+    "deleted_at" TIMESTAMP(3),
+
+    CONSTRAINT "budget_envelopes_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "budget_actuals" (
+    "plan_id" UUID NOT NULL,
+    "version_id" UUID NOT NULL,
+    "envelope_id" UUID NOT NULL,
+    "workspace_id" UUID NOT NULL,
+    "period" DATE NOT NULL,
+    "currency" VARCHAR(3) NOT NULL,
+    "rollup_mode" TEXT NOT NULL,
+    "posted_amount_cents" BIGINT NOT NULL,
+    "authorized_amount_cents" BIGINT NOT NULL,
+    "workspace_category_id" UUID,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "budget_actuals_pkey" PRIMARY KEY ("plan_id","version_id","envelope_id","period")
+);
+
+-- CreateTable
+CREATE TABLE "sync_sessions" (
+    "id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "initiator_profile_id" UUID NOT NULL,
+    "status" TEXT NOT NULL,
+    "started_at" TIMESTAMP(3),
+    "ended_at" TIMESTAMP(3),
+    "stats" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "sync_sessions_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "session_page_payloads" (
+    "id" UUID NOT NULL,
+    "sync_session_id" UUID NOT NULL,
+    "page_no" INTEGER NOT NULL,
+    "payload" JSONB NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "session_page_payloads_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "session_idempotency" (
+    "id" UUID NOT NULL,
+    "sync_session_id" UUID NOT NULL,
+    "idempotency_key" TEXT NOT NULL,
+    "status" TEXT NOT NULL,
+    "result_ref" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "session_idempotency_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "session_leases" (
+    "id" UUID NOT NULL,
+    "sync_session_id" UUID NOT NULL,
+    "leased_until" TIMESTAMP(3) NOT NULL,
+    "holder" TEXT NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "session_leases_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "sync_audit_log" (
+    "id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "sync_session_id" UUID,
+    "initiator_profile_id" UUID,
+    "event" TEXT NOT NULL,
+    "details" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "sync_audit_log_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "user_connection_access_cache" (
+    "id" UUID NOT NULL,
+    "profile_id" UUID NOT NULL,
+    "connection_id" UUID NOT NULL,
+    "workspace_id" UUID,
+    "account_scope_json" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "user_connection_access_cache_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "profile_transaction_access_cache" (
+    "id" UUID NOT NULL,
+    "transaction_id" UUID NOT NULL,
+    "profile_id" UUID NOT NULL,
+    "workspace_id" UUID,
+    "connection_id" UUID,
+    "bank_account_id" UUID,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "profile_transaction_access_cache_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE INDEX "users_user_state_idx" ON "users"("user_state");
+
+-- CreateIndex
+CREATE INDEX "users_deleted_at_idx" ON "users"("deleted_at");
+
+-- CreateIndex
+CREATE INDEX "users_last_login_at_idx" ON "users"("last_login_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_parimary_email_deleted_at_key" ON "users"("parimary_email", "deleted_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_passwords_user_id_key" ON "user_passwords"("user_id");
+
+-- CreateIndex
+CREATE INDEX "user_passwords_user_id_idx" ON "user_passwords"("user_id");
+
+-- CreateIndex
+CREATE INDEX "user_identities_user_id_idx" ON "user_identities"("user_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "user_identities_provider_provider_subject_key" ON "user_identities"("provider", "provider_subject");
+
+-- CreateIndex
+CREATE INDEX "verification_tokens_identifier_idx" ON "verification_tokens"("identifier");
+
+-- CreateIndex
+CREATE INDEX "verification_tokens_expires_at_idx" ON "verification_tokens"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "verification_tokens_consumed_at_idx" ON "verification_tokens"("consumed_at");
+
+-- CreateIndex
+CREATE INDEX "auth_sessions_user_id_idx" ON "auth_sessions"("user_id");
+
+-- CreateIndex
+CREATE INDEX "auth_sessions_revoked_at_idx" ON "auth_sessions"("revoked_at");
+
+-- CreateIndex
+CREATE INDEX "auth_sessions_expires_at_idx" ON "auth_sessions"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_user_id_idx" ON "refresh_tokens"("user_id");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_session_id_idx" ON "refresh_tokens"("session_id");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_family_id_idx" ON "refresh_tokens"("family_id");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_revoked_at_idx" ON "refresh_tokens"("revoked_at");
+
+-- CreateIndex
+CREATE INDEX "refresh_tokens_expires_at_idx" ON "refresh_tokens"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "api_keys_user_id_idx" ON "api_keys"("user_id");
+
+-- CreateIndex
+CREATE INDEX "api_keys_workspace_id_idx" ON "api_keys"("workspace_id");
+
+-- CreateIndex
+CREATE INDEX "api_keys_revoked_at_idx" ON "api_keys"("revoked_at");
+
+-- CreateIndex
+CREATE INDEX "api_keys_expires_at_idx" ON "api_keys"("expires_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "service_identities_client_id_key" ON "service_identities"("client_id");
+
+-- CreateIndex
+CREATE INDEX "service_identities_serviceType_idx" ON "service_identities"("serviceType");
+
+-- CreateIndex
+CREATE INDEX "service_identities_disabled_at_idx" ON "service_identities"("disabled_at");
+
+-- CreateIndex
+CREATE INDEX "client_secrets_service_identity_id_idx" ON "client_secrets"("service_identity_id");
+
+-- CreateIndex
+CREATE INDEX "client_secrets_revoked_at_idx" ON "client_secrets"("revoked_at");
+
+-- CreateIndex
+CREATE INDEX "client_secrets_expires_at_idx" ON "client_secrets"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "security_events_user_id_idx" ON "security_events"("user_id");
+
+-- CreateIndex
+CREATE INDEX "security_events_workspace_id_idx" ON "security_events"("workspace_id");
+
+-- CreateIndex
+CREATE INDEX "security_events_service_id_idx" ON "security_events"("service_id");
+
+-- CreateIndex
+CREATE INDEX "security_events_event_type_idx" ON "security_events"("event_type");
+
+-- CreateIndex
+CREATE INDEX "security_events_created_at_idx" ON "security_events"("created_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "workspaces_slug_key" ON "workspaces"("slug");
+
+-- CreateIndex
+CREATE INDEX "workspaces_owner_user_id_idx" ON "workspaces"("owner_user_id");
+
+-- CreateIndex
+CREATE INDEX "workspaces_workspace_type_idx" ON "workspaces"("workspace_type");
+
+-- CreateIndex
+CREATE INDEX "workspaces_deleted_at_idx" ON "workspaces"("deleted_at");
+
+-- CreateIndex
+CREATE INDEX "workspace_memberships_user_id_idx" ON "workspace_memberships"("user_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_memberships_revoked_at_idx" ON "workspace_memberships"("revoked_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "workspace_memberships_workspace_id_user_id_revoked_at_key" ON "workspace_memberships"("workspace_id", "user_id", "revoked_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "oauth_clients_client_id_key" ON "oauth_clients"("client_id");
+
+-- CreateIndex
+CREATE INDEX "oauth_clients_disabled_at_idx" ON "oauth_clients"("disabled_at");
+
+-- CreateIndex
+CREATE INDEX "oauth_authorization_codes_client_id_idx" ON "oauth_authorization_codes"("client_id");
+
+-- CreateIndex
+CREATE INDEX "oauth_authorization_codes_expires_at_idx" ON "oauth_authorization_codes"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "oauth_authorization_codes_consumed_at_idx" ON "oauth_authorization_codes"("consumed_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "profiles_user_id_key" ON "profiles"("user_id");
+
+-- CreateIndex
+CREATE INDEX "subscriptions_profile_id_idx" ON "subscriptions"("profile_id");
+
+-- CreateIndex
+CREATE INDEX "view_shares_view_id_idx" ON "view_shares"("view_id");
+
+-- CreateIndex
+CREATE INDEX "view_shares_profile_id_idx" ON "view_shares"("profile_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "view_links_token_id_key" ON "view_links"("token_id");
+
+-- CreateIndex
+CREATE INDEX "view_links_view_id_idx" ON "view_links"("view_id");
+
+-- CreateIndex
+CREATE INDEX "view_links_expires_at_idx" ON "view_links"("expires_at");
+
+-- CreateIndex
+CREATE INDEX "account_group_memberships_group_id_idx" ON "account_group_memberships"("group_id");
+
+-- CreateIndex
+CREATE INDEX "account_group_memberships_account_id_idx" ON "account_group_memberships"("account_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_connection_links_workspace_id_idx" ON "workspace_connection_links"("workspace_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_connection_links_connection_id_idx" ON "workspace_connection_links"("connection_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_allowed_accounts_workspace_id_idx" ON "workspace_allowed_accounts"("workspace_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_allowed_accounts_bank_account_id_idx" ON "workspace_allowed_accounts"("bank_account_id");
+
+-- CreateIndex
+CREATE INDEX "categories_profile_id_idx" ON "categories"("profile_id");
+
+-- CreateIndex
+CREATE INDEX "profile_category_overrides_profile_id_idx" ON "profile_category_overrides"("profile_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_categories_workspace_id_idx" ON "workspace_categories"("workspace_id");
+
+-- CreateIndex
+CREATE INDEX "workspace_category_overrides_workspace_id_idx" ON "workspace_category_overrides"("workspace_id");
+
+-- CreateIndex
+CREATE INDEX "connections_owner_profile_id_idx" ON "connections"("owner_profile_id");
+
+-- CreateIndex
+CREATE INDEX "connections_provider_provider_item_id_idx" ON "connections"("provider", "provider_item_id");
+
+-- CreateIndex
+CREATE INDEX "connection_sponsor_history_connection_id_idx" ON "connection_sponsor_history"("connection_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "connection_secrets_connection_id_key" ON "connection_secrets"("connection_id");
+
+-- CreateIndex
+CREATE INDEX "bank_accounts_connection_id_idx" ON "bank_accounts"("connection_id");
+
+-- CreateIndex
+CREATE INDEX "transactions_account_id_idx" ON "transactions"("account_id");
+
+-- CreateIndex
+CREATE INDEX "transactions_connection_id_provider_tx_id_idx" ON "transactions"("connection_id", "provider_tx_id");
+
+-- CreateIndex
+CREATE INDEX "transactions_posted_at_idx" ON "transactions"("posted_at");
+
+-- CreateIndex
+CREATE INDEX "transaction_overlays_profile_id_idx" ON "transaction_overlays"("profile_id");
+
+-- CreateIndex
+CREATE INDEX "transaction_overlays_transaction_id_idx" ON "transaction_overlays"("transaction_id");
+
+-- CreateIndex
+CREATE INDEX "transaction_audit_log_transaction_id_idx" ON "transaction_audit_log"("transaction_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "budget_versions_plan_id_version_no_key" ON "budget_versions"("plan_id", "version_no");
+
+-- CreateIndex
+CREATE INDEX "budget_actuals_workspace_id_period_idx" ON "budget_actuals"("workspace_id", "period");
+
+-- CreateIndex
+CREATE INDEX "sync_sessions_connection_id_idx" ON "sync_sessions"("connection_id");
+
+-- CreateIndex
+CREATE INDEX "session_page_payloads_sync_session_id_idx" ON "session_page_payloads"("sync_session_id");
+
+-- CreateIndex
+CREATE INDEX "session_page_payloads_expires_at_idx" ON "session_page_payloads"("expires_at");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "session_idempotency_idempotency_key_key" ON "session_idempotency"("idempotency_key");
+
+-- CreateIndex
+CREATE INDEX "session_idempotency_sync_session_id_idx" ON "session_idempotency"("sync_session_id");
+
+-- CreateIndex
+CREATE INDEX "session_leases_sync_session_id_idx" ON "session_leases"("sync_session_id");
+
+-- CreateIndex
+CREATE INDEX "sync_audit_log_connection_id_idx" ON "sync_audit_log"("connection_id");
+
+-- CreateIndex
+CREATE INDEX "user_connection_access_cache_profile_id_idx" ON "user_connection_access_cache"("profile_id");
+
+-- CreateIndex
+CREATE INDEX "user_connection_access_cache_connection_id_idx" ON "user_connection_access_cache"("connection_id");
+
+-- CreateIndex
+CREATE INDEX "profile_transaction_access_cache_transaction_id_idx" ON "profile_transaction_access_cache"("transaction_id");
+
+-- CreateIndex
+CREATE INDEX "profile_transaction_access_cache_profile_id_idx" ON "profile_transaction_access_cache"("profile_id");
+
+-- AddForeignKey
+ALTER TABLE "user_passwords" ADD CONSTRAINT "user_passwords_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_identities" ADD CONSTRAINT "user_identities_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "auth_sessions" ADD CONSTRAINT "auth_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_session_id_fkey" FOREIGN KEY ("session_id") REFERENCES "auth_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_rotated_from_id_fkey" FOREIGN KEY ("rotated_from_id") REFERENCES "refresh_tokens"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "service_identities" ADD CONSTRAINT "service_identities_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "oauth_clients"("client_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "client_secrets" ADD CONSTRAINT "client_secrets_service_identity_id_fkey" FOREIGN KEY ("service_identity_id") REFERENCES "service_identities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "security_events" ADD CONSTRAINT "security_events_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "security_events" ADD CONSTRAINT "security_events_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "security_events" ADD CONSTRAINT "security_events_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "service_identities"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_memberships" ADD CONSTRAINT "workspace_memberships_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_memberships" ADD CONSTRAINT "workspace_memberships_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "oauth_authorization_codes" ADD CONSTRAINT "oauth_authorization_codes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "oauth_authorization_codes" ADD CONSTRAINT "oauth_authorization_codes_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "oauth_clients"("client_id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profiles" ADD CONSTRAINT "profiles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "saved_views" ADD CONSTRAINT "saved_views_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_filters" ADD CONSTRAINT "view_filters_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_sorts" ADD CONSTRAINT "view_sorts_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_group_by" ADD CONSTRAINT "view_group_by_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_rule_overrides" ADD CONSTRAINT "view_rule_overrides_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_category_groups" ADD CONSTRAINT "view_category_groups_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_category_overrides" ADD CONSTRAINT "view_category_overrides_source_category_id_fkey" FOREIGN KEY ("source_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_category_overrides" ADD CONSTRAINT "view_category_overrides_target_category_id_fkey" FOREIGN KEY ("target_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_category_overrides" ADD CONSTRAINT "view_category_overrides_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_category_overrides" ADD CONSTRAINT "view_category_overrides_workspace_source_category_id_fkey" FOREIGN KEY ("workspace_source_category_id") REFERENCES "workspace_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_category_overrides" ADD CONSTRAINT "view_category_overrides_workspace_target_category_id_fkey" FOREIGN KEY ("workspace_target_category_id") REFERENCES "workspace_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_shares" ADD CONSTRAINT "view_shares_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_shares" ADD CONSTRAINT "view_shares_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_links" ADD CONSTRAINT "view_links_created_by_profile_id_fkey" FOREIGN KEY ("created_by_profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "view_links" ADD CONSTRAINT "view_links_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "account_groups" ADD CONSTRAINT "account_groups_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "account_group_memberships" ADD CONSTRAINT "account_group_memberships_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "bank_accounts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "account_group_memberships" ADD CONSTRAINT "account_group_memberships_group_id_fkey" FOREIGN KEY ("group_id") REFERENCES "account_groups"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_connection_links" ADD CONSTRAINT "workspace_connection_links_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_connection_links" ADD CONSTRAINT "workspace_connection_links_granted_by_profile_id_fkey" FOREIGN KEY ("granted_by_profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_connection_links" ADD CONSTRAINT "workspace_connection_links_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_allowed_accounts" ADD CONSTRAINT "workspace_allowed_accounts_bank_account_id_fkey" FOREIGN KEY ("bank_account_id") REFERENCES "bank_accounts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_allowed_accounts" ADD CONSTRAINT "workspace_allowed_accounts_granted_by_profile_id_fkey" FOREIGN KEY ("granted_by_profile_id") REFERENCES "profiles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_allowed_accounts" ADD CONSTRAINT "workspace_allowed_accounts_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "categories" ADD CONSTRAINT "categories_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "categories" ADD CONSTRAINT "categories_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_category_overrides" ADD CONSTRAINT "profile_category_overrides_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_category_overrides" ADD CONSTRAINT "profile_category_overrides_source_category_id_fkey" FOREIGN KEY ("source_category_id") REFERENCES "categories"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_category_overrides" ADD CONSTRAINT "profile_category_overrides_target_category_id_fkey" FOREIGN KEY ("target_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_categories" ADD CONSTRAINT "workspace_categories_parent_id_fkey" FOREIGN KEY ("parent_id") REFERENCES "workspace_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_categories" ADD CONSTRAINT "workspace_categories_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_category_overrides" ADD CONSTRAINT "workspace_category_overrides_source_category_id_fkey" FOREIGN KEY ("source_category_id") REFERENCES "workspace_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_category_overrides" ADD CONSTRAINT "workspace_category_overrides_system_source_category_id_fkey" FOREIGN KEY ("system_source_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_category_overrides" ADD CONSTRAINT "workspace_category_overrides_system_target_category_id_fkey" FOREIGN KEY ("system_target_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_category_overrides" ADD CONSTRAINT "workspace_category_overrides_target_category_id_fkey" FOREIGN KEY ("target_category_id") REFERENCES "workspace_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "workspace_category_overrides" ADD CONSTRAINT "workspace_category_overrides_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "connections" ADD CONSTRAINT "connections_owner_profile_id_fkey" FOREIGN KEY ("owner_profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "connection_sponsor_history" ADD CONSTRAINT "connection_sponsor_history_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "connection_sponsor_history" ADD CONSTRAINT "connection_sponsor_history_from_profile_id_fkey" FOREIGN KEY ("from_profile_id") REFERENCES "profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "connection_sponsor_history" ADD CONSTRAINT "connection_sponsor_history_to_profile_id_fkey" FOREIGN KEY ("to_profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "connection_secrets" ADD CONSTRAINT "connection_secrets_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "bank_accounts" ADD CONSTRAINT "bank_accounts_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_account_id_fkey" FOREIGN KEY ("account_id") REFERENCES "bank_accounts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transactions" ADD CONSTRAINT "transactions_system_category_id_fkey" FOREIGN KEY ("system_category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transaction_overlays" ADD CONSTRAINT "transaction_overlays_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transaction_overlays" ADD CONSTRAINT "transaction_overlays_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transaction_overlays" ADD CONSTRAINT "transaction_overlays_transaction_id_fkey" FOREIGN KEY ("transaction_id") REFERENCES "transactions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transaction_audit_log" ADD CONSTRAINT "transaction_audit_log_sync_session_id_fkey" FOREIGN KEY ("sync_session_id") REFERENCES "sync_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "transaction_audit_log" ADD CONSTRAINT "transaction_audit_log_transaction_id_fkey" FOREIGN KEY ("transaction_id") REFERENCES "transactions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_plans" ADD CONSTRAINT "budget_plans_owner_profile_id_fkey" FOREIGN KEY ("owner_profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_plans" ADD CONSTRAINT "budget_plans_view_id_fkey" FOREIGN KEY ("view_id") REFERENCES "saved_views"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_plans" ADD CONSTRAINT "budget_plans_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_versions" ADD CONSTRAINT "budget_versions_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "budget_plans"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_envelopes" ADD CONSTRAINT "budget_envelopes_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_envelopes" ADD CONSTRAINT "budget_envelopes_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "budget_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_actuals" ADD CONSTRAINT "budget_actuals_envelope_id_fkey" FOREIGN KEY ("envelope_id") REFERENCES "budget_envelopes"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_actuals" ADD CONSTRAINT "budget_actuals_plan_id_fkey" FOREIGN KEY ("plan_id") REFERENCES "budget_plans"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_actuals" ADD CONSTRAINT "budget_actuals_version_id_fkey" FOREIGN KEY ("version_id") REFERENCES "budget_versions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_actuals" ADD CONSTRAINT "budget_actuals_workspace_category_id_fkey" FOREIGN KEY ("workspace_category_id") REFERENCES "workspace_categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "budget_actuals" ADD CONSTRAINT "budget_actuals_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sync_sessions" ADD CONSTRAINT "sync_sessions_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sync_sessions" ADD CONSTRAINT "sync_sessions_initiator_profile_id_fkey" FOREIGN KEY ("initiator_profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session_page_payloads" ADD CONSTRAINT "session_page_payloads_sync_session_id_fkey" FOREIGN KEY ("sync_session_id") REFERENCES "sync_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session_idempotency" ADD CONSTRAINT "session_idempotency_sync_session_id_fkey" FOREIGN KEY ("sync_session_id") REFERENCES "sync_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "session_leases" ADD CONSTRAINT "session_leases_sync_session_id_fkey" FOREIGN KEY ("sync_session_id") REFERENCES "sync_sessions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sync_audit_log" ADD CONSTRAINT "sync_audit_log_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sync_audit_log" ADD CONSTRAINT "sync_audit_log_initiator_profile_id_fkey" FOREIGN KEY ("initiator_profile_id") REFERENCES "profiles"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "sync_audit_log" ADD CONSTRAINT "sync_audit_log_sync_session_id_fkey" FOREIGN KEY ("sync_session_id") REFERENCES "sync_sessions"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_connection_access_cache" ADD CONSTRAINT "user_connection_access_cache_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_connection_access_cache" ADD CONSTRAINT "user_connection_access_cache_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "user_connection_access_cache" ADD CONSTRAINT "user_connection_access_cache_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transaction_access_cache_bank_account_id_fkey" FOREIGN KEY ("bank_account_id") REFERENCES "bank_accounts"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transaction_access_cache_connection_id_fkey" FOREIGN KEY ("connection_id") REFERENCES "connections"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transaction_access_cache_profile_id_fkey" FOREIGN KEY ("profile_id") REFERENCES "profiles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transaction_access_cache_transaction_id_fkey" FOREIGN KEY ("transaction_id") REFERENCES "transactions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "profile_transaction_access_cache" ADD CONSTRAINT "profile_transaction_access_cache_workspace_id_fkey" FOREIGN KEY ("workspace_id") REFERENCES "workspaces"("id") ON DELETE SET NULL ON UPDATE CASCADE;
