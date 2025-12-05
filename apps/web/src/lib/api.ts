@@ -21,7 +21,16 @@ export class ApiError extends Error {
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
 let refreshPromise: Promise<void> | null = null;
-const REFRESH_CSRF_COOKIE = 'sb.refresh-csrf';
+const REFRESH_CSRF_COOKIE_HOST_NAME = '__Host-sb.refresh-csrf';
+
+function getRefreshCsrfToken() {
+  const hostCookie = getCookieValue(REFRESH_CSRF_COOKIE_HOST_NAME);
+  if (hostCookie || !import.meta.env.DEV) {
+    return hostCookie;
+  }
+  // In dev over plain http://localhost the host-only cookie is not set; fall back to legacy name.
+  return getCookieValue('sb.refresh-csrf');
+}
 
 /**
  * Base fetch wrapper with credentials support, auto-refresh, and error handling
@@ -124,7 +133,7 @@ export async function refreshAccessToken(force = false) {
 }
 
 async function performAccessTokenRefresh() {
-  const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
+  const csrfToken = getRefreshCsrfToken();
 
   const response = await fetch(`${API_URL}/v1/auth/refresh`, {
     method: 'POST',
@@ -200,7 +209,7 @@ export const authApi = {
    * Logout - revokes AuthCore session and clears tokens
    */
   async logout(): Promise<void> {
-    const csrfToken = getCookieValue(REFRESH_CSRF_COOKIE);
+    const csrfToken = getRefreshCsrfToken();
     await apiFetch('/v1/auth/logout', {
       method: 'POST',
       headers: {
