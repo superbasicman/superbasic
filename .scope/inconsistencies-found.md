@@ -69,6 +69,10 @@
 
 - [x] 16. Failed login attempts tracked per-IP only, spec indicates per-user tracking - failed-auth-tracking.ts uses key `failed-auth:${ip}` (apps/api/src/middleware/rate-limit/failed-auth-tracking.ts) - FIXED: updated to track per-user (email) in addition to IP
 
+### Per-Client Tracking
+
+- [x] OAuth rate limiting includes per-client_id dimension but only checked query params, missing client_id from POST body (token/revoke endpoints) - FIXED: oauth-rate-limit.ts now extracts client_id from both query params and request body (apps/api/src/middleware/rate-limit/oauth-rate-limit.ts:50-61)
+
 ## Phase 9: OIDC / id_token Semantics Review
 
 ### id_token Implementation

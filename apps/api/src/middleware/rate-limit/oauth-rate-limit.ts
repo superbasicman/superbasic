@@ -46,7 +46,20 @@ export function oauthRateLimitMiddleware(
     }
 
     const ip = resolveClientIp(c);
-    const clientId = c.req.query('client_id');
+
+    // Extract client_id from query params (authorize, introspect) or body (token, revoke)
+    let clientId = c.req.query('client_id');
+    if (!clientId && (c.req.method === 'POST' || c.req.method === 'PUT')) {
+      try {
+        const body = await c.req.parseBody();
+        if (typeof body.client_id === 'string') {
+          clientId = body.client_id;
+        }
+      } catch {
+        // Body parsing failed - not critical for rate limiting
+      }
+    }
+
     const key = ['oauth', flow];
     if (clientId) {
       key.push(`client:${clientId}`);
