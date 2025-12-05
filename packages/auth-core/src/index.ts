@@ -7,6 +7,13 @@ export * from './oauth-clients.js';
 export * from './step-up.js';
 export * from './sso.js';
 export {
+  requireOAuthClient,
+  findOAuthClient,
+  validateRedirectUri,
+  normalizeRedirectUri,
+} from './oauth-clients.js';
+export { extractClientSecret, authenticateConfidentialClient } from './oauth-client-auth.js';
+export {
   AuthCoreService,
   createAuthService,
   generateAccessToken,

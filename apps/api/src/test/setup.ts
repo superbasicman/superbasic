@@ -77,6 +77,8 @@ export async function resetDatabase(): Promise<void> {
   // This ensures referential integrity is maintained during cleanup
 
   await testPrisma.oAuthAuthorizationCode.deleteMany();
+  await testPrisma.clientSecret.deleteMany();
+  await testPrisma.serviceIdentity.deleteMany();
   await testPrisma.oAuthClient.deleteMany();
   // Delete API keys first (child of users and profiles)
   await testPrisma.apiKey.deleteMany();

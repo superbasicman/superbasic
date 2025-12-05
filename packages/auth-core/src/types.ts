@@ -33,6 +33,11 @@ export type OAuthClientRecord = {
   clientId: string;
   type: OAuthClientType;
   redirectUris: string[];
+  tokenEndpointAuthMethod:
+    | 'none'
+    | 'client_secret_basic'
+    | 'client_secret_post'
+    | 'private_key_jwt';
   disabledAt: Date | null;
 };
 

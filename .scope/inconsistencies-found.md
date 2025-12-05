@@ -31,11 +31,15 @@
 
 ## Phase 3: OAuth 2.1 Endpoints Review
 
-- [x] No inconsistencies found
+### OAuth Endpoints
+
+- [x] 27. `/oauth/revoke` is not RFC 7009 compliant - FIXED: Updated endpoint to accept token and token_type_hint parameters, supports revoking refresh tokens and PATs, returns 200 OK per RFC 7009 (apps/api/src/routes/v1/oauth/revoke.ts)
+- [x] 28. Token endpoint doesn't authenticate confidential clients - FIXED: Added extractClientSecret and authenticateConfidentialClient functions; authorization_code and refresh_token grants now verify client_secret for confidential clients using hash envelope pattern; supports client_secret_post and client_secret_basic auth methods (apps/api/src/routes/v1/oauth/token.ts, packages/auth-core/src/oauth-client-auth.ts)
+
 
 ## Phase 4: Service Identities Review
 
-- [x] No inconsistencies found
+- [x] 29. ServiceIdentity.clientId was nullable, allowing service identities without OAuth clients - FIXED: Made clientId required (non-null) and OAuthClient relation required, enforcing 1:1 relationship per spec section 5.5 lines 716-720 (packages/database/schema.prisma)
 
 ## Phase 5: RLS & GUC Review
 

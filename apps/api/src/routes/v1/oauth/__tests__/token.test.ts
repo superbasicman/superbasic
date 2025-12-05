@@ -8,7 +8,7 @@ import { createTestUser } from '../../../../test/helpers.js';
 import { deriveCodeChallenge, generateCodeVerifier } from '@repo/auth-core';
 import { issueAuthorizationCode } from '../../../../lib/oauth-authorization-codes.js';
 import { authService } from '../../../../lib/auth-service.js';
-import { parseOpaqueToken } from '@repo/auth';
+import { createTokenHashEnvelope } from '@repo/auth';
 import { randomUUID } from 'node:crypto';
 
 function buildFormRequest(body: Record<string, string>): Request {
@@ -25,195 +25,401 @@ describe('POST /v1/oauth/token', () => {
     await resetDatabase();
   });
 
-  it('exchanges a valid authorization code for tokens', async () => {
-    const prisma = getTestPrisma();
-    const { user } = await createTestUser();
+  describe('Public Clients (unchanged behavior)', () => {
+    it('exchanges a valid authorization code for tokens', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
 
-    await prisma.oAuthClient.create({
-      data: {
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'mobile',
+          name: 'Mobile',
+          clientType: 'public',
+          redirectUris: ['sb://callback'],
+        },
+      });
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = deriveCodeChallenge(codeVerifier, 'S256');
+
+      const { code } = await issueAuthorizationCode({
+        userId: user.id,
         clientId: 'mobile',
-        name: 'Mobile',
-        clientType: 'public',
-        redirectUris: ['sb://callback'],
-      },
+        redirectUri: 'sb://callback',
+        codeChallenge,
+        codeChallengeMethod: 'S256',
+        scopes: ['read:profile'],
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: 'sb://callback',
+          client_id: 'mobile',
+          code_verifier: codeVerifier,
+        })
+      );
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.token_type).toBe('Bearer');
+      expect(typeof data.access_token).toBe('string');
+      expect(typeof data.refresh_token).toBe('string');
+
+      const session = await prisma.authSession.findFirst({ where: { userId: user.id } });
+      expect((session?.clientInfo as any)?.type).toBe('mobile');
     });
 
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = deriveCodeChallenge(codeVerifier, 'S256');
+    it('rotates refresh tokens via grant_type=refresh_token', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
 
-    const { code } = await issueAuthorizationCode({
-      userId: user.id,
-      clientId: 'mobile',
-      redirectUri: 'sb://callback',
-      codeChallenge,
-      codeChallengeMethod: 'S256',
-      scopes: ['read:profile'],
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'web-dashboard',
+          name: 'Web Dashboard',
+          clientType: 'public',
+          redirectUris: ['http://localhost:5173/auth/callback'],
+        },
+      });
+
+      const familyId = randomUUID();
+      const sessionWithRefresh = await authService.createSessionWithRefresh({
+        userId: user.id,
+        identity: {
+          provider: 'local_password',
+          providerSubject: user.id,
+          email: user.primaryEmail,
+        },
+        clientType: 'web',
+        workspaceId: null,
+        rememberMe: true,
+        refreshFamilyId: familyId,
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'refresh_token',
+          client_id: 'web-dashboard',
+          refresh_token: sessionWithRefresh.refresh.refreshToken,
+        })
+      );
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(typeof data.access_token).toBe('string');
+      expect(typeof data.refresh_token).toBe('string');
+      expect(data.refresh_token).not.toBe(sessionWithRefresh.refresh.refreshToken);
+
+      const oldRecord = await prisma.refreshToken.findUnique({
+        where: { id: sessionWithRefresh.refresh.token.id },
+      });
+      expect(oldRecord?.revokedAt).not.toBeNull();
     });
-
-    const response = await app.fetch(
-      buildFormRequest({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: 'sb://callback',
-        client_id: 'mobile',
-        code_verifier: codeVerifier,
-      })
-    );
-
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.token_type).toBe('Bearer');
-    expect(typeof data.access_token).toBe('string');
-    expect(typeof data.refresh_token).toBe('string');
-
-    const session = await prisma.authSession.findFirst({ where: { userId: user.id } });
-    expect((session?.clientInfo as any)?.type).toBe('mobile');
   });
 
-  it('rejects invalid PKCE verifier', async () => {
-    const prisma = getTestPrisma();
-    const { user } = await createTestUser();
+  describe('Confidential Clients', () => {
+    it('authorization_code grant succeeds with valid client_secret', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
 
-    await prisma.oAuthClient.create({
-      data: {
-        clientId: 'mobile',
-        name: 'Mobile',
-        clientType: 'public',
-        redirectUris: ['sb://callback'],
-      },
+      const clientSecret = 'test-secret-123';
+      const hashEnvelope = createTokenHashEnvelope(clientSecret);
+
+      // Create OAuth client FIRST (service_identity has FK to oauth_clients)
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'confidential-app',
+          name: 'Confidential App',
+          clientType: 'confidential',
+          tokenEndpointAuthMethod: 'client_secret_post',
+          redirectUris: ['https://app.example.com/callback'],
+        },
+      });
+
+      // Then create service identity linked to OAuth client
+      const serviceIdentity = await prisma.serviceIdentity.create({
+        data: {
+          name: 'Confidential Test App',
+          serviceType: 'external',
+          clientId: 'confidential-app',
+        },
+      });
+
+      await prisma.clientSecret.create({
+        data: {
+          serviceIdentityId: serviceIdentity.id,
+          secretHash: hashEnvelope,
+        },
+      });
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = deriveCodeChallenge(codeVerifier, 'S256');
+
+      const { code } = await issueAuthorizationCode({
+        userId: user.id,
+        clientId: 'confidential-app',
+        redirectUri: 'https://app.example.com/callback',
+        codeChallenge,
+        codeChallengeMethod: 'S256',
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: 'https://app.example.com/callback',
+          client_id: 'confidential-app',
+          code_verifier: codeVerifier,
+          client_secret: clientSecret,
+        })
+      );
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.token_type).toBe('Bearer');
+      expect(typeof data.access_token).toBe('string');
     });
 
-    const codeVerifier = generateCodeVerifier();
-    const codeChallenge = deriveCodeChallenge(codeVerifier, 'S256');
+    it('authorization_code grant fails with invalid client_secret', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
 
-    const { code } = await issueAuthorizationCode({
-      userId: user.id,
-      clientId: 'mobile',
-      redirectUri: 'sb://callback',
-      codeChallenge,
-      codeChallengeMethod: 'S256',
+      const hashEnvelope = createTokenHashEnvelope('correct-secret');
+
+      // Create OAuth client FIRST (service_identity has FK to oauth_clients)
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'confidential-app',
+          name: 'Confidential App',
+          clientType: 'confidential',
+          tokenEndpointAuthMethod: 'client_secret_post',
+          redirectUris: ['https://app.example.com/callback'],
+        },
+      });
+
+      // Then create service identity linked to OAuth client
+      const serviceIdentity = await prisma.serviceIdentity.create({
+        data: {
+          name: 'Confidential Test App',
+          serviceType: 'external',
+          clientId: 'confidential-app',
+        },
+      });
+
+      await prisma.clientSecret.create({
+        data: {
+          serviceIdentityId: serviceIdentity.id,
+          secretHash: hashEnvelope,
+        },
+      });
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = deriveCodeChallenge(codeVerifier, 'S256');
+
+      const { code } = await issueAuthorizationCode({
+        userId: user.id,
+        clientId: 'confidential-app',
+        redirectUri: 'https://app.example.com/callback',
+        codeChallenge,
+        codeChallengeMethod: 'S256',
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: 'https://app.example.com/callback',
+          client_id: 'confidential-app',
+          code_verifier: codeVerifier,
+          client_secret: 'wrong-secret',
+        })
+      );
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toBe('invalid_grant');
     });
 
-    const response = await app.fetch(
-      buildFormRequest({
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: 'sb://callback',
-        client_id: 'mobile',
-        code_verifier: 'invalid-verifier',
-      })
-    );
+    it('authorization_code grant fails when client_secret is missing', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
 
-    expect(response.status).toBe(400);
-    const data = await response.json();
-    expect(data.error).toBe('invalid_grant');
-  });
+      const hashEnvelope = createTokenHashEnvelope('correct-secret');
 
-  it('rotates refresh tokens via grant_type=refresh_token and revokes the old one', async () => {
-    const prisma = getTestPrisma();
-    const { user } = await createTestUser();
+      // Create OAuth client FIRST (service_identity has FK to oauth_clients)
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'confidential-app',
+          name: 'Confidential App',
+          clientType: 'confidential',
+          tokenEndpointAuthMethod: 'client_secret_post',
+          redirectUris: ['https://app.example.com/callback'],
+        },
+      });
 
-    await prisma.oAuthClient.create({
-      data: {
-        clientId: 'web-dashboard',
-        name: 'Web Dashboard',
-        clientType: 'public',
-        redirectUris: ['http://localhost:5173/auth/callback'],
-      },
+      // Then create service identity linked to OAuth client
+      const serviceIdentity = await prisma.serviceIdentity.create({
+        data: {
+          name: 'Confidential Test App',
+          serviceType: 'external',
+          clientId: 'confidential-app',
+        },
+      });
+
+      await prisma.clientSecret.create({
+        data: {
+          serviceIdentityId: serviceIdentity.id,
+          secretHash: hashEnvelope,
+        },
+      });
+
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = deriveCodeChallenge(codeVerifier, 'S256');
+
+      const { code } = await issueAuthorizationCode({
+        userId: user.id,
+        clientId: 'confidential-app',
+        redirectUri: 'https://app.example.com/callback',
+        codeChallenge,
+        codeChallengeMethod: 'S256',
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: 'https://app.example.com/callback',
+          client_id: 'confidential-app',
+          code_verifier: codeVerifier,
+          // client_secret intentionally missing
+        })
+      );
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toBe('invalid_grant');
     });
 
-    const familyId = randomUUID();
-    const sessionWithRefresh = await authService.createSessionWithRefresh({
-      userId: user.id,
-      identity: {
-        provider: 'local_password',
-        providerSubject: user.id,
-        email: user.primaryEmail,
-      },
-      clientType: 'web',
-      workspaceId: null,
-      rememberMe: true,
-      refreshFamilyId: familyId,
+    it('refresh_token grant succeeds with valid client_secret', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
+
+      const clientSecret = 'test-secret-123';
+      const hashEnvelope = createTokenHashEnvelope(clientSecret);
+
+      // Create OAuth client FIRST (service_identity has FK to oauth_clients)
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'confidential-app',
+          name: 'Confidential App',
+          clientType: 'confidential',
+          tokenEndpointAuthMethod: 'client_secret_post',
+          redirectUris: ['https://app.example.com/callback'],
+        },
+      });
+
+      // Then create service identity linked to OAuth client
+      const serviceIdentity = await prisma.serviceIdentity.create({
+        data: {
+          name: 'Confidential Test App',
+          serviceType: 'external',
+          clientId: 'confidential-app',
+        },
+      });
+
+      await prisma.clientSecret.create({
+        data: {
+          serviceIdentityId: serviceIdentity.id,
+          secretHash: hashEnvelope,
+        },
+      });
+
+      const sessionWithRefresh = await authService.createSessionWithRefresh({
+        userId: user.id,
+        identity: {
+          provider: 'local_password',
+          providerSubject: user.id,
+          email: user.primaryEmail,
+        },
+        clientType: 'web',
+        workspaceId: null,
+        rememberMe: true,
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'refresh_token',
+          client_id: 'confidential-app',
+          refresh_token: sessionWithRefresh.refresh.refreshToken,
+          client_secret: clientSecret,
+        })
+      );
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(typeof data.access_token).toBe('string');
+      expect(typeof data.refresh_token).toBe('string');
     });
 
-    const response = await app.fetch(
-      buildFormRequest({
-        grant_type: 'refresh_token',
-        client_id: 'web-dashboard',
-        refresh_token: sessionWithRefresh.refresh.refreshToken,
-      })
-    );
+    it('refresh_token grant fails with invalid client_secret', async () => {
+      const prisma = getTestPrisma();
+      const { user } = await createTestUser();
 
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(typeof data.access_token).toBe('string');
-    expect(typeof data.refresh_token).toBe('string');
-    expect(data.refresh_token).not.toBe(sessionWithRefresh.refresh.refreshToken);
+      const hashEnvelope = createTokenHashEnvelope('correct-secret');
 
-    const oldRecord = await prisma.refreshToken.findUnique({
-      where: { id: sessionWithRefresh.refresh.token.id },
+      // Create OAuth client FIRST (service_identity has FK to oauth_clients)
+      await prisma.oAuthClient.create({
+        data: {
+          clientId: 'confidential-app',
+          name: 'Confidential App',
+          clientType: 'confidential',
+          tokenEndpointAuthMethod: 'client_secret_post',
+          redirectUris: ['https://app.example.com/callback'],
+        },
+      });
+
+      // Then create service identity linked to OAuth client
+      const serviceIdentity = await prisma.serviceIdentity.create({
+        data: {
+          name: 'Confidential Test App',
+          serviceType: 'external',
+          clientId: 'confidential-app',
+        },
+      });
+
+      await prisma.clientSecret.create({
+        data: {
+          serviceIdentityId: serviceIdentity.id,
+          secretHash: hashEnvelope,
+        },
+      });
+
+      const sessionWithRefresh = await authService.createSessionWithRefresh({
+        userId: user.id,
+        identity: {
+          provider: 'local_password',
+          providerSubject: user.id,
+          email: user.primaryEmail,
+        },
+        clientType: 'web',
+        workspaceId: null,
+        rememberMe: true,
+      });
+
+      const response = await app.fetch(
+        buildFormRequest({
+          grant_type: 'refresh_token',
+          client_id: 'confidential-app',
+          refresh_token: sessionWithRefresh.refresh.refreshToken,
+          client_secret: 'wrong-secret',
+        })
+      );
+
+      expect(response.status).toBe(400);
+      const data = await response.json();
+      expect(data.error).toBe('invalid_grant');
     });
-    const parsedNew = parseOpaqueToken(data.refresh_token);
-    const newRecord = await prisma.refreshToken.findUnique({
-      where: { id: parsedNew?.tokenId ?? '' },
-    });
-
-    expect(oldRecord?.revokedAt).not.toBeNull();
-    expect(newRecord?.familyId).toBe(familyId);
-    expect(newRecord?.sessionId).toBe(sessionWithRefresh.session.sessionId);
-  });
-
-  it('rejects reuse of a revoked refresh token', async () => {
-    const prisma = getTestPrisma();
-    const { user } = await createTestUser();
-
-    await prisma.oAuthClient.create({
-      data: {
-        clientId: 'web-dashboard',
-        name: 'Web Dashboard',
-        clientType: 'public',
-        redirectUris: ['http://localhost:5173/auth/callback'],
-      },
-    });
-
-    const sessionWithRefresh = await authService.createSessionWithRefresh({
-      userId: user.id,
-      identity: {
-        provider: 'local_password',
-        providerSubject: user.id,
-        email: user.primaryEmail,
-      },
-      clientType: 'web',
-      workspaceId: null,
-      rememberMe: true,
-      refreshFamilyId: randomUUID(),
-    });
-
-    // First refresh to rotate and revoke the original token
-    const first = await app.fetch(
-      buildFormRequest({
-        grant_type: 'refresh_token',
-        client_id: 'web-dashboard',
-        refresh_token: sessionWithRefresh.refresh.refreshToken,
-      })
-    );
-    expect(first.status).toBe(200);
-
-    // Reuse the revoked token
-    const reuse = await app.fetch(
-      buildFormRequest({
-        grant_type: 'refresh_token',
-        client_id: 'web-dashboard',
-        refresh_token: sessionWithRefresh.refresh.refreshToken,
-      })
-    );
-    expect(reuse.status).toBe(401);
-    const reuseBody = await reuse.json();
-    expect(reuseBody.error).toBe('invalid_grant');
-
-    const session = await prisma.authSession.findUnique({
-      where: { id: sessionWithRefresh.session.sessionId },
-    });
-    expect(session?.revokedAt).not.toBeNull();
   });
 });

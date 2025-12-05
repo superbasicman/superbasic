@@ -7,6 +7,11 @@ function mapClient(record: {
   clientId: string;
   clientType: 'public' | 'confidential';
   redirectUris: string[];
+  tokenEndpointAuthMethod:
+    | 'none'
+    | 'client_secret_basic'
+    | 'client_secret_post'
+    | 'private_key_jwt';
   disabledAt: Date | null;
 }): OAuthClientRecord {
   return {
@@ -14,6 +19,7 @@ function mapClient(record: {
     clientId: record.clientId,
     type: record.clientType, // Map clientType -> type per goal spec
     redirectUris: record.redirectUris,
+    tokenEndpointAuthMethod: record.tokenEndpointAuthMethod,
     disabledAt: record.disabledAt,
   };
 }
@@ -35,6 +41,14 @@ export async function findOAuthClient(
 ): Promise<OAuthClientRecord | null> {
   const record = await prisma.oAuthClient.findUnique({
     where: { clientId },
+    select: {
+      id: true,
+      clientId: true,
+      clientType: true,
+      redirectUris: true,
+      tokenEndpointAuthMethod: true,
+      disabledAt: true,
+    },
   });
   return record ? mapClient(record) : null;
 }

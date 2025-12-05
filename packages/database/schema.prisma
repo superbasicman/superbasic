@@ -182,12 +182,12 @@ model ServiceIdentity {
   name              String
   serviceType       ServiceType @default(internal)
   allowedWorkspaces Json?       @default("[]") @map("allowed_workspaces")
-  clientId          String?     @unique @map("client_id")
+  clientId          String      @unique @map("client_id")
   createdAt         DateTime    @default(now()) @map("created_at")
   updatedAt         DateTime    @updatedAt @map("updated_at")
   disabledAt        DateTime?   @map("disabled_at")
 
-  client         OAuthClient?    @relation(fields: [clientId], references: [clientId])
+  client         OAuthClient @relation(fields: [clientId], references: [clientId])
   clientSecrets  ClientSecret[]
   securityEvents SecurityEvent[]
 

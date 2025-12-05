@@ -9,6 +9,8 @@ import {
   validatePkcePair,
   generateAccessToken,
   generateIdToken,
+  extractClientSecret,
+  authenticateConfidentialClient,
 } from '@repo/auth-core';
 import type { ClientType } from '@repo/auth-core';
 import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
@@ -31,13 +33,14 @@ const tokenSchema = z.discriminatedUnion('grant_type', [
     client_id: z.string(),
     code: z.string(),
     redirect_uri: z.string().url(),
-    // Optional for external provider flows (Google, magic link)
     code_verifier: z.string().optional(),
+    client_secret: z.string().optional(),
   }),
   z.object({
     grant_type: z.literal('refresh_token'),
     client_id: z.string(),
     refresh_token: z.string(),
+    client_secret: z.string().optional(),
   }),
   z.object({
     grant_type: z.literal('client_credentials'),
@@ -84,8 +87,8 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
 
       const allowedWorkspaces = Array.isArray(serviceIdentity.allowedWorkspaces)
         ? (serviceIdentity.allowedWorkspaces as string[]).filter(
-            (id): id is string => typeof id === 'string' && id.length > 0
-          )
+          (id): id is string => typeof id === 'string' && id.length > 0
+        )
         : [];
       const selectedWorkspace =
         workspace_id ?? (allowedWorkspaces.length === 1 ? allowedWorkspaces[0] : undefined);
@@ -120,22 +123,27 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
     }
 
     if (body.grant_type === 'authorization_code') {
-      const { client_id, code, redirect_uri, code_verifier } = body;
+      const { client_id, code, redirect_uri, code_verifier, client_secret } = body;
 
       // 1. Validate client
-      await requireOAuthClient({
+      const client = await requireOAuthClient({
         prisma,
         clientId: client_id,
         redirectUri: redirect_uri,
       });
 
-      // 2. Parse and verify the authorization code
+      // 2. Authenticate confidential clients
+      const authHeader = c.req.header('Authorization');
+      const extractedSecret = extractClientSecret(authHeader, client_secret);
+      await authenticateConfidentialClient({ prisma, client, clientSecret: extractedSecret });
+
+      // 3. Parse and verify the authorization code
       const parsed = parseOpaqueToken(code);
       if (!parsed) {
         throw new AuthorizationError('Invalid authorization code format');
       }
 
-      // 3. Find the authorization code in the database
+      // 4. Find the authorization code in the database
       const authCode = await prisma.oAuthAuthorizationCode.findFirst({
         where: {
           clientId: client_id,
@@ -245,13 +253,18 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
     }
 
     // grant_type === refresh_token
-    const { client_id, refresh_token } = body;
+    const { client_id, refresh_token, client_secret } = body;
 
-    await requireOAuthClient({
+    const client = await requireOAuthClient({
       prisma,
       clientId: client_id,
       allowDisabled: false,
     });
+
+    // Authenticate confidential clients
+    const authHeader = c.req.header('Authorization');
+    const extractedSecret = extractClientSecret(authHeader, client_secret);
+    await authenticateConfidentialClient({ prisma, client, clientSecret: extractedSecret });
 
     const parsed = parseOpaqueToken(refresh_token);
     if (!parsed) {
