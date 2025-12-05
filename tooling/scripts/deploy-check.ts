@@ -207,7 +207,7 @@ async function main() {
 
   // Best-effort: if this is a full check, try to ensure a local Postgres is available (no-op in CI)
   if (fullCheck) {
-    await runCommand('pnpm run db:ensure-local', 'Ensuring local Postgres (optional)');
+    await runCommand('pnpm run db:start', 'Ensuring local Postgres (optional)');
   }
 
   // Pre-flight DB connectivity before kicking off tests to fail fast with a clear message

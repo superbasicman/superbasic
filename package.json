@@ -17,6 +17,7 @@
     "dev": "AUTH_DEBUG=1 turbo run dev",
     "dev:prod": "NODE_ENV=production turbo run dev",
     "build": "turbo run build",
+    "deploy-check": "tsx tooling/scripts/deploy-check.ts",
     "test": "turbo run test -- --run",
     "test:unit": "vitest run",
     "test:e2e": "playwright test",
@@ -28,8 +29,9 @@
     "db:migrate": "tsx tooling/scripts/db-manager.ts migrate",
     "db:reset": "tsx tooling/scripts/db-manager.ts reset",
     "db:studio": "turbo run studio --filter=@repo/database",
-    "db:migrate:local": "cd packages/database && DATABASE_URL=postgresql://superbasic:superbasic@localhost:5432/superbasic_test pnpm exec prisma migrate dev --skip-generate",
-    "postinstall": "pnpm --filter @repo/database run generate && pnpm run db:ensure-local",
+    "db:start": "tsx tooling/scripts/ensure-local-postgres.ts",
+    "db:stop": "tsx tooling/scripts/stop-local-postgres.ts",
+    "postinstall": "pnpm --filter @repo/database run generate && pnpm run db:start",
     "curl-test": "bash tooling/scripts/curl-test.sh"
   },
   "devDependencies": {
