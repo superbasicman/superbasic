@@ -37,7 +37,7 @@ CREATE TYPE "ClientType" AS ENUM ('web', 'mobile', 'cli', 'service', 'other');
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
-    "parimary_email" TEXT NOT NULL,
+    "primary_email" TEXT NOT NULL,
     "email_verified" BOOLEAN NOT NULL DEFAULT false,
     "display_name" TEXT,
     "picture" TEXT,
@@ -789,8 +789,8 @@ CREATE INDEX "users_deleted_at_idx" ON "users"("deleted_at");
 -- CreateIndex
 CREATE INDEX "users_last_login_at_idx" ON "users"("last_login_at");
 
--- CreateIndex
-CREATE UNIQUE INDEX "users_parimary_email_deleted_at_key" ON "users"("parimary_email", "deleted_at");
+-- CreateIndex (partial unique index for active users only - PostgreSQL treats NULL as distinct in composite unique)
+CREATE UNIQUE INDEX "users_active_email_unique" ON "users"("primary_email") WHERE "deleted_at" IS NULL;
 
 -- CreateIndex
 CREATE UNIQUE INDEX "user_passwords_user_id_key" ON "user_passwords"("user_id");

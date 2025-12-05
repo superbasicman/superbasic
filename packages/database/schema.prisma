@@ -13,7 +13,7 @@ datasource db {
 
 model User {
   id                 String    @id @default(uuid()) @db.Uuid
-  primaryEmail       String    @map("parimary_email")
+  primaryEmail       String    @map("primary_email")
   emailVerified      Boolean   @default(false) @map("email_verified")
   displayName        String?   @map("display_name")
   picture            String?
@@ -37,7 +37,8 @@ model User {
   @@index([userState])
   @@index([deletedAt])
   @@index([lastLoginAt])
-  @@unique([primaryEmail, deletedAt])
+  // Note: Email uniqueness for active users is enforced via partial unique index in migration SQL
+  // (CREATE UNIQUE INDEX "users_active_email_unique" ON "users"("primary_email") WHERE "deleted_at" IS NULL)
   @@map("users")
 }
 
