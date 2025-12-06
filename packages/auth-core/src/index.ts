@@ -11,6 +11,7 @@ export {
   findOAuthClient,
   validateRedirectUri,
   normalizeRedirectUri,
+  isFirstPartyClient,
 } from './oauth-clients.js';
 export { extractClientSecret, authenticateConfidentialClient } from './oauth-client-auth.js';
 export {

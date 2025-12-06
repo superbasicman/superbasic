@@ -38,6 +38,7 @@ export type OAuthClientRecord = {
     | 'client_secret_basic'
     | 'client_secret_post'
     | 'private_key_jwt';
+  isFirstParty: boolean;
   disabledAt: Date | null;
 };
 
@@ -124,6 +125,7 @@ export type CreateSessionInput = {
 export type CreateSessionWithRefreshInput = CreateSessionInput & {
   refreshMetadata?: Record<string, unknown> | null;
   refreshFamilyId?: string | null;
+  refreshScopes?: string[];
 };
 
 export type CreateSessionWithRefreshResult = {
@@ -155,6 +157,7 @@ export type IssueRefreshTokenInput = {
   userId: string;
   sessionId: string;
   expiresAt: Date;
+  scopes?: string[];
   metadata?: Record<string, unknown> | null;
   familyId?: string | null;
 };
@@ -192,11 +195,12 @@ export type TokenRecord = {
   updatedAt: Date;
 };
 
-export type RefreshTokenRecord = TokenRecord & {
+export type RefreshTokenRecord = Omit<TokenRecord, 'scopes'> & {
   type: 'refresh';
   sessionId: string;
   familyId: string | null;
   expiresAt: Date;
+  scopes: string[]; // OIDC scopes (openid, profile, email) not PermissionScope
 };
 
 export type OAuthInitiationResult = {

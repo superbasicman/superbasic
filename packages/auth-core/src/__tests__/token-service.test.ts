@@ -17,6 +17,7 @@ function buildToken(overrides: Partial<PrismaRefreshToken> = {}): PrismaRefreshT
     sessionId: 'sess_123',
     hashEnvelope: hashEnvelope as unknown as PrismaRefreshToken['hashEnvelope'],
     last4: 'cret',
+    scopes: [] as string[],
     familyId: 'family_123',
     lastUsedAt: null,
     expiresAt: new Date('2025-02-01T00:00:00.000Z'),

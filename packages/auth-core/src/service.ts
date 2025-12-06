@@ -416,6 +416,7 @@ export class AuthCoreService implements AuthService {
       userId: session.userId,
       sessionId: session.sessionId,
       expiresAt: session.expiresAt,
+      scopes: input.refreshScopes ?? [],
       metadata: input.refreshMetadata ?? null,
       familyId: input.refreshFamilyId ?? null,
     });

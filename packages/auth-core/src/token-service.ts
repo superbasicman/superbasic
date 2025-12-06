@@ -44,13 +44,9 @@ export class TokenService {
         id: opaque.tokenId,
         userId: input.userId,
         sessionId: input.sessionId,
-        // workspaceId: null, // Not in RefreshToken
-        // type: 'refresh', // Not in RefreshToken
-        hashEnvelope: tokenHash, // Mapped from tokenHash
-        // scopes: [], // Not in RefreshToken
-        // name: null, // Not in RefreshToken
+        hashEnvelope: tokenHash,
+        scopes: input.scopes ?? [],
         familyId,
-        // ...(refreshMetadata !== undefined ? { metadata: refreshMetadata } : {}), // Not in RefreshToken
         last4: opaque.value.slice(-4),
         lastUsedAt: null,
         expiresAt: input.expiresAt,
@@ -82,13 +78,13 @@ function mapRefreshToken(record: PrismaRefreshToken): RefreshTokenRecord {
     id: record.id,
     userId: record.userId,
     sessionId: record.sessionId,
-    workspaceId: null, // record.workspaceId,
+    workspaceId: null,
     type: 'refresh',
     tokenHash: record.hashEnvelope as TokenHashEnvelope,
-    scopes: [], // record.scopes as PermissionScope[],
-    name: null, // record.name,
+    scopes: (record.scopes ?? []) as string[],
+    name: null,
     familyId: record.familyId ?? null,
-    metadata: null, // (record.metadata as Record<string, unknown> | null) ?? null,
+    metadata: null,
     lastUsedAt: record.lastUsedAt,
     expiresAt: record.expiresAt,
     revokedAt: record.revokedAt,

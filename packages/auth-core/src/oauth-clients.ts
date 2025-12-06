@@ -12,6 +12,7 @@ function mapClient(record: {
     | 'client_secret_basic'
     | 'client_secret_post'
     | 'private_key_jwt';
+  isFirstParty: boolean;
   disabledAt: Date | null;
 }): OAuthClientRecord {
   return {
@@ -20,6 +21,7 @@ function mapClient(record: {
     type: record.clientType, // Map clientType -> type per goal spec
     redirectUris: record.redirectUris,
     tokenEndpointAuthMethod: record.tokenEndpointAuthMethod,
+    isFirstParty: record.isFirstParty,
     disabledAt: record.disabledAt,
   };
 }
@@ -47,10 +49,26 @@ export async function findOAuthClient(
       clientType: true,
       redirectUris: true,
       tokenEndpointAuthMethod: true,
+      isFirstParty: true,
       disabledAt: true,
     },
   });
   return record ? mapClient(record) : null;
+}
+
+/**
+ * Check if an OAuth client is a first-party client.
+ * First-party clients can receive user profile data in token responses.
+ */
+export async function isFirstPartyClient(
+  prisma: Pick<PrismaClient, 'oAuthClient'>,
+  clientId: string
+): Promise<boolean> {
+  const client = await prisma.oAuthClient.findUnique({
+    where: { clientId },
+    select: { isFirstParty: true },
+  });
+  return client?.isFirstParty ?? false;
 }
 
 export function validateRedirectUri(client: OAuthClientRecord, redirectUri: string): string {

@@ -9,7 +9,14 @@ import {
 } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
-import { authApi, ApiError, refreshAccessToken } from '../lib/api';
+import {
+  authApi,
+  ApiError,
+  refreshAccessToken,
+  getCachedUser,
+  setCachedUser,
+  clearCachedUser,
+} from '../lib/api';
 import { getStoredTokens, clearTokens as clearStoredTokens, saveTokens } from '../lib/tokenStorage';
 import { generateCodeVerifier, generateCodeChallenge, generateState } from '../lib/pkce';
 
@@ -76,8 +83,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // If no in-memory token, attempt silent refresh via HttpOnly cookie
     if (!hasValidAccessToken) {
       try {
-        await refreshAccessToken();
-        // If refresh succeeded, we now have a valid token
+        const userFromRefresh = await refreshAccessToken();
+        // If refresh succeeded and returned user data, use it directly
+        if (userFromRefresh) {
+          setUser(userFromRefresh);
+          setIsLoading(false);
+          return;
+        }
+        // If refresh succeeded but no user data, fall through to /v1/me
       } catch {
         // Refresh failed - user is actually logged out
         setUser(null);
@@ -86,9 +99,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     }
 
+    // Check if we have cached user from a previous token response
+    const cached = getCachedUser();
+    if (cached) {
+      setUser(cached);
+      setIsLoading(false);
+      return;
+    }
+
+    // Fall back to /v1/me only if we don't have user data
     try {
       const { user: currentUser } = await authApi.me();
       setUser(currentUser);
+      setCachedUser(currentUser);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setUser(null);
@@ -201,9 +224,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
       sessionStorage.removeItem('pkce_state');
       sessionStorage.removeItem('pkce_verifier');
 
-      // Fetch user profile
-      const { user: currentUser } = await authApi.me();
-      setUser(currentUser);
+      // Use user data from token response if complete (avoids /v1/me call)
+      // Required fields: id, email, createdAt
+      if (data.user?.id && data.user?.email && data.user?.createdAt) {
+        const currentUser: UserResponse = {
+          id: data.user.id,
+          email: data.user.email,
+          name: data.user.name ?? null,
+          createdAt: data.user.createdAt,
+        };
+        setUser(currentUser);
+        setCachedUser(currentUser);
+      } else {
+        // Fall back to /v1/me if no user data or incomplete data in response
+        const { user: currentUser } = await authApi.me();
+        setUser(currentUser);
+        setCachedUser(currentUser);
+      }
 
       // Redirect to home
       navigate('/');
@@ -345,6 +382,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Logout error:', error);
     } finally {
       clearStoredTokens();
+      clearCachedUser();
       setUser(null);
       navigate('/login');
     }

@@ -16,6 +16,7 @@ import type { ClientType } from '@repo/auth-core';
 import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
 import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
+import { buildUserClaimsForTokenResponse } from '../../../lib/user-claims.js';
 import type { AppBindings } from '../../../types/context.js';
 import {
   extractIp,
@@ -193,6 +194,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
 
       // 8. Create session and get access token + refresh token
       // Use local_password as a catch-all since the actual IdP is verified at /oauth/authorize
+      const requestedScopes = authCode.scopes as string[];
       const result = await authService.createSessionWithRefresh({
         userId: authCode.userId,
         identity: {
@@ -203,6 +205,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         clientType: client_id === 'mobile' ? 'mobile' : 'web',
         workspaceId: null,
         rememberMe: true,
+        refreshScopes: requestedScopes,
       });
 
       const { token: accessToken, claims } = await generateAccessToken({
@@ -224,7 +227,6 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
       setRefreshTokenCookie(c, result.refresh.refreshToken, result.refresh.token.expiresAt);
 
       // 9. Issue id_token if openid scope was requested
-      const requestedScopes = authCode.scopes as string[];
       const hasOpenidScope = requestedScopes.includes('openid');
 
       let idToken: string | undefined;
@@ -243,12 +245,22 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         idToken = idTokenResult.token;
       }
 
+      // Include user claims only for first-party clients with openid scope
+      const userClaims =
+        client.isFirstParty && hasOpenidScope
+          ? await buildUserClaimsForTokenResponse({
+              userId: authCode.userId,
+              scopes: requestedScopes,
+            })
+          : null;
+
       return c.json({
         access_token: accessToken,
         refresh_token: result.refresh.refreshToken,
         token_type: 'Bearer',
         expires_in: claims.exp - claims.iat,
         ...(idToken && { id_token: idToken }),
+        ...(userClaims && { user: userClaims }),
       });
     }
 
@@ -367,11 +379,15 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         ? ((clientInfo as any).type as ClientType)
         : 'web';
 
+    // Preserve scopes from the original token for the rotated token
+    const storedScopes = (tokenRecord.scopes as string[]) ?? [];
+
     const rotated = await authService.issueRefreshToken({
       userId: tokenRecord.userId,
       sessionId: session.id,
       expiresAt: sessionUpdate.expiresAt,
       familyId,
+      scopes: storedScopes,
       metadata: {
         source: 'oauth-token-refresh',
         ipAddress,
@@ -389,11 +405,22 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
 
     setRefreshTokenCookie(c, rotated.refreshToken, rotated.token.expiresAt);
 
+    // Include user claims only for first-party clients with openid scope
+    const hasOpenidScope = storedScopes.includes('openid');
+    const userClaims =
+      client.isFirstParty && hasOpenidScope
+        ? await buildUserClaimsForTokenResponse({
+            userId: tokenRecord.userId,
+            scopes: storedScopes,
+          })
+        : null;
+
     return c.json({
       access_token: accessToken,
       refresh_token: rotated.refreshToken,
       token_type: 'Bearer',
       expires_in: claims.exp - claims.iat,
+      ...(userClaims && { user: userClaims }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Token exchange failed';

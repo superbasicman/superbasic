@@ -20,6 +20,7 @@ type SeedConfig = {
   name: string;
   redirectUris: string[];
   type?: 'public' | 'confidential';
+  isFirstParty?: boolean;
 };
 
 function normalizeRedirectUris(envValue: string | undefined, fallback: string[], allowEmpty = false): string[] {
@@ -48,6 +49,7 @@ function buildSeedConfigs(): SeedConfig[] {
       'http://localhost:3000/v1/auth/callback/mobile',
     ]),
     type: 'public',
+    isFirstParty: true,
   };
 
   const additionalUris = normalizeRedirectUris(process.env.ADDITIONAL_REDIRECT_URIS, [], true);
@@ -62,6 +64,7 @@ function buildSeedConfigs(): SeedConfig[] {
       ...additionalUris,
     ],
     type: 'public',
+    isFirstParty: true,
   };
 
   const deduped: Record<string, SeedConfig> = {};
@@ -82,6 +85,7 @@ async function seedClient(config: SeedConfig): Promise<void> {
       name: config.name,
       clientType: config.type ?? 'public',
       redirectUris: config.redirectUris,
+      isFirstParty: config.isFirstParty ?? false,
       disabledAt: null,
     },
     create: {
@@ -89,6 +93,7 @@ async function seedClient(config: SeedConfig): Promise<void> {
       name: config.name,
       clientType: config.type ?? 'public',
       redirectUris: config.redirectUris,
+      isFirstParty: config.isFirstParty ?? false,
     },
   });
 

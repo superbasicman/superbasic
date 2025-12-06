@@ -6,6 +6,7 @@ import type { AppBindings } from '../../../types/context.js';
 import { prisma, Prisma } from '@repo/database';
 import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
+import { buildUserClaimsForTokenResponse } from '../../../lib/user-claims.js';
 import {
   getRefreshTokenFromCookie,
   setRefreshTokenCookie,
@@ -179,12 +180,15 @@ export async function refreshTokens(c: Context<AppBindings>) {
 
   // Preserve the existing family; if missing, seed with the current token id to keep the family stable.
   const familyId = tokenRecord.familyId ?? tokenRecord.id;
+  // Preserve scopes from the original token
+  const storedScopes = (tokenRecord.scopes as string[]) ?? [];
 
   const rotated = await authService.issueRefreshToken({
     userId: tokenRecord.userId,
     sessionId: session.id,
     expiresAt: sessionUpdate.expiresAt,
     familyId,
+    scopes: storedScopes,
     metadata: {
       source: 'auth-refresh-endpoint',
       ipAddress: ipAddress ?? null,
@@ -216,10 +220,22 @@ export async function refreshTokens(c: Context<AppBindings>) {
     },
   });
 
+  // Include user claims only for web sessions with openid scope
+  const isWebSession = clientType === 'web';
+  const hasOpenidScope = storedScopes.includes('openid');
+  const userClaims =
+    isWebSession && hasOpenidScope
+      ? await buildUserClaimsForTokenResponse({
+          userId: tokenRecord.userId,
+          scopes: storedScopes,
+        })
+      : null;
+
   return c.json({
     tokenType: 'Bearer',
     accessToken,
     refreshToken: rotated.refreshToken,
     expiresIn: claims.exp - claims.iat,
+    ...(userClaims && { user: userClaims }),
   });
 }

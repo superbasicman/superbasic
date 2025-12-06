@@ -121,6 +121,7 @@ model RefreshToken {
   familyId      String    @default(uuid()) @map("family_id") @db.Uuid
   hashEnvelope  Json      @map("hash_envelope")
   last4         String?
+  scopes        String[]  @default([])
   issuedAt      DateTime  @default(now()) @map("issued_at")
   lastUsedAt    DateTime? @map("last_used_at")
   expiresAt     DateTime  @map("expires_at")
@@ -309,6 +310,7 @@ model OAuthClient {
   allowedGrantTypes       OAuthGrantType[] @default([]) @map("allowed_grant_types")
   allowedScopes           String[]         @default([]) @map("allowed_scopes")
   tokenEndpointAuthMethod AuthMethod       @default(none) @map("token_endpoint_auth_method")
+  isFirstParty            Boolean          @default(false) @map("is_first_party")
   createdAt               DateTime         @default(now()) @map("created_at")
   updatedAt               DateTime         @updatedAt @map("updated_at")
   disabledAt              DateTime?        @map("disabled_at")

@@ -14,6 +14,7 @@ const baseClient = {
   type: 'public' as const,
   redirectUris: ['sb://callback', 'http://localhost:3000/v1/auth/callback/mobile'],
   tokenEndpointAuthMethod: 'none' as const,
+  isFirstParty: true,
   disabledAt: null as Date | null,
 };
 

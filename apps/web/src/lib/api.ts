@@ -1,9 +1,23 @@
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
 import { getAccessToken, getAccessTokenExpiry, saveTokens, clearTokens } from './tokenStorage';
 
-
 // Remove trailing slash from API_URL to prevent double slashes
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+// Cached user from token response (avoid /v1/me call)
+let cachedUser: UserResponse | null = null;
+
+export function getCachedUser(): UserResponse | null {
+  return cachedUser;
+}
+
+export function setCachedUser(user: UserResponse | null): void {
+  cachedUser = user;
+}
+
+export function clearCachedUser(): void {
+  cachedUser = null;
+}
 
 /**
  * API client error class for structured error handling
@@ -20,7 +34,7 @@ export class ApiError extends Error {
 }
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60 * 1000;
-let refreshPromise: Promise<void> | null = null;
+let refreshPromise: Promise<UserResponse | null> | null = null;
 /**
  * Base fetch wrapper with credentials support, auto-refresh, and error handling
  */
@@ -111,7 +125,7 @@ async function maybeRefreshAccessToken() {
   await refreshAccessToken();
 }
 
-export async function refreshAccessToken(force = false) {
+export async function refreshAccessToken(force = false): Promise<UserResponse | null> {
   if (refreshPromise && !force) {
     return refreshPromise;
   }
@@ -121,7 +135,7 @@ export async function refreshAccessToken(force = false) {
   return refreshPromise;
 }
 
-async function performAccessTokenRefresh() {
+async function performAccessTokenRefresh(): Promise<UserResponse | null> {
   const response = await fetch(`${API_URL}/v1/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
@@ -135,6 +149,7 @@ async function performAccessTokenRefresh() {
 
   if (response.status === 401) {
     clearTokens();
+    clearCachedUser();
     throw new ApiError('Unauthorized', 401);
   }
 
@@ -145,6 +160,7 @@ async function performAccessTokenRefresh() {
     typeof data.expiresIn !== 'number'
   ) {
     clearTokens();
+    clearCachedUser();
     throw new ApiError('Unable to refresh session', response.status || 500);
   }
 
@@ -152,6 +168,22 @@ async function performAccessTokenRefresh() {
     accessToken: data.accessToken,
     expiresIn: data.expiresIn,
   });
+
+  // Cache user from refresh response if complete (avoids /v1/me call)
+  // Required fields: id, email, createdAt
+  if (data.user?.id && data.user?.email && data.user?.createdAt) {
+    const user: UserResponse = {
+      id: data.user.id,
+      email: data.user.email,
+      name: data.user.name ?? null,
+      createdAt: data.user.createdAt,
+    };
+    setCachedUser(user);
+    return user;
+  }
+
+  // Return null if user data incomplete - caller should fetch /v1/me
+  return null;
 }
 
 /**
