@@ -34,6 +34,7 @@ export default function Login() {
   const [step, setStep] = useState<Step>('initial');
   const [splashVisible, setSplashVisible] = useState(false);
   const [fromGetStarted, setFromGetStarted] = useState(false);
+  const MAGIC_LINK_BUTTON_TEXT = 'Send login link'; 
 
   // Splash intro timing
   useEffect(() => {
@@ -101,11 +102,27 @@ export default function Login() {
     setError(null);
   };
 
-  const toggleMode = () => {
-    setMode(mode === 'signin' ? 'signup' : 'signin');
-    setStep('initial');
-    resetForm();
-    setFromGetStarted(false);
+  const toggleMode = (nextMode?: Mode, nextStep?: Step, options?: { resetGetStarted?: boolean }) => {
+    const targetMode = nextMode ?? (mode === 'signin' ? 'signup' : 'signin');
+    setMode(targetMode);
+    if (nextStep) {
+      setStep(nextStep);
+    }
+    if (options?.resetGetStarted) {
+      setFromGetStarted(false);
+    }
+    setError(null);
+  };
+
+  const togglePrompt =
+    mode === 'signin' && !fromGetStarted ? "Don't have an account? Sign up" : 'Already have an account? Sign in';
+
+  const handleToggleClick = (nextStep?: Step) => {
+    if (mode === 'signin' && !fromGetStarted) {
+      toggleMode('signup', nextStep ?? step);
+    } else {
+      toggleMode('signin', nextStep ?? step, { resetGetStarted: true });
+    }
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>, action: () => void) => {
@@ -159,7 +176,7 @@ export default function Login() {
         className="min-h-screen bg-black flex flex-col"
         style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
       >
-        <div className="flex-1 flex flex-col justify-center px-10">
+        <div className="flex-1 flex flex-col justify-center px-10 w-full max-w-5xl mx-auto">
           <div className="mb-16">
             <div className="text-white/40 text-xs tracking-widest uppercase mb-6">Welcome to</div>
             <div className="text-white text-5xl font-light tracking-tight leading-none mb-4">
@@ -208,12 +225,14 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="px-10 pb-12">
+        <div className="px-10 pb-12 w-full max-w-5xl mx-auto">
           <button
             type="button"
             onClick={() => {
               setFromGetStarted(true);
+              setMode('signup');
               setCurrentScreen('auth');
+              setStep('initial');
             }}
             className="w-full py-4 bg-white text-black text-sm font-medium tracking-wide transition-all hover:bg-white/90 active:scale-[0.98]"
           >
@@ -245,7 +264,7 @@ export default function Login() {
       className="min-h-screen bg-black flex flex-col"
       style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
-      <div className="px-6 pt-14 pb-6">
+      <div className="px-6 pt-14 pb-6 w-full max-w-xl mx-auto">
         {step === 'initial' ? (
           <button
             type="button"
@@ -268,7 +287,7 @@ export default function Login() {
         )}
       </div>
 
-      <div className="flex-1 px-10">
+      <div className="flex-1 px-10 w-full max-w-xl mx-auto">
         {error && (
           <div className="mb-6 p-4 border border-red-400 text-red-300 bg-red-500/10">
             {error}
@@ -353,10 +372,10 @@ export default function Login() {
             <div className="text-center mt-8">
               <button
                 type="button"
-                onClick={toggleMode}
+                onClick={() => handleToggleClick('initial')}
                 className="text-white/40 text-sm hover:text-white transition-colors"
               >
-                {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+                {togglePrompt}
               </button>
             </div>
           </>
@@ -405,10 +424,20 @@ export default function Login() {
               disabled={isLoading}
               className="w-full py-4 border border-white/20 text-white text-sm transition-all hover:bg-white hover:text-black active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Sending...' : 'Send magic link instead'}
+              {isLoading ? 'Sending...' : MAGIC_LINK_BUTTON_TEXT}
             </button>
             <div className="text-white/30 text-xs text-center mt-3">
               {magicLinkSent ? 'Check your email for a magic link.' : "We'll email you a secure link"}
+            </div>
+
+            <div className="text-center mt-8">
+              <button
+                type="button"
+                onClick={() => handleToggleClick('password')}
+                className="text-white/40 text-sm hover:text-white transition-colors"
+              >
+                {togglePrompt}
+              </button>
             </div>
           </>
         )}
@@ -463,16 +492,26 @@ export default function Login() {
               disabled={isLoading}
               className="w-full py-4 border border-white/20 text-white text-sm transition-all hover:bg-white hover:text-black active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Sending...' : 'Send magic link instead'}
+              {isLoading ? 'Sending...' : MAGIC_LINK_BUTTON_TEXT}
             </button>
             <div className="text-white/30 text-xs text-center mt-3">
               {magicLinkSent ? 'Check your email for a magic link.' : "We'll email you a secure link"}
+            </div>
+
+            <div className="text-center mt-8">
+              <button
+                type="button"
+                onClick={() => handleToggleClick('password')}
+                className="text-white/40 text-sm hover:text-white transition-colors"
+              >
+                {togglePrompt}
+              </button>
             </div>
           </>
         )}
       </div>
 
-      <div className="px-10 pb-12 pt-8">
+      <div className="px-10 pb-12 pt-8 w-full max-w-xl mx-auto">
         <div className="text-white/20 text-xs text-center leading-relaxed">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </div>
