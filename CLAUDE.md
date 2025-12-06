@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SuperBasic Finance is an API-first personal finance platform built as a monorepo. The web client is a thin React SPA that exclusively consumes a typed JSON API. Currently implementing OAuth 2.1 authorization flow for authentication with a long-term goal of providing a full OAuth 2.1/OIDC authorization server.
+SuperBasic Finance is an API-first personal finance platform built as a monorepo. The mobile app is a thin React Native client that exclusively consumes a typed JSON API. Currently implementing OAuth 2.1 authorization flow for authentication with a long-term goal of providing a full OAuth 2.1/OIDC authorization server.
 
 **Current Phase:** Phase 3.5 (Architecture Refactor) - Service/Repository pattern implementation
 **Main Branch:** `main` | **Current Branch:** `dev`
@@ -13,15 +13,20 @@ SuperBasic Finance is an API-first personal finance platform built as a monorepo
 
 ### Development
 ```bash
-# Start all apps (API on :3000, Web on :5173)
-pnpm dev
-
-# Start specific app
+# Start API server (on :3000)
 pnpm dev --filter=api
-pnpm dev --filter=web
+
+# Start mobile app (Expo)
+pnpm dev --filter=mobile
 
 # Start API with test database
 pnpm --filter=@repo/api dev:test
+
+# iOS simulator
+pnpm --filter=mobile ios
+
+# Android emulator
+pnpm --filter=mobile android
 ```
 
 ### Testing
@@ -35,11 +40,11 @@ pnpm test:watch
 # Run specific test file
 pnpm --filter=@repo/api test src/routes/v1/__tests__/me.test.ts
 
-# E2E tests (auto-starts servers)
-pnpm --filter=@repo/web test:e2e:run
+# E2E tests (requires simulator/emulator running)
+pnpm --filter=mobile test:e2e
 
-# E2E with specific file
-pnpm --filter=@repo/web test:e2e:run auth.spec.ts
+# E2E with specific test
+pnpm --filter=mobile test:e2e --testNamePattern="auth"
 ```
 
 ### Database
@@ -180,13 +185,13 @@ The authentication system is being evolved toward a full OAuth 2.1/OIDC authoriz
 
 3. Auth-core maps identity to `User` via `user_identities` table
 
-4. For web dashboard OAuth flow:
-   - Client: `web-dashboard` (public client, PKCE required)
-   - Redirect to `/v1/oauth/authorize` with PKCE challenge
-   - Server checks session cookie, redirects to `/login` if missing
-   - On success, issues authorization code
+4. For mobile app OAuth flow:
+   - Client: `mobile-app` (public client, PKCE required)
+   - Initiates OAuth with `/v1/oauth/authorize` and PKCE challenge
+   - Uses deep link redirect URI: `superbasic://auth/callback`
+   - On success, receives authorization code via deep link
    - Client exchanges code for tokens at `/v1/oauth/token`
-   - Receives: access token (JWT), refresh token (HttpOnly cookie), session cookie
+   - Receives: access token (JWT), refresh token (stored in secure storage)
 
 **AuthContext Structure:**
 
@@ -343,7 +348,7 @@ RLS policies will reference these GUCs for row-level isolation.
 **Test Types:**
 - **Unit Tests:** Colocated with source (`*.test.ts`), mock repositories
 - **Integration Tests:** `apps/api/src/**/*.test.ts`, real database
-- **E2E Tests:** `apps/web/e2e/`, Playwright with Chromium
+- **E2E Tests:** `apps/mobile/e2e/`, Detox with iOS Simulator/Android Emulator
 
 **Current Status:** 234+ tests passing (unit + integration + E2E)
 
@@ -488,8 +493,8 @@ export const authMiddleware = async (c: Context<AppBindings>, next: Next) => {
 - ❌ Put business logic in repositories → ✅ Business rules live in services
 - ❌ Return HTTP responses from services → ✅ Only HTTP layer knows about HTTP
 - ❌ Map Prisma entities to DTOs in repositories → ✅ Services handle mapping
-- ❌ Use `apps/web` imports in `packages/core` → ✅ Core is domain logic only
-- ❌ Import `@repo/database` in `apps/web` → ✅ Web client uses API only
+- ❌ Use `apps/mobile` imports in `packages/core` → ✅ Core is domain logic only
+- ❌ Import `@repo/database` in `apps/mobile` → ✅ Mobile client uses API only
 
 ## Gotchas & Common Issues
 
@@ -505,11 +510,11 @@ After modifying `packages/database/schema.prisma`:
 - Reset test DB if state is corrupted: `pnpm db:reset-envtest`
 
 ### OAuth Flow Testing
-- Web dashboard client must be seeded: `pnpm db:seed-oauth`
-- Redirect URI must match exactly: `http://localhost:5173/auth/callback`
+- Mobile app client must be seeded: `pnpm db:seed-oauth`
+- Redirect URI must match exactly: `superbasic://auth/callback`
 - PKCE is required for all clients (even public)
-- Session cookie must exist before hitting `/oauth/authorize`
 - Authorization code is one-time use and expires quickly
+- Tokens stored in secure storage (Keychain on iOS, Keystore on Android)
 
 ### Rate Limiting
 - Auth endpoints: 10 req/min per IP (configurable in Upstash)
@@ -560,7 +565,14 @@ After modifying `packages/database/schema.prisma`:
 **Testing:**
 - `apps/api/src/test/helpers.ts` - Test utilities
 - `apps/api/src/test/setup.ts` - Test setup
-- `apps/web/e2e/` - E2E tests
+- `apps/mobile/e2e/` - E2E tests (Detox)
+
+**Mobile App:**
+- `apps/mobile/` - React Native app (Expo)
+- `apps/mobile/src/screens/` - Screen components
+- `apps/mobile/src/navigation/` - React Navigation setup
+- `apps/mobile/src/api/` - API client and hooks
+- `apps/mobile/src/store/` - State management
 
 ## Documentation References
 
