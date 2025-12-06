@@ -249,10 +249,6 @@ export default function Login() {
           >
             I already have an account
           </button>
-
-          <div className="flex justify-center mt-8">
-            <div className="w-32 h-1 bg-white/20 rounded-full" />
-          </div>
         </div>
       </div>
     );
@@ -514,10 +510,6 @@ export default function Login() {
       <div className="px-10 pb-12 pt-8 w-full max-w-xl mx-auto">
         <div className="text-white/20 text-xs text-center leading-relaxed">
           By continuing, you agree to our Terms of Service and Privacy Policy
-        </div>
-
-        <div className="flex justify-center mt-6">
-          <div className="w-32 h-1 bg-white/20 rounded-full" />
         </div>
       </div>
     </div>
