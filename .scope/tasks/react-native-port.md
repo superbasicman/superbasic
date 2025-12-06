@@ -32,8 +32,13 @@ Context to review before starting:
 
 ## Phase 2: Shared Code Layer
 
-- [ ] 2.1 Create `apps/mobile/src/lib/tokenStorage.ts` using expo-secure-store for access token persistence
-  - Sanity check: Tokens persist across app restarts
+- [ ] 2.1 Create `apps/mobile/src/lib/tokenStorage.ts` using expo-secure-store for secure token persistence
+  - Store access token with expiry (short-lived: 10 minutes)
+  - Store refresh token securely (long-lived: 30 days with 14-day idle timeout)
+  - Implement refresh token rotation: on each refresh, old token is replaced with new one
+  - Clear both tokens on logout
+  - Read `expires_in`/TTL values from server responses to avoid client-side drift from auth defaults
+  - Sanity check: Tokens persist across app restarts, refresh rotation works correctly
 
 - [ ] 2.2 Create `apps/mobile/src/lib/pkce.ts` using expo-crypto for PKCE code verifier/challenge generation
   - Sanity check: Generated challenges match expected format
@@ -74,7 +79,13 @@ Context to review before starting:
   - Use expo-secure-store for PKCE state storage
   - Change client_id to `mobile-app`
   - Change redirect_uri to `superbasic://auth/callback`
-  - Sanity check: OAuth flow completes and stores tokens
+  - Implement refresh token flow per end-auth-goal.md:
+    - Check access token expiry before each API call (with 60s buffer)
+    - If expired, call `/v1/oauth/token` with `grant_type=refresh_token`
+    - Handle refresh token rotation: replace old refresh token with new one from response
+    - On refresh failure (expired/revoked), clear tokens and redirect to login
+    - Store new access token with updated expiry returned by the server (no hard-coded TTLs)
+  - Sanity check: OAuth flow completes, refresh rotation works, expired tokens trigger re-auth
 
 - [ ] 4.2 Port `apps/web/src/hooks/useAuthForm.ts` to `apps/mobile/src/hooks/useAuthForm.ts`
   - Sanity check: Form state management works for login/register
@@ -139,6 +150,7 @@ Context to review before starting:
   - Card-style token items
   - Pull-to-refresh
   - Integrate all token modals
+  - Handle high-risk PAT flows: surface 403 MFA-required responses and trigger MFA step-up if enforced
   - Sanity check: Full CRUD operations work
 
 - [ ] 8.2 Create `DevicesScreen.tsx` porting from `apps/web/src/pages/Settings/Devices.tsx`
@@ -152,8 +164,12 @@ Context to review before starting:
 
 - [ ] 9.1 Add mobile OAuth client to seed script at `packages/database/seed.ts`
   - client_id: `mobile-app`
+  - client_type: `public` (no client secret)
+  - token_endpoint_auth_method: `none` (PKCE only, no client authentication)
   - redirect_uris: `['superbasic://auth/callback']`
-  - Sanity check: `pnpm db:seed` creates mobile client
+  - allowed_grant_types: `['authorization_code', 'refresh_token']`
+  - require_pkce: `true` (mandatory for public clients per OAuth 2.1)
+  - Sanity check: `pnpm db:seed` creates mobile client with correct security flags
 
 - [ ] 9.2 Run seed on test database to register mobile client
   - Sanity check: Can complete OAuth flow with mobile app
