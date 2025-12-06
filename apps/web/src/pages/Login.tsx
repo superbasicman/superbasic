@@ -35,10 +35,10 @@ export default function Login() {
   const [fadeIn, setFadeIn] = useState(false);
   const [fromGetStarted, setFromGetStarted] = useState(false);
 
-  // Splash intro animation
+  // Splash intro animation (kept minimal)
   useEffect(() => {
-    const fadeTimeout = setTimeout(() => setFadeIn(true), 100);
-    const screenTimeout = setTimeout(() => setCurrentScreen('welcome'), 2000);
+    const fadeTimeout = setTimeout(() => setFadeIn(true), 50);
+    const screenTimeout = setTimeout(() => setCurrentScreen('welcome'), 1600);
     return () => {
       clearTimeout(fadeTimeout);
       clearTimeout(screenTimeout);
@@ -48,9 +48,7 @@ export default function Login() {
   // Fade transition when switching screens
   useEffect(() => {
     if (currentScreen === 'splash') return;
-    setFadeIn(false);
-    const timeout = setTimeout(() => setFadeIn(true), 50);
-    return () => clearTimeout(timeout);
+    setFadeIn(true);
   }, [currentScreen]);
 
   // Respect query param mode
@@ -137,11 +135,7 @@ export default function Login() {
         className="min-h-screen bg-black flex items-center justify-center"
         style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
       >
-        <div
-          className={`text-center transition-all duration-1000 ${
-            fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-          }`}
-        >
+        <div className={`text-center transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
           <div className="text-white text-4xl font-light tracking-tight mb-3">SuperBasic Finance</div>
           <div className="text-white/50 text-lg font-light">your finances, in plain text</div>
           <div className="flex justify-center">
@@ -160,8 +154,8 @@ export default function Login() {
         style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
       >
         <div
-          className={`flex-1 flex flex-col justify-center px-10 transition-all duration-700 ${
-            fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          className={`flex-1 flex flex-col justify-center px-10 transition-opacity duration-300 ${
+            fadeIn ? 'opacity-100' : 'opacity-0'
           }`}
         >
           <div className="mb-16">
@@ -212,11 +206,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div
-          className={`px-10 pb-12 transition-all duration-700 delay-300 ${
-            fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
-          }`}
-        >
+        <div className={`px-10 pb-12 transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
           <button
             type="button"
             onClick={() => {
@@ -253,9 +243,7 @@ export default function Login() {
       className="min-h-screen bg-black flex flex-col"
       style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
     >
-      <div
-        className={`px-6 pt-14 pb-6 transition-all duration-500 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
-      >
+      <div className={`px-6 pt-14 pb-6 transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
         {step === 'initial' ? (
           <button
             type="button"
@@ -278,11 +266,7 @@ export default function Login() {
         )}
       </div>
 
-      <div
-        className={`flex-1 px-10 transition-all duration-500 ${
-          fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-        }`}
-      >
+      <div className={`flex-1 px-10 transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
         {error && (
           <div className="mb-6 p-4 border border-red-400 text-red-300 bg-red-500/10">
             {error}
@@ -486,11 +470,7 @@ export default function Login() {
         )}
       </div>
 
-      <div
-        className={`px-10 pb-12 pt-8 transition-all duration-500 delay-200 ${
-          fadeIn ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
+      <div className={`px-10 pb-12 pt-8 transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
         <div className="text-white/20 text-xs text-center leading-relaxed">
           By continuing, you agree to our Terms of Service and Privacy Policy
         </div>
