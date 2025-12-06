@@ -74,8 +74,8 @@ export {
 export type { Scope, RBACScope, RBACRole } from './rbac.js';
 
 // Email utilities
-export { sendMagicLinkEmail } from './email.js';
-export type { SendMagicLinkEmailParams } from './email.js';
+export { sendMagicLinkEmail, sendVerificationEmail } from './email.js';
+export type { SendMagicLinkEmailParams, SendVerificationEmailParams } from './email.js';
 
 // Profile utilities
 export { ensureProfileExists } from './profile.js';

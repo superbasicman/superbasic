@@ -128,6 +128,15 @@ export class UserService {
   }
 
   /**
+   * Check if a user's email is verified
+   * Returns false if user not found or email not verified
+   */
+  async isEmailVerified(userId: string): Promise<boolean> {
+    const verified = await this.userRepo.getEmailVerifiedStatus(userId);
+    return verified === true;
+  }
+
+  /**
    * Normalize email to lowercase and trim whitespace
    */
   private normalizeEmail(email: string): string {

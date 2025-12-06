@@ -214,9 +214,9 @@ export const authApi = {
 
   /**
    * Register a new user
-   * Does NOT set session cookie - call login() after registration
+   * Returns requiresVerification: true when email verification is needed
    */
-  async register(data: RegisterInput): Promise<{ user: UserResponse }> {
+  async register(data: RegisterInput): Promise<{ user: UserResponse; requiresVerification?: boolean; message?: string }> {
     return apiFetch('/v1/register', {
       method: 'POST',
       body: JSON.stringify(data),

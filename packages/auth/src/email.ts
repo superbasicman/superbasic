@@ -1,9 +1,16 @@
 import { createHash } from 'node:crypto';
 import { Resend } from 'resend';
+import { renderEmailVerification } from '@repo/email-templates';
 
 export interface SendMagicLinkEmailParams {
   to: string;
   url: string;
+}
+
+export interface SendVerificationEmailParams {
+  to: string;
+  verificationUrl: string;
+  expiresInHours?: number;
 }
 
 export function getRecipientLogId(email: string): string {
@@ -79,6 +86,53 @@ Need help? Contact us at support@superbasicfinance.com
     }
   } catch (error) {
     console.error('[sendMagicLinkEmail] Failed to send email:', { recipient, error });
+    throw error;
+  }
+}
+
+/**
+ * Send email verification email using React Email template
+ */
+export async function sendVerificationEmail({
+  to,
+  verificationUrl,
+  expiresInHours = 24,
+}: SendVerificationEmailParams): Promise<void> {
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
+  const recipient = getRecipientLogId(to);
+
+  console.log('[sendVerificationEmail] Sending verification email:', {
+    recipient,
+    from,
+  });
+
+  try {
+    const { html, text } = await renderEmailVerification({
+      verificationUrl,
+      expiresInHours,
+    });
+
+    const result = await resend.emails.send({
+      from,
+      to,
+      subject: 'Verify your email address - SuperBasic Finance',
+      html,
+      text,
+    });
+
+    console.log('[sendVerificationEmail] Email sent successfully:', {
+      recipient,
+      emailId: result.data?.id,
+      error: result.error,
+    });
+
+    if (result.error) {
+      console.error('[sendVerificationEmail] Resend API returned error:', result.error);
+      throw new Error(`Failed to send email: ${result.error.message}`);
+    }
+  } catch (error) {
+    console.error('[sendVerificationEmail] Failed to send email:', { recipient, error });
     throw error;
   }
 }

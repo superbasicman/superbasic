@@ -10,6 +10,7 @@ interface UseAuthFormReturn {
   isLoading: boolean;
   error: string | null;
   magicLinkSent: boolean;
+  verificationEmailSent: boolean;
 
   // Setters
   setEmail: (value: string) => void;
@@ -37,6 +38,7 @@ export function useAuthForm(): UseAuthFormReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState(false);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -83,6 +85,12 @@ export function useAuthForm(): UseAuthFormReturn {
     try {
       await register({ email, password });
     } catch (err) {
+      // Check if this is a verification required "error" (not actually an error)
+      if (err instanceof Error && (err as Error & { requiresVerification?: boolean }).requiresVerification) {
+        setVerificationEmailSent(true);
+        return;
+      }
+
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
@@ -124,6 +132,7 @@ export function useAuthForm(): UseAuthFormReturn {
     setConfirmPassword('');
     setError(null);
     setMagicLinkSent(false);
+    setVerificationEmailSent(false);
   };
 
   return {
@@ -134,6 +143,7 @@ export function useAuthForm(): UseAuthFormReturn {
     isLoading,
     error,
     magicLinkSent,
+    verificationEmailSent,
 
     // Setters
     setEmail,

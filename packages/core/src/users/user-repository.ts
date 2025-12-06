@@ -45,6 +45,24 @@ export class UserRepository {
   }
 
   /**
+   * Get email verification status for a user
+   * Returns null if user not found
+   */
+  async getEmailVerifiedStatus(userId: string): Promise<boolean | null> {
+    // Fast-return for obviously invalid IDs to avoid Prisma UUID parse errors
+    if (!isValidUuid(userId)) {
+      return null;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { emailVerified: true },
+    });
+
+    return user?.emailVerified ?? null;
+  }
+
+  /**
    * Create a new user
    */
   async create(data: CreateUserData): Promise<User> {

@@ -10,29 +10,40 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '../../');
 
-type Target = 'test' | 'local' | 'prod';
-type Action = 'seed' | 'migrate' | 'reset';
+type SingleTarget = 'test' | 'local' | 'prod';
+type Target = SingleTarget | 'all';
+type Action = 'seed' | 'migrate' | 'reset' | 'generate';
+
+const VALID_TARGETS: Target[] = ['test', 'local', 'prod', 'all'];
+const VALID_ACTIONS: Action[] = ['seed', 'migrate', 'reset', 'generate'];
 
 const ARGS = process.argv.slice(2);
 const ACTION = ARGS[0] as Action;
 const TARGET_FLAG_INDEX = ARGS.indexOf('--target');
-const TARGET = TARGET_FLAG_INDEX !== -1 ? ARGS[TARGET_FLAG_INDEX + 1] as Target : null;
+const TARGET_INPUT = TARGET_FLAG_INDEX !== -1 ? ARGS[TARGET_FLAG_INDEX + 1] : null;
 const DRY_RUN = ARGS.includes('--dry-run');
 
-if (!ACTION || !['seed', 'migrate', 'reset'].includes(ACTION)) {
-    console.error('Usage: tsx tooling/scripts/db-manager.ts <seed|migrate|reset> --target <test|local|prod|all>');
+if (!ACTION || !VALID_ACTIONS.includes(ACTION)) {
+    console.error('Usage: tsx tooling/scripts/db-manager.ts <seed|migrate|reset|generate> --target <test|local|prod|all>');
     process.exit(1);
 }
 
-if (!TARGET && ARGS.includes('--target')) {
+if (!TARGET_INPUT && ARGS.includes('--target')) {
     console.error('Error: --target flag provided but no target specified.');
     process.exit(1);
 }
 
-if (!TARGET) {
+if (!TARGET_INPUT) {
     console.error('Error: --target <test|local|prod|all> is required.');
     process.exit(1);
 }
+
+if (!VALID_TARGETS.includes(TARGET_INPUT as Target)) {
+    console.error(`Error: Invalid target "${TARGET_INPUT}". Use one of: ${VALID_TARGETS.join(', ')}`);
+    process.exit(1);
+}
+
+const TARGET = TARGET_INPUT as Target;
 
 async function confirm(message: string): Promise<boolean> {
     const rl = readline.createInterface({
@@ -75,7 +86,7 @@ async function runCommand(command: string, env: Record<string, string> = {}) {
     }
 }
 
-async function executeAction(target: Target) {
+async function executeAction(target: SingleTarget) {
     console.log(`\n=== Running ${ACTION} for target: ${target} ===`);
 
     let dbUrl = '';
@@ -138,16 +149,17 @@ async function executeAction(target: Target) {
             // Re-seed after reset
             await runCommand('tsx tooling/scripts/seed-oauth-client.ts', env);
             break;
+        case 'generate':
+            await runCommand('pnpm --filter @repo/database exec prisma generate', env);
+            break;
     }
 }
 
 async function main() {
-    if (TARGET === 'all' as any) {
-        await executeAction('test');
-        await executeAction('local');
-        await executeAction('prod');
-    } else {
-        await executeAction(TARGET as Target);
+    const targetsToRun: SingleTarget[] = TARGET === 'all' ? ['test', 'local', 'prod'] : [TARGET];
+
+    for (const target of targetsToRun) {
+        await executeAction(target);
     }
 }
 

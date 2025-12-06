@@ -15,6 +15,7 @@ export type {
   OAuthAuthorizationCode,
   UserState,
   IdentityProvider,
+  VerificationTokenType,
 } from '@prisma/client';
 export * from './context.js';
 

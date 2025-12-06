@@ -1,8 +1,57 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type KeyboardEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Input } from '@repo/design-system';
+import CheckEmailMessage from '../components/CheckEmailMessage';
 import { useAuth } from '../contexts/AuthContext';
 import { useAuthForm } from '../hooks/useAuthForm';
+
+const CustomButton = ({
+  children,
+  onClick,
+  variant = 'primary',
+  disabled = false,
+  isDark,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+  variant?: 'primary' | 'toggle';
+  disabled?: boolean;
+  isDark: boolean;
+}) => {
+  const baseStyles = 'w-full text-sm py-3 px-4 border transition-colors';
+  const toggleStyles = 'text-xs py-2 px-3 border transition-colors';
+
+  if (variant === 'toggle') {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={`${toggleStyles} ${
+          isDark
+            ? 'border-white hover:bg-white hover:text-black'
+            : 'border-black hover:bg-black hover:text-white'
+        }`}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`${baseStyles} ${
+        isDark
+          ? 'border-white hover:bg-white hover:text-black disabled:opacity-50'
+          : 'border-black hover:bg-black hover:text-white disabled:opacity-50'
+      }`}
+    >
+      {children}
+    </button>
+  );
+};
 
 export default function Login() {
   const [searchParams] = useSearchParams();
@@ -14,6 +63,7 @@ export default function Login() {
     isLoading,
     error,
     magicLinkSent,
+    verificationEmailSent,
     setEmail,
     setPassword,
     setConfirmPassword,
@@ -63,58 +113,26 @@ export default function Login() {
     resetForm();
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent, action: () => void) => {
+  const handleKeyPress = (e: KeyboardEvent, action: () => void) => {
     if (e.key === 'Enter') {
       action();
     }
   };
 
-  // Custom button component matching the design
-  const CustomButton = ({
-    children,
-    onClick,
-    variant = 'primary',
-    disabled = false,
-  }: {
-    children: React.ReactNode;
-    onClick?: () => void;
-    variant?: 'primary' | 'toggle';
-    disabled?: boolean;
-  }) => {
-    const baseStyles = 'w-full text-sm py-3 px-4 border transition-colors';
-    const toggleStyles = 'text-xs py-2 px-3 border transition-colors';
-
-    if (variant === 'toggle') {
-      return (
-        <button
-          type="button"
-          onClick={onClick}
-          className={`${toggleStyles} ${
-            isDark
-              ? 'border-white hover:bg-white hover:text-black'
-              : 'border-black hover:bg-black hover:text-white'
-          }`}
-        >
-          {children}
-        </button>
-      );
-    }
-
+  if (verificationEmailSent) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled || isLoading}
-        className={`${baseStyles} ${
-          isDark
-            ? 'border-white hover:bg-white hover:text-black disabled:opacity-50'
-            : 'border-black hover:bg-black hover:text-white disabled:opacity-50'
-        }`}
-      >
-        {children}
-      </button>
+      <CheckEmailMessage
+        email={email}
+        isDark={isDark}
+        onToggleTheme={() => setIsDark(!isDark)}
+        onReset={() => {
+          resetForm();
+          setMode('signin');
+          setStep('initial');
+        }}
+      />
     );
-  };
+  }
 
   return (
     <div
@@ -124,7 +142,7 @@ export default function Login() {
     >
       {/* Theme toggle - fixed to top right of screen */}
       <div className="fixed top-8 right-8">
-        <CustomButton onClick={() => setIsDark(!isDark)} variant="toggle">
+        <CustomButton onClick={() => setIsDark(!isDark)} variant="toggle" isDark={isDark}>
           {isDark ? 'Light' : 'Dark'}
         </CustomButton>
       </div>
@@ -154,7 +172,7 @@ export default function Login() {
           <div>
             {/* Google OAuth */}
             <div className="space-y-3 mb-6">
-              <CustomButton onClick={loginWithGoogle}>
+              <CustomButton onClick={loginWithGoogle} isDark={isDark} disabled={isLoading}>
                 {mode === 'signin' ? 'Sign in' : 'Sign up'} with Google
               </CustomButton>
             </div>
@@ -189,7 +207,9 @@ export default function Login() {
 
             {/* Continue button */}
             <div className="mb-6">
-              <CustomButton onClick={handleEmailContinue}>Continue</CustomButton>
+              <CustomButton onClick={handleEmailContinue} isDark={isDark} disabled={isLoading}>
+                Continue
+              </CustomButton>
             </div>
 
             {/* Toggle mode */}
@@ -232,7 +252,7 @@ export default function Login() {
             </div>
 
             <div className="mb-6">
-              <CustomButton onClick={handleLogin} disabled={isLoading}>
+              <CustomButton onClick={handleLogin} disabled={isLoading} isDark={isDark}>
                 {isLoading ? 'Signing in...' : 'Sign in'}
               </CustomButton>
             </div>
@@ -255,7 +275,7 @@ export default function Login() {
 
             {/* Magic link option */}
             <div className="mb-6">
-              <CustomButton onClick={handleMagicLink} disabled={isLoading}>
+              <CustomButton onClick={handleMagicLink} disabled={isLoading} isDark={isDark}>
                 {isLoading ? 'Sending...' : 'Send magic link'}
               </CustomButton>
             </div>
@@ -292,7 +312,7 @@ export default function Login() {
         )}
 
         {/* Password step - Sign up */}
-        {step === 'password' && mode === 'signup' && (
+        {step === 'password' && mode === 'signup' && !verificationEmailSent && (
           <div>
             <button type="button" onClick={handleBack} className="text-xs underline mb-8">
               ← Back
@@ -323,7 +343,7 @@ export default function Login() {
             </div>
 
             <div className="mb-6">
-              <CustomButton onClick={handleRegister} disabled={isLoading}>
+              <CustomButton onClick={handleRegister} disabled={isLoading} isDark={isDark}>
                 {isLoading ? 'Creating account...' : 'Create account'}
               </CustomButton>
             </div>
@@ -335,6 +355,7 @@ export default function Login() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

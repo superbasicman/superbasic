@@ -339,15 +339,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   /**
-   * Register a new user then automatically log them in
+   * Register a new user
+   * Throws with message if email verification is required
    */
   async function register(data: RegisterInput): Promise<void> {
-    try {
-      await authApi.register(data);
-      await login();
-    } catch (error) {
+    const result = await authApi.register(data);
+
+    if (result.requiresVerification) {
+      // Throw a special error that the UI can catch and show verification message
+      const error = new Error(result.message || 'Please check your email to verify your account.');
+      (error as Error & { requiresVerification: boolean }).requiresVerification = true;
       throw error;
     }
+
+    // If no verification required, proceed with login
+    await login();
   }
 
   /**

@@ -25,6 +25,7 @@
     "typecheck": "turbo run typecheck",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "db:generate": "tsx tooling/scripts/db-manager.ts generate",
     "db:seed": "tsx tooling/scripts/db-manager.ts seed",
     "db:migrate": "tsx tooling/scripts/db-manager.ts migrate",
     "db:reset": "tsx tooling/scripts/db-manager.ts reset",

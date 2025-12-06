@@ -1,0 +1,33 @@
+{
+  "name": "@repo/email-templates",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsup && cp types.d.ts dist/index.d.ts",
+    "preview": "react-email dev --dir src/templates",
+    "typecheck": "echo 'Skipping typecheck - React 18/19 types conflict with monorepo'"
+  },
+  "dependencies": {
+    "@react-email/components": "^0.0.31",
+    "@react-email/render": "^1.0.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.18",
+    "react-email": "^3.0.4",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3"
+  }
+}

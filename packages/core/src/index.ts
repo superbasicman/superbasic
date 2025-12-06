@@ -11,3 +11,4 @@ export * from './ledger/index.js';
 export * from './tokens/index.js';
 export * from './profiles/index.js';
 export * from './users/index.js';
+export * from './verification/index.js';

@@ -152,6 +152,7 @@ export async function createTestUser(overrides: Partial<TestUserCredentials> = {
       primaryEmail: credentials.email,
       displayName: credentials.name || null,
       userState: 'active',
+      emailVerified: true, // Test users are verified by default
       password: {
         create: {
           passwordHash: hashedPassword,
@@ -325,6 +326,7 @@ export async function createPersonalAccessToken(options: {
           id: options.userId,
           primaryEmail: email,
           userState: 'active',
+          emailVerified: true, // Test users are verified by default
         },
       });
     }

@@ -31,6 +31,7 @@
     "nodemailer": "6.9.16",
     "jose": "^5.10.0",
     "@repo/database": "workspace:*",
+    "@repo/email-templates": "workspace:*",
     "@repo/types": "workspace:*",
     "resend": "^6.2.2",
     "zod": "^3.23.8"
