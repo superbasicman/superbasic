@@ -45,14 +45,14 @@ Register both mobile and web OAuth clients to unblock testing on all platforms.
 
 ## Phase 2: Enable Web in Expo
 
-- [ ] 2.1 Install web dependencies
+- [x] 2.1 Install web dependencies
   ```bash
   pnpm --filter @repo/mobile add react-dom react-native-web @expo/metro-runtime
   pnpm --filter @repo/mobile add -D @types/react-dom
   ```
-  - Sanity check: `pnpm install` succeeds
+  - Sanity check: `pnpm install` succeeds ✅
 
-- [ ] 2.2 Update `app.json` with web configuration
+- [x] 2.2 Update `app.json` with web configuration
   ```json
   {
     "expo": {
@@ -64,10 +64,10 @@ Register both mobile and web OAuth clients to unblock testing on all platforms.
     }
   }
   ```
-  - Sanity check: `npx expo config` shows web settings
+  - Sanity check: `npx expo config` shows web settings ✅
 
-- [ ] 2.3 Test web build launches
-  - Sanity check: `pnpm --filter @repo/mobile exec expo start --web` loads without module errors
+- [x] 2.3 Test web build launches
+  - Sanity check: `pnpm --filter @repo/mobile exec expo start --web` loads without module errors ✅
 
 ---
 
