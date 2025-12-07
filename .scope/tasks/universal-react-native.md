@@ -77,10 +77,11 @@ Per `end-auth-goal.md` section 5.2:
 - **Web:** Access token in memory, refresh token in HttpOnly/Secure cookie
 - **Mobile:** Both tokens in secure OS storage (Keychain/Keystore)
 
-- [ ] 3.1 Rename `tokenStorage.ts` to `tokenStorage.native.ts` (current SecureStore implementation)
-  - Sanity check: Native builds still work
+- [x] 3.1 Rename `tokenStorage.ts` to `tokenStorage.native.ts` (current SecureStore implementation)
+  - Sanity check: Native builds still work ✅
+  - Created `tokenStorage.ts` as platform-agnostic entry point for TypeScript
 
-- [ ] 3.2 Create `tokenStorage.web.ts` with memory-only access token storage
+- [x] 3.2 Create `tokenStorage.web.ts` with memory-only access token storage
   ```typescript
   let inMemoryAccessToken: string | null = null;
   let inMemoryExpiry: number | null = null;
@@ -108,16 +109,18 @@ Per `end-auth-goal.md` section 5.2:
   }
   ```
   Notes: Refresh cookie must be HttpOnly, Secure, and SameSite per auth-goal 5.2.
-  - Sanity check: Web build compiles
+  - Sanity check: Web build compiles ✅
 
-- [ ] 3.3 Rename `pkce.ts` to `pkce.native.ts` (current expo-crypto implementation)
-  - Sanity check: Native builds still work
+- [x] 3.3 Rename `pkce.ts` to `pkce.native.ts` (current expo-crypto implementation)
+  - Sanity check: Native builds still work ✅
+  - Created `pkce.ts` as platform-agnostic entry point for TypeScript
 
-- [ ] 3.4 Create `pkce.web.ts` using crypto.subtle
-  - Sanity check: Web build compiles, PKCE generates valid challenges
+- [x] 3.4 Create `pkce.web.ts` using crypto.subtle
+  - Sanity check: Web build compiles, PKCE generates valid challenges ✅
+  - Uses Web Crypto API for cryptographically secure random generation
 
-- [ ] 3.5 Verify TypeScript compiles for both platforms
-  - Sanity check: `pnpm --filter @repo/mobile exec tsc --noEmit` passes
+- [x] 3.5 Verify TypeScript compiles for both platforms
+  - Sanity check: `pnpm --filter @repo/mobile exec tsc --noEmit` passes ✅
 
 ---
 
