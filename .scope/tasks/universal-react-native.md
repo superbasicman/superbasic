@@ -142,25 +142,31 @@ Per `end-auth-goal.md` section 5.2:
 
 ## Phase 5: Components
 
-- [ ] 5.1 Create `Button.tsx` with variants (primary, secondary, outline, ghost)
-  - Use TouchableOpacity/Pressable
-  - Sanity check: All variants render correctly
+- [x] 5.1 Create `Button.tsx` with variants (primary, secondary, outline, ghost)
+  - Use TouchableOpacity/Pressable ✅
+  - Sanity check: All variants render correctly ✅
+  - Features: Loading state, disabled state, fullWidth option, active opacity
 
-- [ ] 5.2 Create `Input.tsx` with dark/light theme support
-  - Sanity check: Input works in forms
+- [x] 5.2 Create `Input.tsx` with dark/light theme support
+  - Sanity check: Input works in forms ✅
+  - Features: Label, error/helper text, focus state, theme-aware styling
 
-- [ ] 5.3 Create `CreateTokenModal.tsx` using React Native Modal
-  - Port form logic from web
-  - Sanity check: Can create new API tokens
+- [x] 5.3 Create `CreateTokenModal.tsx` using React Native Modal
+  - Port form logic from web ✅
+  - Sanity check: Can create new API tokens ✅
+  - Features: Form validation, loading state, keyboard handling, info message
 
-- [ ] 5.4 Create `TokenDisplayModal.tsx` with expo-clipboard integration
-  - Sanity check: Token display and copy works
+- [x] 5.4 Create `TokenDisplayModal.tsx` with expo-clipboard integration
+  - Sanity check: Token display and copy works ✅
+  - Features: Clipboard copy, copy feedback, usage instructions, security warning
 
-- [ ] 5.5 Create `RevokeTokenDialog.tsx` as confirmation dialog
-  - Sanity check: Revoke confirmation works
+- [x] 5.5 Create `RevokeTokenDialog.tsx` as confirmation dialog
+  - Sanity check: Revoke confirmation works ✅
+  - Features: Warning icon, confirmation message, loading state, destructive action styling
 
-- [ ] 5.6 Create `EditTokenNameDialog.tsx` for renaming tokens
-  - Sanity check: Token rename works
+- [x] 5.6 Create `EditTokenNameDialog.tsx` for renaming tokens
+  - Sanity check: Token rename works ✅
+  - Features: Form validation, keyboard handling, auto-focus, change detection
 
 ---
 
