@@ -170,7 +170,9 @@ Context to review before starting:
   - token_endpoint_auth_method: `none` (PKCE only, no client authentication)
   - redirect_uris: `['superbasic://auth/callback']`
   - allowed_grant_types: `['authorization_code', 'refresh_token']`
+  - allowed_scopes: `['openid', 'profile', 'email']` (and app scopes as needed)
   - require_pkce: `true` (mandatory for public clients per OAuth 2.1)
+  - is_first_party: `true` (first-party client, no consent)
   - Sanity check: `pnpm db:seed` creates mobile client with correct security flags
 
 - [ ] 9.2 Run seed on test database to register mobile client

@@ -21,6 +21,9 @@ type SeedConfig = {
   redirectUris: string[];
   type?: 'public' | 'confidential';
   isFirstParty?: boolean;
+  allowedGrantTypes?: ('authorization_code' | 'refresh_token' | 'client_credentials' | 'device_code')[];
+  allowedScopes?: string[];
+  tokenEndpointAuthMethod?: 'none' | 'client_secret_post' | 'client_secret_basic' | 'private_key_jwt';
 };
 
 function normalizeRedirectUris(envValue: string | undefined, fallback: string[], allowEmpty = false): string[] {
@@ -41,34 +44,64 @@ function normalizeRedirectUris(envValue: string | undefined, fallback: string[],
 }
 
 function buildSeedConfigs(): SeedConfig[] {
-  const mobile: SeedConfig = {
-    clientId: (process.env.OAUTH_CLIENT_ID ?? 'mobile').trim(),
-    name: process.env.OAUTH_CLIENT_NAME?.trim() || 'SuperBasic Mobile',
+  const additionalUris = normalizeRedirectUris(process.env.ADDITIONAL_REDIRECT_URIS, [], true);
+
+  const mobileApp: SeedConfig = {
+    clientId: (process.env.OAUTH_CLIENT_ID ?? 'mobile-app').trim(),
+    name: process.env.OAUTH_CLIENT_NAME?.trim() || 'SuperBasic Mobile App',
     redirectUris: normalizeRedirectUris(process.env.OAUTH_REDIRECT_URIS, [
-      'sb://callback',
-      'http://localhost:3000/v1/auth/callback/mobile',
+      'superbasic://auth/callback',
     ]),
     type: 'public',
     isFirstParty: true,
+    allowedGrantTypes: ['authorization_code', 'refresh_token'],
+    allowedScopes: [
+      // OIDC scopes for identity claims
+      'openid',
+      'profile',
+      'email',
+      // App scopes for API authorization (per auth-goal 5.17)
+      'read:accounts',
+      'write:accounts',
+      'read:transactions',
+      'write:transactions',
+      'manage:members',
+      'admin',
+    ],
+    tokenEndpointAuthMethod: 'none',
   };
 
-  const additionalUris = normalizeRedirectUris(process.env.ADDITIONAL_REDIRECT_URIS, [], true);
-
-  const webDashboard: SeedConfig = {
-    clientId: (process.env.WEB_OAUTH_CLIENT_ID ?? 'web-dashboard').trim(),
-    name: process.env.WEB_OAUTH_CLIENT_NAME?.trim() || 'SuperBasic Web Dashboard',
+  const webSpa: SeedConfig = {
+    clientId: (process.env.WEB_OAUTH_CLIENT_ID ?? 'web-spa').trim(),
+    name: process.env.WEB_OAUTH_CLIENT_NAME?.trim() || 'SuperBasic Web SPA',
     redirectUris: [
       ...normalizeRedirectUris(process.env.WEB_OAUTH_REDIRECT_URIS, [
-        'http://localhost:5173/auth/callback',
+        'http://localhost:8081/auth/callback',
+        'https://app.superbasic.com/auth/callback',
       ]),
       ...additionalUris,
     ],
     type: 'public',
     isFirstParty: true,
+    allowedGrantTypes: ['authorization_code', 'refresh_token'],
+    allowedScopes: [
+      // OIDC scopes for identity claims
+      'openid',
+      'profile',
+      'email',
+      // App scopes for API authorization (per auth-goal 5.17)
+      'read:accounts',
+      'write:accounts',
+      'read:transactions',
+      'write:transactions',
+      'manage:members',
+      'admin',
+    ],
+    tokenEndpointAuthMethod: 'none',
   };
 
   const deduped: Record<string, SeedConfig> = {};
-  [mobile, webDashboard].forEach((config) => {
+  [mobileApp, webSpa].forEach((config) => {
     if (!config.clientId) {
       throw new Error('Client IDs must not be empty');
     }
@@ -86,6 +119,9 @@ async function seedClient(config: SeedConfig): Promise<void> {
       clientType: config.type ?? 'public',
       redirectUris: config.redirectUris,
       isFirstParty: config.isFirstParty ?? false,
+      allowedGrantTypes: config.allowedGrantTypes ?? ['authorization_code', 'refresh_token'],
+      allowedScopes: config.allowedScopes ?? [],
+      tokenEndpointAuthMethod: config.tokenEndpointAuthMethod ?? 'none',
       disabledAt: null,
     },
     create: {
@@ -94,6 +130,9 @@ async function seedClient(config: SeedConfig): Promise<void> {
       clientType: config.type ?? 'public',
       redirectUris: config.redirectUris,
       isFirstParty: config.isFirstParty ?? false,
+      allowedGrantTypes: config.allowedGrantTypes ?? ['authorization_code', 'refresh_token'],
+      allowedScopes: config.allowedScopes ?? [],
+      tokenEndpointAuthMethod: config.tokenEndpointAuthMethod ?? 'none',
     },
   });
 
@@ -102,9 +141,12 @@ async function seedClient(config: SeedConfig): Promise<void> {
   });
 
   console.log(
-    `Seeded OAuth client "${config.clientId}" (${config.name}) with redirect URIs: ${config.redirectUris.join(
-      ', '
-    )} (grant types: ${(config.allowedGrantTypes ?? ['authorization_code', 'refresh_token']).join(', ')})`
+    `Seeded OAuth client "${config.clientId}" (${config.name})\n` +
+    `  - Redirect URIs: ${config.redirectUris.join(', ')}\n` +
+    `  - Grant types: ${(config.allowedGrantTypes ?? ['authorization_code', 'refresh_token']).join(', ')}\n` +
+    `  - Scopes: ${(config.allowedScopes ?? []).join(', ')}\n` +
+    `  - Auth method: ${config.tokenEndpointAuthMethod ?? 'none'}\n` +
+    `  - First party: ${config.isFirstParty ?? false}`
   );
 
   if (!record) {
