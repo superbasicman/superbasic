@@ -7,6 +7,141 @@ import { useAuthForm } from '../hooks/useAuthForm';
 type Screen = 'splash' | 'welcome' | 'auth';
 type Mode = 'signin' | 'signup';
 type Step = 'initial' | 'password';
+type Theme = 'coffeeDark' | 'coffeeLight' | 'pureDark' | 'pureLight';
+
+type ThemePalette = {
+  bg: string;
+  primaryText: string;
+  primarySoft: string;
+  secondaryText: string;
+  mutedText: string;
+  chipIcon: string;
+  accentBorder: string;
+  accentBorderSoft: string;
+  subtleBg: string;
+  divider: string;
+  barBg: string;
+  buttonPrimaryBg: string;
+  buttonPrimaryText: string;
+  buttonPrimaryHover: string;
+  buttonOutlineText: string;
+  buttonOutlineHoverBg: string;
+  inputBg: string;
+  inputBorder: string;
+  inputFocusBorder: string;
+  placeholder: string;
+  chipBg: string;
+  toggleBorder: string;
+  toggleBg: string;
+  toggleHoverBg: string;
+};
+
+const palette: Record<Theme, ThemePalette> = {
+  coffeeDark: {
+    bg: 'bg-[#120a05]',
+    primaryText: 'text-[#f9e8cf]',
+    primarySoft: 'text-[#f3ddba]',
+    secondaryText: 'text-[#d7ba90]',
+    mutedText: 'text-[#b8966a]',
+    chipIcon: 'text-[#f3ddba]',
+    accentBorder: 'border-[#f9e8cf33]',
+    accentBorderSoft: 'border-[#f9e8cf1f]',
+    subtleBg: 'bg-[#f9e8cf0f]',
+    divider: 'border-[#f9e8cf26]',
+    barBg: 'bg-[#f9e8cf33]',
+    buttonPrimaryBg: 'bg-[#f5ddc0]',
+    buttonPrimaryText: 'text-[#2b150a]',
+    buttonPrimaryHover: 'hover:bg-[#f1d2ab]',
+    buttonOutlineText: 'text-[#f9e8cf]',
+    buttonOutlineHoverBg: 'hover:bg-[#f9e8cf0f]',
+    inputBg: 'bg-[#f9e8cf0f]',
+    inputBorder: 'border-[#f9e8cf33]',
+    inputFocusBorder: 'focus:border-[#f9e8cf80]',
+    placeholder: 'placeholder-[#f3ddba80]',
+    chipBg: 'bg-[#f9e8cf12]',
+    toggleBorder: 'border-[#f9e8cf66]',
+    toggleBg: 'bg-[#f9e8cf1a]',
+    toggleHoverBg: 'hover:bg-[#f9e8cf33]',
+  },
+  coffeeLight: {
+    bg: 'bg-[#f5e6d3]',
+    primaryText: 'text-[#2b150a]',
+    primarySoft: 'text-[#3b1f0f]',
+    secondaryText: 'text-[#7b5533]',
+    mutedText: 'text-[#93623d]',
+    chipIcon: 'text-[#7b5533]',
+    accentBorder: 'border-[#2b150a33]',
+    accentBorderSoft: 'border-[#2b150a1f]',
+    subtleBg: 'bg-[#2b150a0a]',
+    divider: 'border-[#2b150a26]',
+    barBg: 'bg-[#2b150a33]',
+    buttonPrimaryBg: 'bg-[#2b150a]',
+    buttonPrimaryText: 'text-[#f5e6d3]',
+    buttonPrimaryHover: 'hover:bg-[#3b1f10]',
+    buttonOutlineText: 'text-[#2b150a]',
+    buttonOutlineHoverBg: 'hover:bg-[#2b150a0a]',
+    inputBg: 'bg-[#2b150a08]',
+    inputBorder: 'border-[#2b150a33]',
+    inputFocusBorder: 'focus:border-[#2b150a80]',
+    placeholder: 'placeholder-[#7b553380]',
+    chipBg: 'bg-[#2b150a0d]',
+    toggleBorder: 'border-[#2b150a66]',
+    toggleBg: 'bg-[#2b150a12]',
+    toggleHoverBg: 'hover:bg-[#2b150a26]',
+  },
+  pureDark: {
+    bg: 'bg-[#000000]',
+    primaryText: 'text-[#ffffff]',
+    primarySoft: 'text-[#f5f5f5]',
+    secondaryText: 'text-[#d4d4d4]',
+    mutedText: 'text-[#9ca3af]',
+    chipIcon: 'text-[#e5e7eb]',
+    accentBorder: 'border-[#ffffff33]',
+    accentBorderSoft: 'border-[#ffffff22]',
+    subtleBg: 'bg-[#ffffff0a]',
+    divider: 'border-[#ffffff1f]',
+    barBg: 'bg-[#ffffff33]',
+    buttonPrimaryBg: 'bg-[#ffffff]',
+    buttonPrimaryText: 'text-[#000000]',
+    buttonPrimaryHover: 'hover:bg-[#f5f5f5]',
+    buttonOutlineText: 'text-[#ffffff]',
+    buttonOutlineHoverBg: 'hover:bg-[#ffffff0a]',
+    inputBg: 'bg-[#111827]',
+    inputBorder: 'border-[#374151]',
+    inputFocusBorder: 'focus:border-[#e5e7eb]',
+    placeholder: 'placeholder-[#9ca3af]',
+    chipBg: 'bg-[#111827]',
+    toggleBorder: 'border-[#e5e7eb88]',
+    toggleBg: 'bg-[#111827]',
+    toggleHoverBg: 'hover:bg-[#1f2937]',
+  },
+  pureLight: {
+    bg: 'bg-[#ffffff]',
+    primaryText: 'text-[#000000]',
+    primarySoft: 'text-[#111827]',
+    secondaryText: 'text-[#4b5563]',
+    mutedText: 'text-[#6b7280]',
+    chipIcon: 'text-[#4b5563]',
+    accentBorder: 'border-[#00000026]',
+    accentBorderSoft: 'border-[#0000001a]',
+    subtleBg: 'bg-[#00000005]',
+    divider: 'border-[#0000001a]',
+    barBg: 'bg-[#00000026]',
+    buttonPrimaryBg: 'bg-[#000000]',
+    buttonPrimaryText: 'text-[#ffffff]',
+    buttonPrimaryHover: 'hover:bg-[#111827]',
+    buttonOutlineText: 'text-[#000000]',
+    buttonOutlineHoverBg: 'hover:bg-[#00000008]',
+    inputBg: 'bg-[#f9fafb]',
+    inputBorder: 'border-[#e5e7eb]',
+    inputFocusBorder: 'focus:border-[#111827]',
+    placeholder: 'placeholder-[#9ca3af]',
+    chipBg: 'bg-[#f3f4f6]',
+    toggleBorder: 'border-[#00000055]',
+    toggleBg: 'bg-[#00000008]',
+    toggleHoverBg: 'hover:bg-[#00000012]',
+  },
+};
 
 export default function Login() {
   const [searchParams] = useSearchParams();
@@ -32,26 +167,35 @@ export default function Login() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('splash');
   const [mode, setMode] = useState<Mode>('signin');
   const [step, setStep] = useState<Step>('initial');
-  const [splashVisible, setSplashVisible] = useState(false);
+  const [fadeIn, setFadeIn] = useState(false);
   const [fromGetStarted, setFromGetStarted] = useState(false);
-  const MAGIC_LINK_BUTTON_TEXT = 'Send login link'; 
+  const [theme, setTheme] = useState<Theme>('pureDark');
+  const MAGIC_LINK_BUTTON_TEXT = 'Send login link';
+  const t = palette[theme];
+  const themeOrder: Theme[] = ['pureDark', 'coffeeDark', 'pureLight', 'coffeeLight'];
+  const rootFont = { fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" };
+  const isDarkTheme = theme === 'pureDark' || theme === 'coffeeDark';
 
   // Splash intro timing
   useEffect(() => {
+    const fadeTimeout = setTimeout(() => setFadeIn(true), 100);
     const screenTimeout = setTimeout(() => setCurrentScreen('welcome'), 2000);
     return () => {
+      clearTimeout(fadeTimeout);
       clearTimeout(screenTimeout);
     };
   }, []);
 
-  // Subtle fade for splash only
+  // Subtle fade between screens
   useEffect(() => {
-    if (currentScreen !== 'splash') {
-      setSplashVisible(false);
+    if (currentScreen === 'splash') {
       return;
     }
-    const fadeTimeout = setTimeout(() => setSplashVisible(true), 50);
-    return () => clearTimeout(fadeTimeout);
+    setFadeIn(false);
+    const fadeTimeout = setTimeout(() => setFadeIn(true), 50);
+    return () => {
+      clearTimeout(fadeTimeout);
+    };
   }, [currentScreen]);
 
   // Respect query param mode
@@ -114,6 +258,13 @@ export default function Login() {
     setError(null);
   };
 
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const idx = themeOrder.indexOf(prev);
+      return themeOrder[(idx + 1) % themeOrder.length];
+    });
+  };
+
   const togglePrompt =
     mode === 'signin' && !fromGetStarted ? "Don't have an account? Sign up" : 'Already have an account? Sign in';
 
@@ -135,8 +286,8 @@ export default function Login() {
     return (
       <CheckEmailMessage
         email={email}
-        isDark
-        onToggleTheme={() => undefined}
+        isDark={isDarkTheme}
+        onToggleTheme={toggleTheme}
         onReset={() => {
           resetForm();
           setMode('signin');
@@ -151,18 +302,24 @@ export default function Login() {
   if (currentScreen === 'splash') {
     return (
       <div
-        className="min-h-screen bg-black flex items-center justify-center"
-        style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
+        className={`min-h-screen ${t.bg} flex items-center justify-center relative`}
+        style={rootFont}
       >
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`absolute top-6 right-6 w-7 h-7 rounded-full border ${t.toggleBorder} ${t.toggleBg} ${t.toggleHoverBg} transition-colors`}
+          aria-label="Toggle theme"
+        />
         <div
-          className={`text-center transition-opacity duration-300 ${
-            splashVisible ? 'opacity-100' : 'opacity-0'
+          className={`text-center transition-all duration-1000 ${
+            fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
           }`}
         >
-          <div className="text-white text-4xl font-light tracking-tight mb-3">SuperBasic Finance</div>
-          <div className="text-white/50 text-lg font-light">your finances, in plain text</div>
-          <div className="flex justify-center">
-            <div className="w-6 h-px bg-white/30 animate-pulse" />
+          <div className={`${t.primaryText} text-4xl font-light tracking-tight mb-3`}>SuperBasic Finance</div>
+          <div className={`${t.primarySoft} text-lg font-light`}>your finances, in plain text</div>
+          <div className="flex justify-center mt-3">
+            <div className={`w-10 h-[2px] rounded-full ${t.barBg} animate-pulse`} />
           </div>
         </div>
       </div>
@@ -173,59 +330,73 @@ export default function Login() {
   if (currentScreen === 'welcome') {
     return (
       <div
-        className="min-h-screen bg-black flex flex-col"
-        style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
+        className={`min-h-screen ${t.bg} flex flex-col relative`}
+        style={rootFont}
       >
-        <div className="flex-1 flex flex-col justify-center px-10 w-full max-w-5xl mx-auto">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className={`absolute top-6 right-6 w-7 h-7 rounded-full border ${t.toggleBorder} ${t.toggleBg} ${t.toggleHoverBg} transition-colors z-50`}
+          aria-label="Toggle theme"
+        />
+        <div
+          className={`flex-1 flex flex-col justify-center px-10 w-full max-w-5xl mx-auto transition-all duration-700 ${
+            fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+        >
           <div className="mb-16">
-            <div className="text-white/40 text-xs tracking-widest uppercase mb-6">Welcome to</div>
-            <div className="text-white text-5xl font-light tracking-tight leading-none mb-4">
+            <div className={`${t.secondaryText} text-xs tracking-widest uppercase mb-6`}>Welcome to</div>
+            <div className={`${t.primaryText} text-5xl font-light tracking-tight leading-none mb-4`}>
               SuperBasic Finance
             </div>
-            <div className="text-white/50 text-lg font-light">your finances, in plain text</div>
+            <div className={`${t.primarySoft} text-lg font-light`}>your finances, in plain text</div>
           </div>
 
           <div className="space-y-6 mb-16">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 border border-white/20 flex items-center justify-center">
-                <span className="text-white/60 text-lg">→</span>
+              <div className={`w-10 h-10 border ${t.accentBorderSoft} ${t.chipBg} flex items-center justify-center rounded-full`}>
+                <span className={`${t.chipIcon} text-lg`}>→</span>
               </div>
               <div>
-                <div className="text-white text-sm">Search any transaction</div>
-                <div className="text-white/40 text-xs">By date or keyword</div>
+                <div className={`${t.primaryText} text-sm`}>Search any transaction</div>
+                <div className={`${t.secondaryText} text-xs`}>By date or keyword</div>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 border border-white/20 flex items-center justify-center">
-                <span className="text-white/60 text-lg">○</span>
+              <div className={`w-10 h-10 border ${t.accentBorderSoft} ${t.chipBg} flex items-center justify-center rounded-full`}>
+                <span className={`${t.chipIcon} text-lg`}>○</span>
               </div>
               <div>
-                <div className="text-white text-sm">Securely share</div>
-                <div className="text-white/40 text-xs">With friends, family, or advisors</div>
+                <div className={`${t.primaryText} text-sm`}>Securely share</div>
+                <div className={`${t.secondaryText} text-xs`}>With friends, family, or advisors</div>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 border border-white/20 flex items-center justify-center">
-                <span className="text-white/60 text-lg">◇</span>
+              <div className={`w-10 h-10 border ${t.accentBorderSoft} ${t.chipBg} flex items-center justify-center rounded-full`}>
+                <span className={`${t.chipIcon} text-lg`}>◇</span>
               </div>
               <div>
-                <div className="text-white text-sm">Create custom views</div>
-                <div className="text-white/40 text-xs">With filters, sorts & groups</div>
+                <div className={`${t.primaryText} text-sm`}>Create custom views</div>
+                <div className={`${t.secondaryText} text-xs`}>With filters, sorts & groups</div>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 border border-white/20 flex items-center justify-center">
-                <span className="text-white/60 text-lg">✶</span>
+              <div className={`w-10 h-10 border ${t.accentBorderSoft} ${t.chipBg} flex items-center justify-center rounded-full`}>
+                <span className={`${t.chipIcon} text-lg`}>✶</span>
               </div>
               <div>
-                <div className="text-white text-sm">Custom budgets and goals</div>
-                <div className="text-white/40 text-xs">Track what matters and adjust</div>
+                <div className={`${t.primaryText} text-sm`}>Custom budgets and goals</div>
+                <div className={`${t.secondaryText} text-xs`}>Track what matters and adjust</div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="px-10 pb-12 w-full max-w-5xl mx-auto">
+        <div
+          className={`px-10 pb-12 w-full max-w-5xl mx-auto transition-all duration-700 delay-300 ${
+            fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'
+          }`}
+        >
           <button
             type="button"
             onClick={() => {
@@ -234,7 +405,7 @@ export default function Login() {
               setCurrentScreen('auth');
               setStep('initial');
             }}
-            className="w-full py-4 bg-white text-black text-sm font-medium tracking-wide transition-all hover:bg-white/90 active:scale-[0.98]"
+            className={`w-full py-4 ${t.buttonPrimaryBg} ${t.buttonPrimaryText} text-sm font-medium tracking-wide transition-all ${t.buttonPrimaryHover} active:scale-[0.98]`}
           >
             Get started
           </button>
@@ -245,7 +416,7 @@ export default function Login() {
               setFromGetStarted(false);
               setCurrentScreen('auth');
             }}
-            className="w-full py-4 text-white/60 text-sm mt-3 transition-colors hover:text-white"
+            className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm mt-3 transition-all ${t.buttonOutlineHoverBg}`}
           >
             I already have an account
           </button>
@@ -257,9 +428,16 @@ export default function Login() {
   // Auth Screen
   return (
     <div
-      className="min-h-screen bg-black flex flex-col"
-      style={{ fontFamily: "'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif" }}
+      className={`min-h-screen ${t.bg} flex flex-col relative`}
+      style={rootFont}
     >
+      <button
+        type="button"
+        onClick={toggleTheme}
+        className={`absolute top-6 right-6 w-7 h-7 rounded-full border ${t.toggleBorder} ${t.toggleBg} ${t.toggleHoverBg} transition-colors z-50`}
+        aria-label="Toggle theme"
+      />
+
       <div className="px-6 pt-14 pb-6 w-full max-w-xl mx-auto">
         {step === 'initial' ? (
           <button
@@ -268,7 +446,7 @@ export default function Login() {
               setFromGetStarted(false);
               setCurrentScreen('welcome');
             }}
-            className="text-white/50 text-sm flex items-center gap-2 hover:text-white transition-colors"
+            className={`${t.secondaryText} text-sm flex items-center gap-2 hover:opacity-80 transition-colors`}
           >
             <span>←</span>
           </button>
@@ -276,14 +454,18 @@ export default function Login() {
           <button
             type="button"
             onClick={handleBack}
-            className="text-white/50 text-sm flex items-center gap-2 hover:text-white transition-colors"
+            className={`${t.secondaryText} text-sm flex items-center gap-2 hover:opacity-80 transition-colors`}
           >
             <span>←</span>
           </button>
         )}
       </div>
 
-      <div className="flex-1 px-10 w-full max-w-xl mx-auto">
+      <div
+        className={`flex-1 px-10 w-full max-w-xl mx-auto transition-all duration-500 ${
+          fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
         {error && (
           <div className="mb-6 p-4 border border-red-400 text-red-300 bg-red-500/10">
             {error}
@@ -293,10 +475,10 @@ export default function Login() {
         {step === 'initial' && (
           <>
             <div className="mb-10">
-              <div className="text-white text-3xl font-light mb-2">
+              <div className={`${t.primaryText} text-3xl font-light mb-2`}>
                 {mode === 'signin' ? (fromGetStarted ? 'Welcome' : 'Welcome back') : 'Create your account'}
               </div>
-              <div className="text-white/40 text-sm">
+              <div className={`${t.secondaryText} text-sm`}>
                 {mode === 'signin' ? 'Sign in to continue' : 'Join SuperBasic today'}
               </div>
             </div>
@@ -304,7 +486,7 @@ export default function Login() {
             <div className="space-y-3 mb-8">
               <button
                 type="button"
-                className="w-full py-4 border border-white/20 text-white text-sm flex items-center justify-center gap-3 transition-all hover:bg-white hover:text-black active:scale-[0.98]"
+                className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm flex items-center justify-center gap-3 transition-all ${t.buttonOutlineHoverBg} active:scale-[0.98]`}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z" />
@@ -318,7 +500,7 @@ export default function Login() {
                   void loginWithGoogle();
                 }}
                 disabled={isLoading}
-                className="w-full py-4 border border-white/20 text-white text-sm flex items-center justify-center gap-3 transition-all hover:bg-white hover:text-black active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+                className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm flex items-center justify-center gap-3 transition-all ${t.buttonOutlineHoverBg} active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed`}
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -330,7 +512,7 @@ export default function Login() {
               </button>
               <button
                 type="button"
-                className="w-full py-4 border border-white/20 text-white text-sm flex items-center justify-center gap-3 transition-all hover:bg-white hover:text-black active:scale-[0.98]"
+                className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm flex items-center justify-center gap-3 transition-all ${t.buttonOutlineHoverBg} active:scale-[0.98]`}
               >
                 <span className="text-lg">⚿</span>
                 Continue with passkey
@@ -339,10 +521,10 @@ export default function Login() {
 
             <div className="relative mb-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
+                <div className={`w-full border-t ${t.divider}`} />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="px-4 bg-black text-white/30">or</span>
+                <span className={`px-4 rounded-full ${t.bg} ${t.mutedText}`}>or</span>
               </div>
             </div>
 
@@ -353,14 +535,14 @@ export default function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => handleKeyPress(e, handleEmailContinue)}
                 placeholder="Email address"
-                className="w-full py-4 px-4 bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                className={`w-full py-4 px-4 ${t.inputBg} border ${t.inputBorder} ${t.primaryText} text-sm ${t.placeholder} focus:outline-none ${t.inputFocusBorder} transition-colors`}
               />
             </div>
 
             <button
               type="button"
               onClick={handleEmailContinue}
-              className="w-full py-4 border border-white/20 text-white text-sm transition-all hover:bg-white hover:text-black active:scale-[0.98]"
+              className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm transition-all ${t.buttonOutlineHoverBg} active:scale-[0.98]`}
             >
               Continue with email
             </button>
@@ -369,7 +551,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleToggleClick('initial')}
-                className="text-white/40 text-sm hover:text-white transition-colors"
+                className={`${t.secondaryText} text-sm hover:opacity-80 transition-colors`}
               >
                 {togglePrompt}
               </button>
@@ -380,8 +562,8 @@ export default function Login() {
         {step === 'password' && mode === 'signin' && (
           <>
             <div className="mb-10">
-              <div className="text-white text-3xl font-light mb-2">Enter password</div>
-              <div className="text-white/40 text-sm">{email}</div>
+              <div className={`${t.primaryText} text-3xl font-light mb-2`}>Enter password</div>
+              <div className={`${t.secondaryText} text-sm`}>{email}</div>
             </div>
 
             <div className="mb-4">
@@ -392,7 +574,7 @@ export default function Login() {
                 onKeyDown={(e) => handleKeyPress(e, handlePasswordContinue)}
                 placeholder="Password"
                 autoFocus
-                className="w-full py-4 px-4 bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                className={`w-full py-4 px-4 ${t.inputBg} border ${t.inputBorder} ${t.primaryText} text-sm ${t.placeholder} focus:outline-none ${t.inputFocusBorder} transition-colors`}
               />
             </div>
 
@@ -400,17 +582,17 @@ export default function Login() {
               type="button"
               onClick={handlePasswordContinue}
               disabled={isLoading}
-              className="w-full py-4 bg-white text-black text-sm font-medium transition-all hover:bg-white/90 active:scale-[0.98] mb-4 disabled:opacity-70 disabled:cursor-not-allowed"
+              className={`w-full py-4 ${t.buttonPrimaryBg} ${t.buttonPrimaryText} text-sm font-medium transition-all ${t.buttonPrimaryHover} active:scale-[0.98] mb-4 disabled:opacity-70 disabled:cursor-not-allowed`}
             >
               {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
 
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
+                <div className={`w-full border-t ${t.divider}`} />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="px-4 bg-black text-white/30">or</span>
+                <span className={`px-4 rounded-full ${t.bg} ${t.mutedText}`}>or</span>
               </div>
             </div>
 
@@ -418,11 +600,11 @@ export default function Login() {
               type="button"
               onClick={handleMagicLinkRequest}
               disabled={isLoading}
-              className="w-full py-4 border border-white/20 text-white text-sm transition-all hover:bg-white hover:text-black active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+              className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm transition-all ${t.buttonOutlineHoverBg} active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed`}
             >
               {isLoading ? 'Sending...' : MAGIC_LINK_BUTTON_TEXT}
             </button>
-            <div className="text-white/30 text-xs text-center mt-3">
+            <div className={`${t.mutedText} text-xs text-center mt-3`}>
               {magicLinkSent ? 'Check your email for a magic link.' : "We'll email you a secure link"}
             </div>
 
@@ -430,7 +612,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleToggleClick('password')}
-                className="text-white/40 text-sm hover:text-white transition-colors"
+                className={`${t.secondaryText} text-sm hover:opacity-80 transition-colors`}
               >
                 {togglePrompt}
               </button>
@@ -441,8 +623,8 @@ export default function Login() {
         {step === 'password' && mode === 'signup' && (
           <>
             <div className="mb-10">
-              <div className="text-white text-3xl font-light mb-2">Set your password</div>
-              <div className="text-white/40 text-sm">{email}</div>
+              <div className={`${t.primaryText} text-3xl font-light mb-2`}>Set your password</div>
+              <div className={`${t.secondaryText} text-sm`}>{email}</div>
             </div>
 
             <div className="space-y-3 mb-6">
@@ -452,7 +634,7 @@ export default function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Create password"
                 autoFocus
-                className="w-full py-4 px-4 bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                className={`w-full py-4 px-4 ${t.inputBg} border ${t.inputBorder} ${t.primaryText} text-sm ${t.placeholder} focus:outline-none ${t.inputFocusBorder} transition-colors`}
               />
               <input
                 type="password"
@@ -460,7 +642,7 @@ export default function Login() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 onKeyDown={(e) => handleKeyPress(e, handleCreateAccount)}
                 placeholder="Confirm password"
-                className="w-full py-4 px-4 bg-white/5 border border-white/10 text-white text-sm placeholder-white/30 focus:outline-none focus:border-white/30 transition-colors"
+                className={`w-full py-4 px-4 ${t.inputBg} border ${t.inputBorder} ${t.primaryText} text-sm ${t.placeholder} focus:outline-none ${t.inputFocusBorder} transition-colors`}
               />
             </div>
 
@@ -468,17 +650,17 @@ export default function Login() {
               type="button"
               onClick={handleCreateAccount}
               disabled={isLoading}
-              className="w-full py-4 bg-white text-black text-sm font-medium transition-all hover:bg-white/90 active:scale-[0.98] mb-4 disabled:opacity-70 disabled:cursor-not-allowed"
+              className={`w-full py-4 ${t.buttonPrimaryBg} ${t.buttonPrimaryText} text-sm font-medium transition-all ${t.buttonPrimaryHover} active:scale-[0.98] mb-4 disabled:opacity-70 disabled:cursor-not-allowed`}
             >
               {isLoading ? 'Creating account...' : 'Create account'}
             </button>
 
             <div className="relative my-8">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-white/10" />
+                <div className={`w-full border-t ${t.divider}`} />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="px-4 bg-black text-white/30">or</span>
+                <span className={`px-4 rounded-full ${t.bg} ${t.mutedText}`}>or</span>
               </div>
             </div>
 
@@ -486,11 +668,11 @@ export default function Login() {
               type="button"
               onClick={handleMagicLinkRequest}
               disabled={isLoading}
-              className="w-full py-4 border border-white/20 text-white text-sm transition-all hover:bg-white hover:text-black active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed"
+              className={`w-full py-4 border ${t.accentBorderSoft} ${t.buttonOutlineText} text-sm transition-all ${t.buttonOutlineHoverBg} active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed`}
             >
               {isLoading ? 'Sending...' : MAGIC_LINK_BUTTON_TEXT}
             </button>
-            <div className="text-white/30 text-xs text-center mt-3">
+            <div className={`${t.mutedText} text-xs text-center mt-3`}>
               {magicLinkSent ? 'Check your email for a magic link.' : "We'll email you a secure link"}
             </div>
 
@@ -498,7 +680,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => handleToggleClick('password')}
-                className="text-white/40 text-sm hover:text-white transition-colors"
+                className={`${t.secondaryText} text-sm hover:opacity-80 transition-colors`}
               >
                 {togglePrompt}
               </button>
@@ -507,9 +689,17 @@ export default function Login() {
         )}
       </div>
 
-      <div className="px-10 pb-12 pt-8 w-full max-w-xl mx-auto">
-        <div className="text-white/20 text-xs text-center leading-relaxed">
+      <div
+        className={`px-10 pb-12 pt-8 w-full max-w-xl mx-auto transition-all duration-500 delay-200 ${
+          fadeIn ? 'opacity-100' : 'opacity-0'
+        }`}
+      >
+        <div className={`${t.mutedText} text-xs text-center leading-relaxed`}>
           By continuing, you agree to our Terms of Service and Privacy Policy
+        </div>
+
+        <div className="flex justify-center mt-6">
+          <div className={`w-32 h-1 rounded-full ${t.barBg}`} />
         </div>
       </div>
     </div>

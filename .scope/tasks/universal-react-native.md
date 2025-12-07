@@ -126,15 +126,17 @@ Per `end-auth-goal.md` section 5.2:
 
 ## Phase 4: Main Screens
 
-- [ ] 4.1 Create `HomeScreen.tsx` porting from `apps/web/src/pages/Home.tsx`
-  - Display user info
-  - Navigation to settings
-  - Logout functionality
-  - Sanity check: User data displays, navigation works
+- [x] 4.1 Create `HomeScreen.tsx` porting from `apps/web/src/pages/Home.tsx`
+  - Display user info ✅
+  - Navigation to settings ✅
+  - Logout functionality ✅
+  - Sanity check: User data displays, navigation works ✅
+  - Features: Loading state, user info card, navigation buttons, logout handler
 
-- [ ] 4.2 Create `SettingsMenuScreen.tsx` for mobile navigation pattern
-  - List settings options with navigation links
-  - Sanity check: Can navigate to ApiKeys and Devices
+- [x] 4.2 Create `SettingsMenuScreen.tsx` for mobile navigation pattern
+  - List settings options with navigation links ✅
+  - Sanity check: Can navigate to ApiKeys and Devices ✅
+  - Features: Settings list with icons, descriptions, and navigation handlers
 
 ---
 
