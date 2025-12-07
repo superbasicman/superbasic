@@ -259,9 +259,9 @@ export default function Login() {
   };
 
   const toggleTheme = () => {
-    setTheme((prev) => {
+    setTheme((prev): Theme => {
       const idx = themeOrder.indexOf(prev);
-      return themeOrder[(idx + 1) % themeOrder.length];
+      return themeOrder[(idx + 1) % themeOrder.length] as Theme;
     });
   };
 
