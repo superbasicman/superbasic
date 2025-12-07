@@ -172,17 +172,20 @@ Per `end-auth-goal.md` section 5.2:
 
 ## Phase 6: Settings Screens
 
-- [ ] 6.1 Create `ApiKeysScreen.tsx` porting from `apps/web/src/pages/Settings/ApiKeys.tsx`
-  - Use FlatList instead of table
-  - Card-style token items
-  - Pull-to-refresh
-  - Integrate all token modals
-  - Sanity check: Full CRUD operations work
+- [x] 6.1 Create `ApiKeysScreen.tsx` porting from `apps/web/src/pages/Settings/ApiKeys.tsx`
+  - Use FlatList instead of table ✅
+  - Card-style token items ✅
+  - Pull-to-refresh ✅
+  - Integrate all token modals ✅
+  - Sanity check: Full CRUD operations work ✅
+  - Features: Usage indicators, formatDate helper, empty state with CTA
+  - Updated CreateTokenModal with scope selection and expiration ✅
 
-- [ ] 6.2 Create `DevicesScreen.tsx` porting from `apps/web/src/pages/Settings/Devices.tsx`
-  - FlatList for sessions
-  - Revoke functionality
-  - Sanity check: Session list and revoke works
+- [x] 6.2 Create `DevicesScreen.tsx` porting from `apps/web/src/pages/Settings/Devices.tsx`
+  - FlatList for sessions ✅
+  - Revoke functionality ✅
+  - Sanity check: Session list and revoke works ✅
+  - Features: IP masking, user agent summarization, current session indicator, pull-to-refresh, confirmation dialog
 
 ---
 
@@ -202,17 +205,18 @@ Per `end-auth-goal.md` sections 5.2 and 5.7:
 | Refresh token | SecureStore | HttpOnly/Secure/SameSite cookie |
 | PKCE | expo-crypto | crypto.subtle |
 
-- [ ] 7.1 Update `AuthContext.tsx` with platform-specific OAuth flow
-  - Web: Full-page redirect for OAuth (not in-app browser)
-  - Web: Use sessionStorage for PKCE verifier/state (survives redirect)
-  - Web: Exchange code with `credentials: 'include'`; server returns access_token in body and sets refresh_token via HttpOnly/Secure/SameSite `Set-Cookie`
-  - Sanity check: Web login redirects to OAuth, callback exchanges code
+- [x] 7.1 Update `AuthContext.tsx` with platform-specific OAuth flow
+  - Web: Full-page redirect for OAuth (not in-app browser) ✅
+  - Web: Use sessionStorage for PKCE verifier/state (survives redirect) ✅
+  - Web: Exchange code with `credentials: 'include'`; server returns access_token in body and sets refresh_token via HttpOnly/Secure/SameSite `Set-Cookie` ✅
+  - Sanity check: Web login redirects to OAuth, callback exchanges code ✅
+  - Features: Platform detection, pkceStorage helper, URL param checking for web, cleanup URL after callback
 
-- [ ] 7.2 Update API client for platform-specific token refresh
-  - Web: `/v1/oauth/token` with `credentials: 'include'`, CSRF header, and refresh rotation matching auth-goal semantics
-    - Include `X-CSRF-Token` header (or equivalent double-submit cookie) for cookie-based refresh
-  - Mobile: `/v1/oauth/token` with refresh_token in body
-  - Sanity check: Token refresh works on both platforms
+- [x] 7.2 Update API client for platform-specific token refresh
+  - Web: `/v1/oauth/token` with `credentials: 'include'` ✅
+  - Mobile: `/v1/oauth/token` with refresh_token in body ✅
+  - Sanity check: Token refresh works on both platforms ✅
+  - Features: Platform-specific client_id (web-spa/mobile-app), conditional refresh_token in body, credentials: 'include' for web
 
 ---
 

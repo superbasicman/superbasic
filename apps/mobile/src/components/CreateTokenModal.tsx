@@ -1,18 +1,36 @@
-import { Modal, View, Text, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
 import { useState } from 'react';
 import { Button } from './Button';
 import { Input } from './Input';
+import { VALID_SCOPES } from '@repo/types';
+import type { CreateTokenRequest } from '@repo/types';
 
 interface CreateTokenModalProps {
   visible: boolean;
   onClose: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (data: CreateTokenRequest) => Promise<void>;
 }
 
 export function CreateTokenModal({ visible, onClose, onCreate }: CreateTokenModalProps) {
   const [name, setName] = useState('');
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
+  const [expiresInDays, setExpiresInDays] = useState(90);
   const [error, setError] = useState('');
+  const [scopeError, setScopeError] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+
+  const handleScopeToggle = (scope: string) => {
+    setSelectedScopes((prev) => {
+      const newScopes = prev.includes(scope)
+        ? prev.filter((s) => s !== scope)
+        : [...prev, scope];
+
+      if (newScopes.length > 0) {
+        setScopeError('');
+      }
+      return newScopes;
+    });
+  };
 
   const handleCreate = async () => {
     // Validation
@@ -26,14 +44,27 @@ export function CreateTokenModal({ visible, onClose, onCreate }: CreateTokenModa
       return;
     }
 
+    if (selectedScopes.length === 0) {
+      setScopeError('At least one scope is required');
+      return;
+    }
+
     setError('');
+    setScopeError('');
     setIsCreating(true);
 
     try {
-      await onCreate(name.trim());
+      await onCreate({
+        name: name.trim(),
+        scopes: selectedScopes,
+        expiresInDays,
+      });
       // Reset form and close
       setName('');
+      setSelectedScopes([]);
+      setExpiresInDays(90);
       setError('');
+      setScopeError('');
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create token');
@@ -45,7 +76,10 @@ export function CreateTokenModal({ visible, onClose, onCreate }: CreateTokenModa
   const handleClose = () => {
     if (!isCreating) {
       setName('');
+      setSelectedScopes([]);
+      setExpiresInDays(90);
       setError('');
+      setScopeError('');
       onClose();
     }
   };
@@ -76,6 +110,7 @@ export function CreateTokenModal({ visible, onClose, onCreate }: CreateTokenModa
 
               {/* Form */}
               <View className="space-y-4">
+                {/* Name Input */}
                 <Input
                   label="Token Name"
                   placeholder="e.g., Production API"
@@ -85,17 +120,155 @@ export function CreateTokenModal({ visible, onClose, onCreate }: CreateTokenModa
                     if (error) setError('');
                   }}
                   error={error}
-                  helperText="Choose a descriptive name to identify this token"
                   maxLength={100}
                   autoFocus
                   editable={!isCreating}
                 />
 
-                {/* Info */}
-                <View className="bg-blue-900/20 border border-blue-800 rounded-lg p-4">
-                  <Text className="text-sm text-blue-200">
-                    💡 This token will have full access to your account. Keep it secure and never share it publicly.
+                {/* Scopes */}
+                <View>
+                  <Text className="text-sm font-medium text-gray-300 mb-2">
+                    Scopes <Text className="text-red-400">*</Text>
                   </Text>
+                  <Text className="text-xs text-gray-400 mb-3">
+                    Select the permissions this API key should have
+                  </Text>
+
+                  {/* Scope groups */}
+                  <View className="space-y-3">
+                    {/* Transactions */}
+                    {VALID_SCOPES.filter((s) => s.includes('transactions')).length > 0 && (
+                      <View>
+                        <Text className="text-xs font-medium text-gray-400 mb-2">Transactions</Text>
+                        {VALID_SCOPES.filter((s) => s.includes('transactions')).map((scope) => (
+                          <TouchableOpacity
+                            key={scope}
+                            onPress={() => handleScopeToggle(scope)}
+                            className="flex-row items-center py-2"
+                            disabled={isCreating}
+                          >
+                            <View className={`w-5 h-5 rounded border-2 ${selectedScopes.includes(scope) ? 'bg-blue-600 border-blue-600' : 'border-gray-500'} items-center justify-center mr-3`}>
+                              {selectedScopes.includes(scope) && (
+                                <Text className="text-white text-xs">✓</Text>
+                              )}
+                            </View>
+                            <Text className="text-sm text-gray-300">{scope}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Budgets */}
+                    {VALID_SCOPES.filter((s) => s.includes('budgets')).length > 0 && (
+                      <View>
+                        <Text className="text-xs font-medium text-gray-400 mb-2">Budgets</Text>
+                        {VALID_SCOPES.filter((s) => s.includes('budgets')).map((scope) => (
+                          <TouchableOpacity
+                            key={scope}
+                            onPress={() => handleScopeToggle(scope)}
+                            className="flex-row items-center py-2"
+                            disabled={isCreating}
+                          >
+                            <View className={`w-5 h-5 rounded border-2 ${selectedScopes.includes(scope) ? 'bg-blue-600 border-blue-600' : 'border-gray-500'} items-center justify-center mr-3`}>
+                              {selectedScopes.includes(scope) && (
+                                <Text className="text-white text-xs">✓</Text>
+                              )}
+                            </View>
+                            <Text className="text-sm text-gray-300">{scope}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Accounts */}
+                    {VALID_SCOPES.filter((s) => s.includes('accounts')).length > 0 && (
+                      <View>
+                        <Text className="text-xs font-medium text-gray-400 mb-2">Accounts</Text>
+                        {VALID_SCOPES.filter((s) => s.includes('accounts')).map((scope) => (
+                          <TouchableOpacity
+                            key={scope}
+                            onPress={() => handleScopeToggle(scope)}
+                            className="flex-row items-center py-2"
+                            disabled={isCreating}
+                          >
+                            <View className={`w-5 h-5 rounded border-2 ${selectedScopes.includes(scope) ? 'bg-blue-600 border-blue-600' : 'border-gray-500'} items-center justify-center mr-3`}>
+                              {selectedScopes.includes(scope) && (
+                                <Text className="text-white text-xs">✓</Text>
+                              )}
+                            </View>
+                            <Text className="text-sm text-gray-300">{scope}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Profile */}
+                    {VALID_SCOPES.filter((s) => s.includes('profile')).length > 0 && (
+                      <View>
+                        <Text className="text-xs font-medium text-gray-400 mb-2">Profile</Text>
+                        {VALID_SCOPES.filter((s) => s.includes('profile')).map((scope) => (
+                          <TouchableOpacity
+                            key={scope}
+                            onPress={() => handleScopeToggle(scope)}
+                            className="flex-row items-center py-2"
+                            disabled={isCreating}
+                          >
+                            <View className={`w-5 h-5 rounded border-2 ${selectedScopes.includes(scope) ? 'bg-blue-600 border-blue-600' : 'border-gray-500'} items-center justify-center mr-3`}>
+                              {selectedScopes.includes(scope) && (
+                                <Text className="text-white text-xs">✓</Text>
+                              )}
+                            </View>
+                            <Text className="text-sm text-gray-300">{scope}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+
+                    {/* Admin */}
+                    {VALID_SCOPES.filter((s) => s === 'admin').length > 0 && (
+                      <View>
+                        <Text className="text-xs font-medium text-gray-400 mb-2">Admin</Text>
+                        {VALID_SCOPES.filter((s) => s === 'admin').map((scope) => (
+                          <TouchableOpacity
+                            key={scope}
+                            onPress={() => handleScopeToggle(scope)}
+                            className="flex-row items-center py-2"
+                            disabled={isCreating}
+                          >
+                            <View className={`w-5 h-5 rounded border-2 ${selectedScopes.includes(scope) ? 'bg-blue-600 border-blue-600' : 'border-gray-500'} items-center justify-center mr-3`}>
+                              {selectedScopes.includes(scope) && (
+                                <Text className="text-white text-xs">✓</Text>
+                              )}
+                            </View>
+                            <Text className="text-sm text-gray-300">{scope}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {scopeError && (
+                    <Text className="text-sm text-red-400 mt-2">{scopeError}</Text>
+                  )}
+                </View>
+
+                {/* Expiration */}
+                <View>
+                  <Text className="text-sm font-medium text-gray-300 mb-2">Expiration</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {[30, 60, 90, 180, 365].map((days) => (
+                      <TouchableOpacity
+                        key={days}
+                        onPress={() => setExpiresInDays(days)}
+                        disabled={isCreating}
+                        className={`rounded-lg px-4 py-2 ${expiresInDays === days ? 'bg-blue-600' : 'bg-gray-700'}`}
+                      >
+                        <Text className={`text-sm ${expiresInDays === days ? 'text-white font-medium' : 'text-gray-300'}`}>
+                          {days} days{days === 90 ? ' (rec.)' : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
               </View>
 

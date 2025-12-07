@@ -1,4 +1,5 @@
 import type { LoginInput, RegisterInput, UserResponse } from '@repo/types';
+import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import {
   getAccessToken,
@@ -8,6 +9,8 @@ import {
   clearTokens,
   updateTokensAfterRefresh,
 } from './tokenStorage';
+
+const IS_WEB = Platform.OS === 'web';
 
 /**
  * API client for mobile app
@@ -156,12 +159,15 @@ export async function refreshAccessToken(force = false): Promise<UserResponse | 
 
 /**
  * Refresh access token using OAuth 2.1 refresh token flow
- * Mobile uses /v1/oauth/token endpoint with grant_type=refresh_token
+ * Web: Uses HttpOnly cookie (credentials: 'include')
+ * Mobile: Uses refresh_token in request body
  */
 async function performAccessTokenRefresh(): Promise<UserResponse | null> {
-  const refreshToken = await getRefreshToken();
+  // Web: Refresh token is in HttpOnly cookie, no need to retrieve
+  // Mobile: Refresh token is in SecureStore
+  const refreshToken = IS_WEB ? null : await getRefreshToken();
 
-  if (!refreshToken) {
+  if (!IS_WEB && !refreshToken) {
     await clearTokens();
     clearCachedUser();
     throw new ApiError('No refresh token available', 401);
@@ -174,9 +180,11 @@ async function performAccessTokenRefresh(): Promise<UserResponse | null> {
     },
     body: JSON.stringify({
       grant_type: 'refresh_token',
-      refresh_token: refreshToken,
-      client_id: 'mobile-app',
+      ...(IS_WEB ? {} : { refresh_token: refreshToken }),
+      client_id: IS_WEB ? 'web-spa' : 'mobile-app',
     }),
+    // Web: Include credentials to send HttpOnly cookie
+    ...(IS_WEB && { credentials: 'include' as RequestCredentials }),
   });
 
   const data = await response.json().catch(() => null);

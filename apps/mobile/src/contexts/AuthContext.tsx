@@ -7,6 +7,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
+import { Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as WebBrowser from 'expo-web-browser';
@@ -53,13 +54,40 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-const CLIENT_ID = 'mobile-app';
-const REDIRECT_URI = 'superbasic://auth/callback';
+const IS_WEB = Platform.OS === 'web';
+const CLIENT_ID = IS_WEB ? 'web-spa' : 'mobile-app';
+const REDIRECT_URI = IS_WEB
+  ? (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : 'http://localhost:8081/auth/callback')
+  : 'superbasic://auth/callback';
 const API_URL = (
   Constants.expoConfig?.extra?.apiUrl ||
   process.env.EXPO_PUBLIC_API_URL ||
   'http://localhost:3000'
 ).replace(/\/$/, '');
+
+// Platform-specific storage helpers for PKCE
+const pkceStorage = {
+  async setItem(key: string, value: string): Promise<void> {
+    if (IS_WEB && typeof window !== 'undefined') {
+      window.sessionStorage.setItem(key, value);
+    } else {
+      await SecureStore.setItemAsync(key, value);
+    }
+  },
+  async getItem(key: string): Promise<string | null> {
+    if (IS_WEB && typeof window !== 'undefined') {
+      return window.sessionStorage.getItem(key);
+    }
+    return await SecureStore.getItemAsync(key);
+  },
+  async deleteItem(key: string): Promise<void> {
+    if (IS_WEB && typeof window !== 'undefined') {
+      window.sessionStorage.removeItem(key);
+    } else {
+      await SecureStore.deleteItemAsync(key);
+    }
+  },
+};
 
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserResponse | null>(null);
@@ -72,22 +100,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     checkAuthStatus();
   }, []);
 
-  // Set up deep link listener
+  // Set up deep link listener (mobile) or check URL params (web)
   useEffect(() => {
-    const subscription = Linking.addEventListener('url', (event) => {
-      handleDeepLink(event.url);
-    });
+    if (IS_WEB && typeof window !== 'undefined') {
+      // Web: Check URL params for OAuth callback
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const state = urlParams.get('state');
+      const error = urlParams.get('error');
+      const errorDescription = urlParams.get('error_description');
 
-    // Handle initial URL if app was opened via deep link
-    Linking.getInitialURL().then((url) => {
-      if (url) {
-        handleDeepLink(url);
+      if (error) {
+        setAuthError(errorDescription || error || 'Authentication failed');
+        setIsLoading(false);
+        // Clean URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
       }
-    });
 
-    return () => {
-      subscription.remove();
-    };
+      if (code) {
+        handleCallback(code, state || undefined);
+      }
+    } else {
+      // Mobile: Set up deep link listener
+      const subscription = Linking.addEventListener('url', (event) => {
+        handleDeepLink(event.url);
+      });
+
+      // Handle initial URL if app was opened via deep link
+      Linking.getInitialURL().then((url) => {
+        if (url) {
+          handleDeepLink(url);
+        }
+      });
+
+      return () => {
+        subscription.remove();
+      };
+    }
   }, []);
 
   /**
@@ -180,8 +230,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     setIsLoading(true);
 
-    const storedState = await SecureStore.getItemAsync('pkce_state');
-    const verifier = await SecureStore.getItemAsync('pkce_verifier');
+    const storedState = await pkceStorage.getItem('pkce_state');
+    const verifier = await pkceStorage.getItem('pkce_verifier');
 
     // Check if this is a Google OAuth callback (special state) or magic link callback
     const isGoogleCallback = state === 'google-oauth';
@@ -228,6 +278,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: body.toString(),
+        // Web: Include credentials to receive HttpOnly cookie
+        ...(IS_WEB && { credentials: 'include' as RequestCredentials }),
       });
 
       if (!response.ok) {
@@ -245,8 +297,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       // Clear PKCE storage
-      await SecureStore.deleteItemAsync('pkce_state');
-      await SecureStore.deleteItemAsync('pkce_verifier');
+      await pkceStorage.deleteItem('pkce_state');
+      await pkceStorage.deleteItem('pkce_verifier');
 
       // Use user data from token response if complete (avoids /v1/me call)
       if (data.user?.id && data.user?.email && data.user?.createdAt) {
@@ -265,6 +317,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setCachedUser(currentUser);
       }
 
+      // Web: Clean up URL after successful callback
+      if (IS_WEB && typeof window !== 'undefined') {
+        window.history.replaceState({}, document.title, '/');
+      }
+
       // Navigate to main app
       navigation.navigate('Main', { screen: 'HomeTab' });
       callbackHandled.current = false;
@@ -280,16 +337,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Initiate OAuth 2.1 Authorization Code Flow with PKCE
-   * Uses expo-web-browser for in-app browser
+   * Web: Full-page redirect | Mobile: In-app browser
    */
   async function initiateOAuthFlow() {
     const verifier = generateCodeVerifier();
     const challenge = await generateCodeChallenge(verifier);
     const state = generateState();
 
-    // Store verifier in SecureStore to verify later
-    await SecureStore.setItemAsync('pkce_verifier', verifier);
-    await SecureStore.setItemAsync('pkce_state', state);
+    // Store verifier and state (sessionStorage for web, SecureStore for mobile)
+    await pkceStorage.setItem('pkce_verifier', verifier);
+    await pkceStorage.setItem('pkce_state', state);
 
     const params = new URLSearchParams({
       client_id: CLIENT_ID,
@@ -301,12 +358,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
       scope: 'openid profile email',
     });
 
-    // Open in-app browser for OAuth flow
     const authUrl = `${API_URL}/v1/oauth/authorize?${params.toString()}`;
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, REDIRECT_URI);
 
-    if (result.type === 'cancel') {
-      setAuthError('Login cancelled');
+    if (IS_WEB && typeof window !== 'undefined') {
+      // Web: Full-page redirect
+      window.location.href = authUrl;
+    } else {
+      // Mobile: In-app browser
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, REDIRECT_URI);
+      if (result.type === 'cancel') {
+        setAuthError('Login cancelled');
+      }
     }
   }
 
