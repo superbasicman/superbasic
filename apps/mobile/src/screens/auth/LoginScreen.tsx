@@ -260,7 +260,9 @@ export default function LoginScreen() {
       <View className={`flex-1 items-center justify-center relative ${t.bg}`}>
         <TouchableOpacity
           onPress={toggleTheme}
-          className={`absolute top-6 right-6 w-7 h-7 rounded-full border ${t.toggleBorder} ${t.toggleBg}`}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle theme"
+          className={`absolute top-6 right-6 w-7 h-7 rounded-full border z-10 ${t.toggleBorder} ${t.toggleBg}`}
         />
         <View className={`items-center ${splashVisible ? 'opacity-100' : 'opacity-0'}`}>
           <Text className={`${t.primaryText} text-4xl font-light tracking-tight mb-3`}>
@@ -283,7 +285,9 @@ export default function LoginScreen() {
       <SafeAreaView className={`flex-1 relative ${t.bg}`} edges={['top', 'bottom']}>
         <TouchableOpacity
           onPress={toggleTheme}
-          className={`absolute top-6 right-6 w-7 h-7 rounded-full border ${t.toggleBorder} ${t.toggleBg}`}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle theme"
+          className={`absolute top-6 right-6 w-7 h-7 rounded-full border z-10 ${t.toggleBorder} ${t.toggleBg}`}
         />
         <View className="flex-1 px-10">
           <View className="flex-1 justify-center">
@@ -374,7 +378,9 @@ export default function LoginScreen() {
     <SafeAreaView className={`flex-1 relative ${t.bg}`} edges={['top', 'bottom']}>
       <TouchableOpacity
         onPress={toggleTheme}
-        className={`absolute top-6 right-6 w-7 h-7 rounded-full border ${t.toggleBorder} ${t.toggleBg}`}
+        accessibilityRole="button"
+        accessibilityLabel="Toggle theme"
+        className={`absolute top-6 right-6 w-7 h-7 rounded-full border z-10 ${t.toggleBorder} ${t.toggleBg}`}
       />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
