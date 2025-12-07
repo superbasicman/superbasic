@@ -8,31 +8,33 @@ Context to review before starting:
 - `apps/web/src/lib/api.ts` (API client)
 - `packages/types/src/` (shared types)
 - `packages/design-system/` (design tokens)
+- IMPORTANT: AGENTS.MD : `agent/agents.md`
+- IMPORTANT: `docs/auth-migration/end-auth-goal-quickref.md` (auth architecture quick reference)
 
 ---
 
 ## Phase 1: Project Setup
 
-- [ ] 1.1 Create Expo app at `apps/mobile` using `npx create-expo-app@latest mobile --template expo-template-blank-typescript`
+- [x] 1.1 Create Expo app at `apps/mobile` using `npx create-expo-app@latest mobile --template expo-template-blank-typescript`
   - Sanity check: `cd apps/mobile && npx expo start` launches without errors
 
-- [ ] 1.2 Install core dependencies: React Navigation, NativeWind, expo-secure-store, expo-auth-session, expo-crypto, expo-linking, expo-web-browser, expo-clipboard, @tanstack/react-query
+- [x] 1.2 Install core dependencies: React Navigation, NativeWind, expo-secure-store, expo-auth-session, expo-crypto, expo-linking, expo-web-browser, expo-clipboard, @tanstack/react-query
   - Sanity check: `pnpm install` succeeds, no peer dependency conflicts
 
-- [ ] 1.3 Configure NativeWind: create `tailwind.config.js`, `babel.config.js`, `metro.config.js`, `global.css` with matching color palette from `packages/design-system`
+- [x] 1.3 Configure NativeWind: create `tailwind.config.js`, `babel.config.js`, `metro.config.js`, `global.css` with matching color palette from `packages/design-system`
   - Sanity check: NativeWind classes render correctly in a test component
 
-- [ ] 1.4 Configure `app.json` with deep link scheme `superbasic://` for OAuth callbacks
+- [x] 1.4 Configure `app.json` with deep link scheme `superbasic://` for OAuth callbacks
   - Sanity check: `npx expo config` shows correct scheme configuration
 
-- [ ] 1.5 Update `package.json` to add `@repo/types: workspace:*` dependency and configure as `@repo/mobile`
+- [x] 1.5 Update `package.json` to add `@repo/types: workspace:*` dependency and configure as `@repo/mobile`
   - Sanity check: Can import types from `@repo/types` in mobile app
 
 ---
 
 ## Phase 2: Shared Code Layer
 
-- [ ] 2.1 Create `apps/mobile/src/lib/tokenStorage.ts` using expo-secure-store for secure token persistence
+- [x] 2.1 Create `apps/mobile/src/lib/tokenStorage.ts` using expo-secure-store for secure token persistence
   - Store access token with expiry (short-lived: 10 minutes)
   - Store refresh token securely (long-lived: 30 days with 14-day idle timeout)
   - Implement refresh token rotation: on each refresh, old token is replaced with new one
@@ -40,39 +42,39 @@ Context to review before starting:
   - Read `expires_in`/TTL values from server responses to avoid client-side drift from auth defaults
   - Sanity check: Tokens persist across app restarts, refresh rotation works correctly
 
-- [ ] 2.2 Create `apps/mobile/src/lib/pkce.ts` using expo-crypto for PKCE code verifier/challenge generation
+- [x] 2.2 Create `apps/mobile/src/lib/pkce.ts` using expo-crypto for PKCE code verifier/challenge generation
   - Sanity check: Generated challenges match expected format
 
-- [ ] 2.3 Port `apps/web/src/lib/api.ts` to `apps/mobile/src/lib/api.ts`, replacing Vite env vars with Expo constants and using tokenStorage abstraction
+- [x] 2.3 Port `apps/web/src/lib/api.ts` to `apps/mobile/src/lib/api.ts`, replacing Vite env vars with Expo constants and using tokenStorage abstraction
   - Sanity check: API calls work with `EXPO_PUBLIC_API_URL` environment variable
 
 ---
 
 ## Phase 3: Navigation Structure
 
-- [ ] 3.1 Create navigation types at `apps/mobile/src/navigation/types.ts` defining AuthStack, MainTabs, SettingsStack, RootStack param lists
+- [x] 3.1 Create navigation types at `apps/mobile/src/navigation/types.ts` defining AuthStack, MainTabs, SettingsStack, RootStack param lists
   - Sanity check: TypeScript compiles with proper navigation typing
 
-- [ ] 3.2 Create `RootNavigator.tsx` with auth state conditional rendering (AuthNavigator vs MainNavigator)
+- [x] 3.2 Create `RootNavigator.tsx` with auth state conditional rendering (AuthNavigator vs MainNavigator)
   - Sanity check: Navigator switches based on authentication state
 
-- [ ] 3.3 Create `AuthNavigator.tsx` with LoginScreen and AuthCallbackScreen
+- [x] 3.3 Create `AuthNavigator.tsx` with LoginScreen and AuthCallbackScreen
   - Sanity check: Can navigate between auth screens
 
-- [ ] 3.4 Create `MainNavigator.tsx` with bottom tabs (HomeTab, SettingsTab)
+- [x] 3.4 Create `MainNavigator.tsx` with bottom tabs (HomeTab, SettingsTab)
   - Sanity check: Tab navigation works correctly
 
-- [ ] 3.5 Create `SettingsNavigator.tsx` with SettingsMenu, ApiKeys, Devices screens
+- [x] 3.5 Create `SettingsNavigator.tsx` with SettingsMenu, ApiKeys, Devices screens
   - Sanity check: Settings stack navigation works
 
-- [ ] 3.6 Configure deep linking for `superbasic://auth/callback` to AuthCallbackScreen
+- [x] 3.6 Configure deep linking for `superbasic://auth/callback` to AuthCallbackScreen
   - Sanity check: Deep links route to correct screen
 
 ---
 
 ## Phase 4: Auth Context
 
-- [ ] 4.1 Port `apps/web/src/contexts/AuthContext.tsx` to `apps/mobile/src/contexts/AuthContext.tsx`
+- [x] 4.1 Port `apps/web/src/contexts/AuthContext.tsx` to `apps/mobile/src/contexts/AuthContext.tsx`
   - Replace react-router navigation with @react-navigation/native
   - Use expo-web-browser for OAuth flow
   - Use expo-linking for deep link handling
@@ -87,19 +89,19 @@ Context to review before starting:
     - Store new access token with updated expiry returned by the server (no hard-coded TTLs)
   - Sanity check: OAuth flow completes, refresh rotation works, expired tokens trigger re-auth
 
-- [ ] 4.2 Port `apps/web/src/hooks/useAuthForm.ts` to `apps/mobile/src/hooks/useAuthForm.ts`
+- [x] 4.2 Port `apps/web/src/hooks/useAuthForm.ts` to `apps/mobile/src/hooks/useAuthForm.ts`
   - Sanity check: Form state management works for login/register
 
 ---
 
 ## Phase 5: Auth Screens
 
-- [ ] 5.1 Create `LoginScreen.tsx` porting multi-step flow (splash → welcome → auth) from `apps/web/src/pages/Login.tsx`
+- [x] 5.1 Create `LoginScreen.tsx` porting multi-step flow (splash → welcome → auth) from `apps/web/src/pages/Login.tsx`
   - Use SafeAreaView, KeyboardAvoidingView
   - Convert HTML elements to RN equivalents (View, Text, TextInput, TouchableOpacity)
   - Sanity check: All auth methods work (email/password, Google OAuth, magic link)
 
-- [ ] 5.2 Create `AuthCallbackScreen.tsx` to handle OAuth deep link callback
+- [x] 5.2 Create `AuthCallbackScreen.tsx` to handle OAuth deep link callback
   - Show loading state during code exchange
   - Handle errors gracefully
   - Sanity check: OAuth callback exchanges code for tokens
