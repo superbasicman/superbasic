@@ -157,17 +157,61 @@ export async function refreshAccessToken(force = false): Promise<UserResponse | 
   return refreshPromise;
 }
 
-/**
- * Refresh access token using OAuth 2.1 refresh token flow
- * Web: Uses HttpOnly cookie (credentials: 'include')
- * Mobile: Uses refresh_token in request body
- */
 async function performAccessTokenRefresh(): Promise<UserResponse | null> {
-  // Web: Refresh token is in HttpOnly cookie, no need to retrieve
-  // Mobile: Refresh token is in SecureStore
-  const refreshToken = IS_WEB ? null : await getRefreshToken();
+  // Web: rely on HttpOnly refresh cookie and auth refresh endpoint
+  if (IS_WEB) {
+    const response = await fetch(`${API_URL}/v1/auth/refresh`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({}),
+    });
 
-  if (!IS_WEB && !refreshToken) {
+    const data = await response.json().catch(() => null);
+
+    if (response.status === 401) {
+      await clearTokens();
+      clearCachedUser();
+      throw new ApiError('Refresh token expired or revoked', 401);
+    }
+
+    if (
+      !response.ok ||
+      !data ||
+      typeof data.accessToken !== 'string' ||
+      typeof data.expiresIn !== 'number'
+    ) {
+      await clearTokens();
+      clearCachedUser();
+      throw new ApiError('Unable to refresh session', response.status || 500);
+    }
+
+    await updateTokensAfterRefresh({
+      accessToken: data.accessToken,
+      expiresIn: data.expiresIn,
+      refreshToken: data.refreshToken, // Ignored on web; stored via HttpOnly cookie
+    });
+
+    if (data.user?.id && data.user?.email && data.user?.createdAt) {
+      const user: UserResponse = {
+        id: data.user.id,
+        email: data.user.email,
+        name: data.user.name ?? null,
+        createdAt: data.user.createdAt,
+      };
+      setCachedUser(user);
+      return user;
+    }
+
+    return null;
+  }
+
+  // Mobile / native: refresh via OAuth token endpoint using secure-stored refresh token
+  const refreshToken = await getRefreshToken();
+
+  if (!refreshToken) {
     await clearTokens();
     clearCachedUser();
     throw new ApiError('No refresh token available', 401);
@@ -176,15 +220,13 @@ async function performAccessTokenRefresh(): Promise<UserResponse | null> {
   const response = await fetch(`${API_URL}/v1/oauth/token`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
     },
-    body: JSON.stringify({
+    body: new URLSearchParams({
       grant_type: 'refresh_token',
-      ...(IS_WEB ? {} : { refresh_token: refreshToken }),
-      client_id: IS_WEB ? 'web-spa' : 'mobile-app',
-    }),
-    // Web: Include credentials to send HttpOnly cookie
-    ...(IS_WEB && { credentials: 'include' as RequestCredentials }),
+      refresh_token: refreshToken,
+      client_id: 'mobile-app',
+    }).toString(),
   });
 
   const data = await response.json().catch(() => null);
@@ -222,6 +264,42 @@ async function performAccessTokenRefresh(): Promise<UserResponse | null> {
  * Authentication API methods
  */
 export const authApi = {
+  /**
+   * Login with email and password (establishes session via cookies)
+   * Used as the entry point before OAuth authorize to obtain tokens.
+   */
+  async login(credentials: LoginInput): Promise<void> {
+    const response = await fetch(`${API_URL}/v1/auth/signin/password`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email: credentials.email,
+        password: credentials.password,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new ApiError(data.error || 'Invalid email or password', response.status || 401);
+    }
+  },
+
+  /**
+   * Register a new user
+   * Returns requiresVerification: true when email verification is needed
+   */
+  async register(
+    data: RegisterInput
+  ): Promise<{ user: UserResponse; requiresVerification?: boolean; message?: string }> {
+    return apiFetch('/v1/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   /**
    * Get current user profile (requires Bearer token)
    */

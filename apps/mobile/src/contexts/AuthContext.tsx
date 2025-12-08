@@ -151,7 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const isValid = await hasValidAccessToken();
     const hasWebRefreshFlag =
       IS_WEB && typeof window !== 'undefined'
-        ? window.sessionStorage.getItem(WEB_REFRESH_FLAG_KEY) === '1'
+        ? window.localStorage.getItem(WEB_REFRESH_FLAG_KEY) === '1'
         : false;
 
     // If no valid access token, attempt refresh
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Refresh failed - user is logged out
         setUser(null);
         if (IS_WEB && typeof window !== 'undefined') {
-          window.sessionStorage.removeItem(WEB_REFRESH_FLAG_KEY);
+          window.localStorage.removeItem(WEB_REFRESH_FLAG_KEY);
         }
         setIsLoading(false);
         return;
@@ -305,7 +305,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
       if (IS_WEB && typeof window !== 'undefined') {
         // Track that we should attempt cookie-based refresh on reload
-        window.sessionStorage.setItem(WEB_REFRESH_FLAG_KEY, '1');
+        window.localStorage.setItem(WEB_REFRESH_FLAG_KEY, '1');
       }
 
       // Clear PKCE storage
@@ -389,11 +389,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Initiates OAuth flow as the single entry path
    */
   async function login(credentials?: LoginInput): Promise<void> {
+    const returnTo =
+      IS_WEB && typeof window !== 'undefined'
+        ? new URLSearchParams(window.location.search).get('returnTo')
+        : null;
+
     // If credentials are provided, authenticate first to establish session
     if (credentials) {
-      // For mobile, we need to implement password login differently
-      // This is a simplified version - actual implementation in Phase 5
-      throw new Error('Password login not yet implemented for mobile');
+      await authApi.login(credentials);
+      // If we were bounced from /v1/oauth/authorize, go back there to continue flow
+      if (returnTo && IS_WEB && typeof window !== 'undefined') {
+        window.location.href = returnTo;
+        return;
+      }
     }
 
     await initiateOAuthFlow();
@@ -411,7 +419,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
    * Register a new user
    */
   async function register(data: RegisterInput): Promise<void> {
-    throw new Error('Registration not yet implemented for mobile');
+    const result = await authApi.register(data);
+
+    if (result.requiresVerification) {
+      const error = new Error(
+        result.message || 'Please check your email to verify your account.'
+      );
+      (error as Error & { requiresVerification: boolean }).requiresVerification = true;
+      throw error;
+    }
+
+    // If no verification required, proceed with OAuth login
+    await login();
   }
 
   /**
@@ -447,7 +466,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await clearStoredTokens();
       clearCachedUser();
       if (IS_WEB && typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(WEB_REFRESH_FLAG_KEY);
+        window.localStorage.removeItem(WEB_REFRESH_FLAG_KEY);
       }
       setUser(null);
       navigation.navigate('Auth', { screen: 'Login' });
