@@ -271,7 +271,23 @@ async function main() {
   config.NODE_ENV = getExistingValue('NODE_ENV', existingApiEnv) ?? 'development';
   config.AUTH_URL = getExistingValue('AUTH_URL', existingApiEnv) ?? 'http://localhost:3000';
   config.AUTH_TRUST_HOST = getExistingValue('AUTH_TRUST_HOST', existingApiEnv) ?? 'true';
-  config.WEB_APP_URL = getExistingValue('WEB_APP_URL', existingApiEnv) ?? 'http://localhost:5173';
+
+  const existingWebAppUrl = getExistingValue('WEB_APP_URL', existingApiEnv);
+  const webAppChoice = await question(
+    existingWebAppUrl
+      ? `Choose WEB_APP_URL:\n  1) http://localhost:8081 (recommended, Expo web)\n  2) http://localhost:5173 (legacy web)\n  3) Enter custom (current: ${existingWebAppUrl})\nSelect option [1/2/3] (default 1): `
+      : `Choose WEB_APP_URL:\n  1) http://localhost:8081 (recommended, Expo web)\n  2) http://localhost:5173 (legacy web)\n  3) Enter custom\nSelect option [1/2/3] (default 1): `
+  );
+
+  if (webAppChoice === '2') {
+    config.WEB_APP_URL = 'http://localhost:5173';
+  } else if (webAppChoice === '3') {
+    const custom = await question('Enter WEB_APP_URL: ');
+    config.WEB_APP_URL = custom || existingWebAppUrl || 'http://localhost:8081';
+  } else {
+    // Default / option 1
+    config.WEB_APP_URL = 'http://localhost:8081';
+  }
 
   success('Server configuration loaded (existing values reused when present)');
 
@@ -460,8 +476,11 @@ async function main() {
   // STEP 6: Google OAuth (Optional)
   // ============================================================
   log('═══════════════════════════════════════════════════════════');
-  log('STEP 6: Google OAuth (Optional)');
+  log('STEP 6: Google OAuth - "Sign in with Google" (Optional)');
   log('═══════════════════════════════════════════════════════════');
+
+  info('This enables "Sign in with Google" button in your app.');
+  console.log('Skip this if you only want email/password authentication.\n');
 
   const existingGoogleClientId = getExistingValue('GOOGLE_CLIENT_ID', existingApiEnv);
   const existingGoogleClientSecret = getExistingValue('GOOGLE_CLIENT_SECRET', existingApiEnv);
@@ -475,10 +494,13 @@ async function main() {
     console.log('  2. Click "Create Credentials" → "OAuth 2.0 Client ID"');
     console.log('  3. Configure OAuth consent screen if prompted');
     console.log('  4. Application type: Web application');
-    console.log('  5. Add authorized redirect URI:');
-    console.log('     http://localhost:3000/v1/auth/google/callback');
+    console.log('  5. Add authorized redirect URIs (click "Add URI" for each):');
+    console.log('     • http://localhost:3000/v1/auth/google/callback  (API callback)');
     console.log('  6. Click "Create"');
     console.log('  7. Copy Client ID and Client Secret');
+
+    info('\n💡 For production, also add:');
+    console.log('  • https://api.yourdomain.com/v1/auth/google/callback');
 
     await question('\nPress Enter when ready to paste credentials...');
 
@@ -504,10 +526,96 @@ async function main() {
   }
 
   // ============================================================
-  // STEP 6: Email Provider (Resend) - Optional
+  // STEP 6b: OAuth Client Configuration (Universal React Native)
   // ============================================================
   log('═══════════════════════════════════════════════════════════');
-  log('STEP 6: Email Provider (Resend) - Optional');
+  log('STEP 6b: Your OAuth Clients (Required for Login)');
+  log('═══════════════════════════════════════════════════════════');
+
+  info('These are YOUR app\'s OAuth clients (not Google/external providers).');
+  console.log('Your API acts as the OAuth server. The mobile and web apps are the clients.\n');
+
+  console.log('Two OAuth clients will be seeded in your database:');
+  console.log('  • mobile-app: For iOS and Android (deep link callback)');
+  console.log('  • web-spa: For web browser (URL callback)');
+  console.log('');
+  console.log('Default callback URLs (no external registration needed):');
+  console.log('  • Mobile: superbasic://auth/callback');
+  console.log('  • Web: http://localhost:8081/auth/callback');
+  console.log('          https://app.superbasic.com/auth/callback');
+  console.log('');
+  console.log('✅ These are configured automatically - no action needed!');
+  console.log('   Run after migrations: pnpm db:seed --target local');
+
+  const existingOAuthClientId = getExistingValue('OAUTH_CLIENT_ID', existingApiEnv);
+  const existingOAuthClientName = getExistingValue('OAUTH_CLIENT_NAME', existingApiEnv);
+  const existingOAuthRedirectUris = getExistingValue('OAUTH_REDIRECT_URIS', existingApiEnv);
+
+  const configureOAuthClients = await question(
+    '\nCustomize OAuth client configuration? (y = customize, n = use defaults): '
+  );
+
+  if (configureOAuthClients.toLowerCase() === 'y') {
+    log('Mobile OAuth Client Configuration:');
+    const mobileClientId = await question(
+      `  Client ID${existingOAuthClientId ? ` (current: ${existingOAuthClientId})` : ''} [mobile-app]: `
+    );
+    config.OAUTH_CLIENT_ID = mobileClientId || existingOAuthClientId || 'mobile-app';
+
+    const mobileClientName = await question(
+      `  Client Name${existingOAuthClientName ? ` (current: ${existingOAuthClientName})` : ''} [SuperBasic Mobile App]: `
+    );
+    config.OAUTH_CLIENT_NAME = mobileClientName || existingOAuthClientName || 'SuperBasic Mobile App';
+
+    const mobileRedirectUris = await question(
+      `  Redirect URIs (comma-separated)${existingOAuthRedirectUris ? ` (current: ${existingOAuthRedirectUris})` : ''} [superbasic://auth/callback]: `
+    );
+    config.OAUTH_REDIRECT_URIS =
+      mobileRedirectUris || existingOAuthRedirectUris || 'superbasic://auth/callback';
+
+    const existingWebOAuthClientId = getExistingValue('WEB_OAUTH_CLIENT_ID', existingApiEnv);
+    const existingWebOAuthClientName = getExistingValue('WEB_OAUTH_CLIENT_NAME', existingApiEnv);
+    const existingWebOAuthRedirectUris = getExistingValue('WEB_OAUTH_REDIRECT_URIS', existingApiEnv);
+
+    log('Web OAuth Client Configuration:');
+    const webClientId = await question(
+      `  Client ID${existingWebOAuthClientId ? ` (current: ${existingWebOAuthClientId})` : ''} [web-spa]: `
+    );
+    config.WEB_OAUTH_CLIENT_ID = webClientId || existingWebOAuthClientId || 'web-spa';
+
+    const webClientName = await question(
+      `  Client Name${existingWebOAuthClientName ? ` (current: ${existingWebOAuthClientName})` : ''} [SuperBasic Web SPA]: `
+    );
+    config.WEB_OAUTH_CLIENT_NAME = webClientName || existingWebOAuthClientName || 'SuperBasic Web SPA';
+
+    const webRedirectUris = await question(
+      `  Redirect URIs (comma-separated)${existingWebOAuthRedirectUris ? ` (current: ${existingWebOAuthRedirectUris})` : ''} [http://localhost:8081/auth/callback,https://app.superbasic.com/auth/callback]: `
+    );
+    config.WEB_OAUTH_REDIRECT_URIS =
+      webRedirectUris ||
+      existingWebOAuthRedirectUris ||
+      'http://localhost:8081/auth/callback,https://app.superbasic.com/auth/callback';
+
+    success('OAuth client configuration customized!');
+  } else {
+    // Use defaults
+    config.OAUTH_CLIENT_ID = existingOAuthClientId || 'mobile-app';
+    config.OAUTH_CLIENT_NAME = existingOAuthClientName || 'SuperBasic Mobile App';
+    config.OAUTH_REDIRECT_URIS = existingOAuthRedirectUris || 'superbasic://auth/callback';
+    config.WEB_OAUTH_CLIENT_ID = getExistingValue('WEB_OAUTH_CLIENT_ID', existingApiEnv) || 'web-spa';
+    config.WEB_OAUTH_CLIENT_NAME =
+      getExistingValue('WEB_OAUTH_CLIENT_NAME', existingApiEnv) || 'SuperBasic Web SPA';
+    config.WEB_OAUTH_REDIRECT_URIS =
+      getExistingValue('WEB_OAUTH_REDIRECT_URIS', existingApiEnv) ||
+      'http://localhost:8081/auth/callback,https://app.superbasic.com/auth/callback';
+    success('Using default OAuth client configuration');
+  }
+
+  // ============================================================
+  // STEP 7: Email Provider (Resend) - Optional
+  // ============================================================
+  log('═══════════════════════════════════════════════════════════');
+  log('STEP 7: Email Provider (Resend) - Optional');
   log('═══════════════════════════════════════════════════════════');
 
   const existingResendKey = getExistingValue('RESEND_API_KEY', existingApiEnv);
@@ -559,10 +667,10 @@ async function main() {
   }
 
   // ============================================================
-  // STEP 7: Write Configuration Files
+  // STEP 8: Write Configuration Files
   // ============================================================
   log('═══════════════════════════════════════════════════════════');
-  log('STEP 7: Writing Configuration Files');
+  log('STEP 8: Writing Configuration Files');
   log('═══════════════════════════════════════════════════════════');
 
   // Build .env.local content
@@ -595,6 +703,14 @@ UPSTASH_REDIS_REST_TOKEN=${config.UPSTASH_REDIS_REST_TOKEN}
 GOOGLE_CLIENT_ID=${config.GOOGLE_CLIENT_ID}
 GOOGLE_CLIENT_SECRET=${config.GOOGLE_CLIENT_SECRET}
 
+# OAuth Clients (Universal React Native App)
+OAUTH_CLIENT_ID=${config.OAUTH_CLIENT_ID}
+OAUTH_CLIENT_NAME=${config.OAUTH_CLIENT_NAME}
+OAUTH_REDIRECT_URIS=${config.OAUTH_REDIRECT_URIS}
+WEB_OAUTH_CLIENT_ID=${config.WEB_OAUTH_CLIENT_ID}
+WEB_OAUTH_CLIENT_NAME=${config.WEB_OAUTH_CLIENT_NAME}
+WEB_OAUTH_REDIRECT_URIS=${config.WEB_OAUTH_REDIRECT_URIS}
+
 # Email Provider - Resend
 RESEND_API_KEY=${config.RESEND_API_KEY}
 EMAIL_FROM=${config.EMAIL_FROM}
@@ -620,6 +736,20 @@ PRODUCTION_DATABASE_URL=${config.PRODUCTION_DATABASE_URL ?? ''}
   const webEnvContent = `VITE_API_URL=${webApiUrl}\n`;
   writeFileSync(webEnvPath, webEnvContent);
   success('Created apps/web/.env.local');
+
+  // Write apps/mobile/.env
+  const mobileEnvPath = resolve(process.cwd(), 'apps/mobile/.env');
+  const existingMobileEnv = readEnvFile(mobileEnvPath);
+  const expoPublicApiUrl = getExistingValue('EXPO_PUBLIC_API_URL', existingMobileEnv) ?? 'http://localhost:3000';
+  const mobileEnvContent = `# API Configuration
+EXPO_PUBLIC_API_URL=${expoPublicApiUrl}
+
+# Note: For iOS simulator use http://localhost:3000
+# For Android emulator use http://10.0.2.2:3000
+# For physical device use your computer's local IP (e.g., http://192.168.1.x:3000)
+`;
+  writeFileSync(mobileEnvPath, mobileEnvContent);
+  success('Created apps/mobile/.env');
 
   // Write root .env.local (for root scripts like seed:dev, seed:prod)
   const rootEnvPath = resolve(process.cwd(), '.env.local');
@@ -666,10 +796,10 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
   success('Created apps/api/.env.test');
 
   // ============================================================
-  // STEP 8: Run Database Migrations
+  // STEP 9: Run Database Migrations
   // ============================================================
   log('═══════════════════════════════════════════════════════════');
-  log('STEP 8: Database Setup');
+  log('STEP 9: Database Setup');
   log('═══════════════════════════════════════════════════════════');
 
   const runMigrations = await question('Run database migrations now? (y/n): ');
@@ -677,13 +807,14 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
   if (runMigrations.toLowerCase() === 'y') {
     info('Running Prisma migrations...');
     try {
-      execSync('pnpm db:migrate', { stdio: 'inherit' });
-      success('Database migrations complete!');
+      // db-manager requires explicit target
+      execSync('pnpm db:migrate -- --target local', { stdio: 'inherit' });
+      success('Database migrations complete (local)!');
     } catch (error) {
-      warning('Migration failed - you can run it manually later with: pnpm db:migrate');
+      warning('Migration failed - you can run it manually later with: pnpm db:migrate -- --target local');
     }
   } else {
-    info('Skipped migrations - run later with: pnpm db:migrate');
+    info('Skipped migrations - run later with: pnpm db:migrate -- --target local');
   }
 
   // ============================================================
@@ -732,16 +863,25 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
   console.log('  • apps/api/.env.local');
   console.log('  • packages/database/.env.local');
   console.log('  • apps/web/.env.local');
+  console.log('  • apps/mobile/.env');
   console.log('  • .env.local (root)');
   console.log('  • apps/api/.env.test');
 
   log('🚀 Next steps:');
-  console.log('  1. Start the development server:');
-  console.log('     pnpm dev');
+  console.log('  1. Seed OAuth clients (required for universal app):');
+  console.log('     pnpm db:seed --target local');
   console.log('');
-  console.log('  2. Open http://localhost:5173 in your browser');
+  console.log('  2. Start the API server:');
+  console.log('     pnpm --filter=@repo/api dev');
   console.log('');
-  console.log('  3. Try logging in with credentials or Google OAuth');
+  console.log('  3. Test the universal React Native app:');
+  console.log('     • Web:     cd apps/mobile && pnpm web');
+  console.log('     • iOS:     cd apps/mobile && pnpm ios');
+  console.log('     • Android: cd apps/mobile && pnpm android');
+  console.log('');
+  console.log('  4. Or start the legacy web app:');
+  console.log('     pnpm --filter=@repo/web dev');
+  console.log(`     Then open ${config.WEB_APP_URL} in your browser`);
 
   if (!googleConfigured) {
     log('💡 To add Google OAuth later:');
@@ -754,6 +894,11 @@ EMAIL_SERVER=${config.EMAIL_SERVER ?? ''}
     console.log('  1. Get API key from https://resend.com');
     console.log('  2. Update RESEND_API_KEY and EMAIL_FROM in apps/api/.env.local');
   }
+
+  log('📚 Testing the universal app:');
+  console.log('  • See apps/mobile/TESTING.md for comprehensive testing guide');
+  console.log('  • OAuth clients: mobile-app (iOS/Android), web-spa (browser)');
+  console.log('  • Callback URLs configured for localhost and production');
 
   console.log('\n');
   rl.close();

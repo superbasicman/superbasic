@@ -59,6 +59,7 @@ const CLIENT_ID = IS_WEB ? 'web-spa' : 'mobile-app';
 const REDIRECT_URI = IS_WEB
   ? (typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : 'http://localhost:8081/auth/callback')
   : 'superbasic://auth/callback';
+const WEB_REFRESH_FLAG_KEY = 'sbf_has_refresh_cookie';
 const API_URL = (
   Constants.expoConfig?.extra?.apiUrl ||
   process.env.EXPO_PUBLIC_API_URL ||
@@ -148,9 +149,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setIsLoading(true);
 
     const isValid = await hasValidAccessToken();
+    const hasWebRefreshFlag =
+      IS_WEB && typeof window !== 'undefined'
+        ? window.sessionStorage.getItem(WEB_REFRESH_FLAG_KEY) === '1'
+        : false;
 
     // If no valid access token, attempt refresh
-    if (!isValid) {
+    if (!isValid && (!IS_WEB || hasWebRefreshFlag)) {
       try {
         const userFromRefresh = await refreshAccessToken();
         if (userFromRefresh) {
@@ -161,6 +166,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch {
         // Refresh failed - user is logged out
         setUser(null);
+        if (IS_WEB && typeof window !== 'undefined') {
+          window.sessionStorage.removeItem(WEB_REFRESH_FLAG_KEY);
+        }
         setIsLoading(false);
         return;
       }
@@ -295,6 +303,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         expiresIn: data.expires_in,
         refreshToken: data.refresh_token, // Mobile uses refresh tokens
       });
+      if (IS_WEB && typeof window !== 'undefined') {
+        // Track that we should attempt cookie-based refresh on reload
+        window.sessionStorage.setItem(WEB_REFRESH_FLAG_KEY, '1');
+      }
 
       // Clear PKCE storage
       await pkceStorage.deleteItem('pkce_state');
@@ -434,6 +446,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       await clearStoredTokens();
       clearCachedUser();
+      if (IS_WEB && typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(WEB_REFRESH_FLAG_KEY);
+      }
       setUser(null);
       navigation.navigate('Auth', { screen: 'Login' });
     }

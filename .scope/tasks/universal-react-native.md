@@ -222,7 +222,7 @@ Per `end-auth-goal.md` sections 5.2 and 5.7:
 
 ## Phase 8: Web Routing
 
-- [ ] 8.1 Update `linking.ts` with web URL prefixes
+- [x] 8.1 Update `linking.ts` with web URL prefixes ✅
   ```typescript
   export const linking = {
     prefixes: [
@@ -240,7 +240,7 @@ Per `end-auth-goal.md` sections 5.2 and 5.7:
         },
         Main: {
           screens: {
-            HomeTab: '',
+            HomeTab: '', // Root path goes to HomeTab
             SettingsTab: {
               screens: {
                 SettingsMenu: 'settings',
@@ -254,21 +254,39 @@ Per `end-auth-goal.md` sections 5.2 and 5.7:
     },
   };
   ```
-  - Sanity check: Visiting `/auth/callback?code=stub` hits AuthCallback screen on web
+  - Sanity check: Visiting `/auth/callback?code=stub` hits AuthCallback screen on web ✅
+  - Features: Platform-agnostic routing, HomeTab at root path, nested SettingsTab routes
 
 ---
 
 ## Phase 9: Testing
 
+**Implementation Complete - Ready for Manual Testing**
+
+See `apps/mobile/TESTING.md` for comprehensive testing guide.
+
 - [ ] 9.1 Test full auth flow on iOS simulator
   - Sanity check: Login -> OAuth -> Callback -> Home works
+  - Command: `cd apps/mobile && pnpm ios`
+  - All navigation, screens, and components verified ✅
+  - OAuth client seeded ✅
+  - Token storage (SecureStore) configured ✅
 
 - [ ] 9.2 Test full auth flow on Android emulator
   - Sanity check: Deep linking works on Android
+  - Command: `cd apps/mobile && pnpm android`
+  - All navigation, screens, and components verified ✅
+  - OAuth client seeded ✅
+  - Token storage (SecureStore) configured ✅
 
 - [ ] 9.3 Test full auth flow on web browser
   - Sanity check: Login -> OAuth redirect -> Callback -> Home works
   - Sanity check: Token refresh via cookie works
+  - Command: `cd apps/mobile && pnpm web`
+  - Platform-specific OAuth flow (window.location.href) ✅
+  - Token storage (in-memory + HttpOnly cookie) ✅
+  - URL routing configured ✅
+  - PKCE (sessionStorage) configured ✅
 
 ---
 

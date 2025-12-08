@@ -3,13 +3,15 @@ import * as Linking from 'expo-linking';
 import type { RootStackParamList } from './types';
 
 /**
- * Deep linking configuration for OAuth callbacks
- * Maps superbasic://auth/callback to AuthCallbackScreen
+ * Deep linking and web routing configuration
+ * - Mobile: Deep links (superbasic://)
+ * - Web: URL-based routing (http://localhost:8081, https://app.superbasic.com)
+ * Maps paths like /auth/callback and /settings/api-keys to screens
  */
 export const linking: LinkingOptions<RootStackParamList> = {
   prefixes: [
-    Linking.createURL('/'),
     'superbasic://',
+    'http://localhost:8081',
     'https://app.superbasic.com',
   ],
   config: {
@@ -22,7 +24,7 @@ export const linking: LinkingOptions<RootStackParamList> = {
       },
       Main: {
         screens: {
-          HomeTab: 'home',
+          HomeTab: '', // Root path (/) goes to HomeTab
           SettingsTab: {
             screens: {
               SettingsMenu: 'settings',

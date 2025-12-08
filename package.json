@@ -29,6 +29,7 @@
     "db:seed": "tsx tooling/scripts/db-manager.ts seed",
     "db:migrate": "tsx tooling/scripts/db-manager.ts migrate",
     "db:reset": "tsx tooling/scripts/db-manager.ts reset",
+    "setup:env": "tsx tooling/scripts/setup-env.ts",
     "db:studio": "turbo run studio --filter=@repo/database",
     "db:start": "tsx tooling/scripts/ensure-local-postgres.ts",
     "db:stop": "tsx tooling/scripts/stop-local-postgres.ts",

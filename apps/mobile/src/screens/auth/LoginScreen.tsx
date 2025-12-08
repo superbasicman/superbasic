@@ -173,9 +173,14 @@ export default function LoginScreen() {
   const [step, setStep] = useState<Step>('initial');
   const [splashVisible, setSplashVisible] = useState(false);
   const [fromGetStarted, setFromGetStarted] = useState(false);
-  const [theme, setTheme] = useState<Theme>('pureDark');
+  const [theme, setTheme] = useState<Theme>('coffeeLight');
 
-  const themeOrder: Theme[] = ['pureDark', 'coffeeDark', 'pureLight', 'coffeeLight'];
+  const themeOrder: Theme[] = [
+    'coffeeLight',
+    'pureDark',
+    'pureLight',
+    // 'coffeeDark'
+  ];
   const t = palette[theme];
 
   const toggleTheme = () => {
