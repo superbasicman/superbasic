@@ -59,6 +59,30 @@ export class UserRepository {
   }
 
   /**
+   * Find user by ID with limited fields for session responses
+   */
+  async findSummaryById(userId: string): Promise<{
+    id: string;
+    primaryEmail: string;
+    displayName: string | null;
+    userState: UserState;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        primaryEmail: true,
+        displayName: true,
+        userState: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  /**
    * Get email verification status for a user
    * Returns null if user not found
    */

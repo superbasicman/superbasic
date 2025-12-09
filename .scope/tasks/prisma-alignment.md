@@ -47,8 +47,8 @@
 24. [ ] apps/api/src/routes/v1/auth/magic-link.ts
 25. [ ] apps/api/src/routes/v1/auth/refresh-utils.ts
 26. [ ] apps/api/src/routes/v1/auth/refresh.ts
-27. [ ] apps/api/src/routes/v1/auth/session.ts
-28. [ ] apps/api/src/routes/v1/auth/sessions.ts
+27. [x] apps/api/src/routes/v1/auth/session.ts
+28. [x] apps/api/src/routes/v1/auth/sessions.ts
 29. [ ] apps/api/src/routes/v1/auth/sso-logout.ts
 
 // ===== apps/api/src/routes/v1/oauth =====

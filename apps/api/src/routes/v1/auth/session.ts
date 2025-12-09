@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
-import { prisma } from '@repo/database';
 import type { AppBindings } from '../../../types/context.js';
+import { sessionRepository, userRepository } from '../../../services/index.js';
 
 export async function getCurrentSession(c: Context<AppBindings>) {
   const auth = c.get('auth');
@@ -9,34 +9,14 @@ export async function getCurrentSession(c: Context<AppBindings>) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: auth.userId },
-    select: {
-      id: true,
-      primaryEmail: true,
-      displayName: true,
-      userState: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
+  const user = await userRepository.findSummaryById(auth.userId);
 
   if (!user) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   const session = auth.sessionId
-    ? await prisma.authSession.findUnique({
-        where: { id: auth.sessionId },
-        select: {
-          id: true,
-          clientInfo: true,
-          lastActivityAt: true,
-          createdAt: true,
-          expiresAt: true,
-          mfaLevel: true,
-        },
-      })
+    ? await sessionRepository.findDetailsForUser(auth.sessionId, auth.userId)
     : null;
 
   return c.json({

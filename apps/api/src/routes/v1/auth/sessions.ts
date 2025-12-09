@@ -1,9 +1,9 @@
 import type { Context } from 'hono';
-import { prisma } from '@repo/database';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import type { AppBindings } from '../../../types/context.js';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import { requireRecentAuth } from '@repo/auth-core';
+import { sessionRepository } from '../../../services/index.js';
 
 export async function listSessions(c: Context<AppBindings>) {
   const auth = c.get('auth');
@@ -12,24 +12,7 @@ export async function listSessions(c: Context<AppBindings>) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const now = new Date();
-  const sessions = await prisma.authSession.findMany({
-    where: {
-      userId: auth.userId,
-      revokedAt: null,
-      expiresAt: { gt: now },
-    },
-    orderBy: [{ lastActivityAt: 'desc' }, { createdAt: 'desc' }],
-    select: {
-      id: true,
-      createdAt: true,
-      lastActivityAt: true,
-      expiresAt: true,
-      ipAddress: true,
-      clientInfo: true,
-      mfaLevel: true,
-    },
-  });
+  const sessions = await sessionRepository.listActiveSessionsForUser(auth.userId);
 
   return c.json({
     sessions: sessions.map((session) => ({

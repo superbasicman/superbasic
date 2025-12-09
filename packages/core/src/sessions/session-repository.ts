@@ -1,10 +1,22 @@
-import type { PrismaClient, Prisma, PrismaClientOrTransaction } from '@repo/database';
+import type { PrismaClient, Prisma, PrismaClientOrTransaction, AuthSession } from '@repo/database';
 
 export type SessionWithUser = {
   id: string;
   userId: string;
   revokedAt: Date | null;
   user: { primaryEmail: string | null };
+};
+
+type SessionMfaLevel = AuthSession['mfaLevel'];
+
+export type SessionDetails = {
+  id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  lastActivityAt: Date;
+  mfaLevel: SessionMfaLevel;
+  ipAddress: string | null;
+  clientInfo: Prisma.JsonValue | null;
 };
 
 export class SessionRepository {
@@ -46,6 +58,51 @@ export class SessionRepository {
     return sessions.map((s) => s.id);
   }
 
+  async findDetailsForUser(
+    sessionId: string,
+    userId: string,
+    client?: PrismaClientOrTransaction
+  ): Promise<SessionDetails | null> {
+    const db = this.getClient(client);
+    return db.authSession.findFirst({
+      where: { id: sessionId, userId },
+      select: {
+        id: true,
+        createdAt: true,
+        lastActivityAt: true,
+        expiresAt: true,
+        mfaLevel: true,
+        ipAddress: true,
+        clientInfo: true,
+      },
+    }) as Promise<SessionDetails | null>;
+  }
+
+  async listActiveSessionsForUser(
+    userId: string,
+    options: { now?: Date; client?: PrismaClientOrTransaction } = {}
+  ): Promise<SessionDetails[]> {
+    const db = this.getClient(options.client);
+    const now = options.now ?? new Date();
+    return db.authSession.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      orderBy: [{ lastActivityAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        createdAt: true,
+        lastActivityAt: true,
+        expiresAt: true,
+        ipAddress: true,
+        clientInfo: true,
+        mfaLevel: true,
+      },
+    }) as Promise<SessionDetails[]>;
+  }
+
   async revokeSessionAndRefreshTokens(
     sessionId: string,
     options: { client?: PrismaClientOrTransaction; skipSessionUpdate?: boolean } = {}
@@ -83,4 +140,3 @@ export class SessionRepository {
 function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClient {
   return typeof (client as PrismaClient).$transaction === 'function';
 }
-
