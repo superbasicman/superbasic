@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { setCookie } from 'hono/cookie';
-import { COOKIE_NAME } from '@repo/auth';
+import { COOKIE_NAME, generateSessionTransferToken } from '@repo/auth';
+import { prisma } from '@repo/database';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { authenticatePasswordIdentity } from '../../../lib/identity-provider.js';
@@ -19,10 +20,12 @@ const signin = new Hono();
 const passwordSchema = z.object({
     email: z.string().email(),
     password: z.string(),
+    // Optional: request a session transfer token for mobile OAuth flow
+    session_transfer: z.boolean().optional().default(false),
 });
 
 signin.post('/password', zValidator('json', passwordSchema), async (c) => {
-    const { email, password } = c.req.valid('json');
+    const { email, password, session_transfer } = c.req.valid('json');
     const ipAddress = c.req.header('x-forwarded-for') || c.req.header('x-real-ip') || 'unknown';
 
     const isRateLimited = await checkFailedAuthRateLimit(ipAddress, email);
@@ -69,10 +72,30 @@ signin.post('/password', zValidator('json', passwordSchema), async (c) => {
         mfaLevel: session.mfaLevel,
     });
 
+    let sessionTransferToken: string | undefined;
+
+    if (session_transfer) {
+        // Generate session transfer token for mobile OAuth flow
+        // Mobile apps can't share cookies with the system browser, so they use this
+        // opaque token to transfer the authenticated session to /v1/oauth/authorize
+        const sessionTransfer = generateSessionTransferToken();
+        await prisma.sessionTransferToken.create({
+            data: {
+                id: sessionTransfer.tokenId,
+                sessionId: session.sessionId,
+                hashEnvelope: sessionTransfer.hashEnvelope,
+                expiresAt: sessionTransfer.expiresAt,
+                createdIp: ipAddress,
+                userAgent,
+            },
+        });
+        sessionTransferToken = sessionTransfer.token;
+    }
+
     return c.json({
         success: true,
         accessToken,
-        sessionId: session.sessionId,
+        ...(sessionTransferToken ? { sessionTransferToken } : {}),
         user: {
             id: authResult.userId,
             email: authResult.identity.email,

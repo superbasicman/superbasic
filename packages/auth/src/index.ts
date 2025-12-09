@@ -83,3 +83,12 @@ export { ensureProfileExists } from './profile.js';
 // Session typing & runtime validation
 export { AuthSessionSchema, parseAuthSession } from './session-schema.js';
 export type { AuthSession } from './session-schema.js';
+
+// Session transfer tokens (for mobile OAuth flow)
+export {
+  generateSessionTransferToken,
+  parseSessionTransferToken,
+  verifySessionTransferToken,
+  SESSION_TRANSFER_TTL_SECONDS,
+} from './session-transfer.js';
+export type { SessionTransferTokenData, ParsedSessionTransferToken } from './session-transfer.js';

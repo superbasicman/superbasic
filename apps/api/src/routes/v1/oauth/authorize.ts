@@ -4,7 +4,13 @@ import { z } from 'zod';
 import { getCookie } from 'hono/cookie';
 import { prisma } from '@repo/database';
 import { normalizeRedirectUri, requireOAuthClient, AuthorizationError } from '@repo/auth-core';
-import { createOpaqueToken, createTokenHashEnvelope, COOKIE_NAME } from '@repo/auth';
+import {
+  createOpaqueToken,
+  createTokenHashEnvelope,
+  COOKIE_NAME,
+  parseSessionTransferToken,
+  verifySessionTransferToken,
+} from '@repo/auth';
 
 const authorize = new Hono();
 
@@ -17,13 +23,23 @@ const authorizeSchema = z.object({
   code_challenge_method: z.enum(['S256', 'plain']).optional().default('S256'),
   scope: z.string().optional(),
   nonce: z.string().optional(),
+  // Optional: opaque session transfer token for mobile flows
+  session_token: z.string().optional(),
 });
 
 const WEB_APP_URL = process.env.WEB_APP_URL || 'http://localhost:5173';
 
 authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
-  const { client_id, redirect_uri, state, code_challenge, code_challenge_method, scope, nonce } =
-    c.req.valid('query');
+  const {
+    client_id,
+    redirect_uri,
+    state,
+    code_challenge,
+    code_challenge_method,
+    scope,
+    nonce,
+    session_token,
+  } = c.req.valid('query');
 
   try {
     // 1. Validate Client & Redirect URI
@@ -48,32 +64,73 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
     return c.redirect(errorUrl.toString());
   }
 
-  // 2. Check for existing session
+  // 2. Check for existing session (cookie first, then optional session transfer token)
   const sessionToken = getCookie(c, COOKIE_NAME);
-
-  // Validate session token is a valid UUID before querying
   const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!sessionToken || !UUID_REGEX.test(sessionToken)) {
-    // No session or invalid format - redirect to login
-    const loginUrl = new URL('/login', WEB_APP_URL);
-    loginUrl.searchParams.set('returnTo', c.req.url);
-    return c.redirect(loginUrl.toString());
+
+  let userId: string | null = null;
+
+  // Cookie-based session
+  if (sessionToken && UUID_REGEX.test(sessionToken)) {
+    const session = await prisma.authSession.findFirst({
+      where: {
+        id: sessionToken,
+        expiresAt: { gt: new Date() },
+        revokedAt: null,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (session) {
+      userId = session.userId;
+    }
   }
 
-  // 3. Look up session to get userId
-  const session = await prisma.authSession.findFirst({
-    where: {
-      id: sessionToken,
-      expiresAt: { gt: new Date() },
-      revokedAt: null,
-    },
-    select: {
-      userId: true,
-    },
-  });
+  // Session transfer token (mobile: cookies not available to system browser)
+  if (!userId && session_token) {
+    const parsed = parseSessionTransferToken(session_token);
+    if (parsed) {
+      const transfer = await prisma.sessionTransferToken.findFirst({
+        where: {
+          id: parsed.tokenId,
+          expiresAt: { gt: new Date() },
+          usedAt: null,
+          ...(client_id ? { clientId: { equals: client_id } } : {}),
+        },
+        select: {
+          hashEnvelope: true,
+          session: {
+            select: {
+              id: true,
+              userId: true,
+              expiresAt: true,
+              revokedAt: true,
+            },
+          },
+        },
+      });
 
-  if (!session) {
-    // Invalid session - redirect to login
+      if (
+        transfer &&
+        transfer.session &&
+        transfer.session.expiresAt > new Date() &&
+        transfer.session.revokedAt === null &&
+        verifySessionTransferToken(parsed.tokenSecret, transfer.hashEnvelope)
+      ) {
+        userId = transfer.session.userId;
+        // Mark token as used (single-use)
+        await prisma.sessionTransferToken.update({
+          where: { id: parsed.tokenId },
+          data: { usedAt: new Date() },
+        });
+      }
+    }
+  }
+
+  if (!userId) {
+    // No valid session - redirect to login
     const loginUrl = new URL('/login', WEB_APP_URL);
     loginUrl.searchParams.set('returnTo', c.req.url);
     return c.redirect(loginUrl.toString());
@@ -87,7 +144,7 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
   await prisma.oAuthAuthorizationCode.create({
     data: {
       id: opaque.tokenId,
-      userId: session.userId,
+      userId,
       clientId: client_id,
       redirectUri: normalizeRedirectUri(redirect_uri),
       codeHash,

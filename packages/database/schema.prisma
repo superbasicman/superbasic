@@ -105,8 +105,9 @@ model AuthSession {
   ipAddress      String?   @map("ip_address")
   revokedAt      DateTime? @map("revoked_at")
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  refreshTokens RefreshToken[]
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens         RefreshToken[]
+  sessionTransferTokens SessionTransferToken[]
 
   @@index([userId])
   @@index([revokedAt])
@@ -144,6 +145,26 @@ model RefreshToken {
   @@index([revokedAt])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+// Short-lived, single-use token for transferring a session from native app to OAuth authorize
+// Used by mobile apps where cookies can't be shared between fetch() and system browser
+model SessionTransferToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  sessionId    String    @map("session_id") @db.Uuid
+  hashEnvelope Json      @map("hash_envelope") // Hash of opaque token secret
+  expiresAt    DateTime  @map("expires_at") // Very short TTL (60-120 seconds)
+  usedAt       DateTime? @map("used_at") // Single-use: marked when consumed by authorize
+  createdAt    DateTime  @default(now()) @map("created_at")
+  createdIp    String?   @map("created_ip")
+  userAgent    String?   @map("user_agent")
+  clientId     String?   @map("client_id") // Optional: bind to specific OAuth client
+
+  session AuthSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("session_transfer_tokens")
 }
 
 model ApiKey {
