@@ -4,9 +4,8 @@ import { AuthorizationError, UnauthorizedError, type VerifyRequestInput } from '
 import type { AppBindings } from '../types/context.js';
 import { authService } from '../lib/auth-service.js';
 import {
-  prisma,
-  resetPostgresContext,
-  setPostgresContext,
+  resetGlobalPostgresContext,
+  setGlobalPostgresContext,
   type PostgresAppContext,
 } from '@repo/database';
 
@@ -32,7 +31,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
       return;
     }
     try {
-      await resetPostgresContext(prisma);
+      await resetGlobalPostgresContext();
     } catch (contextError) {
       console.error('[auth-context] Failed to reset Postgres context', contextError);
     } finally {
@@ -42,7 +41,7 @@ export async function attachAuthContext(c: Context<AppBindings>, next: Next) {
 
   const setContext = async (context: PostgresAppContext) => {
     try {
-      await setPostgresContext(prisma, context);
+      await setGlobalPostgresContext(context);
       contextTouched = true;
     } catch (contextError) {
       console.error('[auth-context] Failed to set Postgres context', contextError);

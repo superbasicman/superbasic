@@ -23,7 +23,7 @@
 10. [x] apps/api/src/lib/__tests__/audit-logger.test.ts
 
 // ===== apps/api/src/middleware =====
-11. [ ] apps/api/src/middleware/auth-context.ts
+11. [x] apps/api/src/middleware/auth-context.ts
 12. [ ] apps/api/src/middleware/pat.ts
 
 // ===== apps/api/src/middleware/__tests__ =====

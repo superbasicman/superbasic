@@ -18,6 +18,7 @@ export type {
   VerificationTokenType,
 } from '@prisma/client';
 export * from './context.js';
+import { setPostgresContext, resetPostgresContext, type PostgresAppContext } from './context.js';
 
 // Global singleton instance for use across the application
 const globalForPrisma = globalThis as unknown as {
@@ -33,3 +34,7 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
+
+export const setGlobalPostgresContext = (context: PostgresAppContext) =>
+  setPostgresContext(prisma, context);
+export const resetGlobalPostgresContext = () => resetPostgresContext(prisma);
