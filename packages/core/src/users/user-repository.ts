@@ -59,6 +59,26 @@ export class UserRepository {
   }
 
   /**
+   * Find user details for token/id_token payloads
+   */
+  async findProfileForTokenPayload(userId: string): Promise<{
+    primaryEmail: string | null;
+    emailVerified: boolean | null;
+    displayName: string | null;
+    picture: string | null;
+  } | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        primaryEmail: true,
+        emailVerified: true,
+        displayName: true,
+        picture: true,
+      },
+    });
+  }
+
+  /**
    * Find user by ID with limited fields for session responses
    */
   async findSummaryById(userId: string): Promise<{

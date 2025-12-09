@@ -102,4 +102,14 @@ export class TokenRepository {
       data: { revokedAt: new Date() },
     });
   }
+
+  /**
+   * Soft delete token by id without throwing when missing
+   */
+  async revokeById(id: string, revokedAt: Date): Promise<void> {
+    await this.prisma.apiKey.updateMany({
+      where: { id, revokedAt: null },
+      data: { revokedAt },
+    });
+  }
 }

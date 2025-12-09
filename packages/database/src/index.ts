@@ -16,6 +16,8 @@ export type {
   UserState,
   IdentityProvider,
   VerificationTokenType,
+  ServiceIdentity,
+  ClientSecret,
 } from '@prisma/client';
 export * from './context.js';
 import { setPostgresContext, resetPostgresContext, type PostgresAppContext } from './context.js';

@@ -2,15 +2,11 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { getCookie } from 'hono/cookie';
-import { prisma } from '@repo/database';
-import { normalizeRedirectUri, requireOAuthClient, AuthorizationError } from '@repo/auth-core';
-import {
-  createOpaqueToken,
-  createTokenHashEnvelope,
-  COOKIE_NAME,
-  parseSessionTransferToken,
-  verifySessionTransferToken,
-} from '@repo/auth';
+import { normalizeRedirectUri, AuthorizationError } from '@repo/auth-core';
+import { COOKIE_NAME, parseSessionTransferToken, verifySessionTransferToken } from '@repo/auth';
+import { issueAuthorizationCode } from '../../../lib/oauth-authorization-codes.js';
+import { oauthClientService, sessionRepository, sessionTransferTokenRepository } from '../../../services/index.js';
+import type { PermissionScope } from '@repo/auth-core';
 
 const authorize = new Hono();
 
@@ -43,8 +39,7 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
 
   try {
     // 1. Validate Client & Redirect URI
-    await requireOAuthClient({
-      prisma,
+    await oauthClientService.requireClient({
       clientId: client_id,
       redirectUri: redirect_uri,
     });
@@ -72,17 +67,7 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
 
   // Cookie-based session
   if (sessionToken && UUID_REGEX.test(sessionToken)) {
-    const session = await prisma.authSession.findFirst({
-      where: {
-        id: sessionToken,
-        expiresAt: { gt: new Date() },
-        revokedAt: null,
-      },
-      select: {
-        userId: true,
-      },
-    });
-
+    const session = await sessionRepository.findActiveById(sessionToken);
     if (session) {
       userId = session.userId;
     }
@@ -92,39 +77,21 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
   if (!userId && session_token) {
     const parsed = parseSessionTransferToken(session_token);
     if (parsed) {
-      const transfer = await prisma.sessionTransferToken.findFirst({
-        where: {
-          id: parsed.tokenId,
-          expiresAt: { gt: new Date() },
-          usedAt: null,
-          ...(client_id ? { clientId: { equals: client_id } } : {}),
-        },
-        select: {
-          hashEnvelope: true,
-          session: {
-            select: {
-              id: true,
-              userId: true,
-              expiresAt: true,
-              revokedAt: true,
-            },
-          },
-        },
+      const transfer = await sessionTransferTokenRepository.findValidToken(parsed.tokenId, {
+        clientId: client_id,
       });
+
+      const transferSession = transfer?.session;
 
       if (
         transfer &&
-        transfer.session &&
-        transfer.session.expiresAt > new Date() &&
-        transfer.session.revokedAt === null &&
+        transferSession &&
+        transferSession.expiresAt > new Date() &&
+        transferSession.revokedAt === null &&
         verifySessionTransferToken(parsed.tokenSecret, transfer.hashEnvelope)
       ) {
-        userId = transfer.session.userId;
-        // Mark token as used (single-use)
-        await prisma.sessionTransferToken.update({
-          where: { id: parsed.tokenId },
-          data: { usedAt: new Date() },
-        });
+        userId = transferSession.userId;
+        await sessionTransferTokenRepository.markUsed(parsed.tokenId);
       }
     }
   }
@@ -137,28 +104,19 @@ authorize.get('/', zValidator('query', authorizeSchema), async (c) => {
   }
 
   // 4. Generate Authorization Code
-  const opaque = createOpaqueToken();
-  const codeHash = createTokenHashEnvelope(opaque.tokenSecret);
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-  await prisma.oAuthAuthorizationCode.create({
-    data: {
-      id: opaque.tokenId,
-      userId,
-      clientId: client_id,
-      redirectUri: normalizeRedirectUri(redirect_uri),
-      codeHash,
-      codeChallenge: code_challenge,
-      codeChallengeMethod: code_challenge_method,
-      scopes: scope ? scope.split(' ') : [],
-      nonce: nonce ?? null,
-      expiresAt,
-    },
+  const codeResult = await issueAuthorizationCode({
+    userId,
+    clientId: client_id,
+    redirectUri: normalizeRedirectUri(redirect_uri),
+    codeChallenge: code_challenge,
+    codeChallengeMethod: code_challenge_method,
+    scopes: scope ? (scope.split(' ').filter(Boolean) as PermissionScope[]) : [],
+    nonce: nonce ?? null,
   });
 
   // 5. Redirect back to client with code
   const callbackUrl = new URL(redirect_uri);
-  callbackUrl.searchParams.set('code', opaque.value);
+  callbackUrl.searchParams.set('code', codeResult.code);
   if (state) {
     callbackUrl.searchParams.set('state', state);
   }

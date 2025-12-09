@@ -129,6 +129,18 @@ export class RefreshTokenRepository {
       throw error;
     }
   }
+
+  async revokeById(
+    tokenId: string,
+    revokedAt: Date,
+    client?: PrismaClientOrTransaction
+  ): Promise<void> {
+    const db = this.getClient(client);
+    await db.refreshToken.updateMany({
+      where: { id: tokenId, revokedAt: null },
+      data: { revokedAt },
+    });
+  }
 }
 
 function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClient {

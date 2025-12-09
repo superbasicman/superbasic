@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { prisma } from '@repo/database';
 import { parseOpaqueToken } from '@repo/auth';
 import { csrfProtection } from '../../../middleware/csrf.js';
 import type { AppBindings } from '../../../types/context.js';
+import { refreshTokenRepository, tokenRepository } from '../../../services/index.js';
 
 const revoke = new Hono<AppBindings>();
 
@@ -37,26 +37,10 @@ revoke.post('/', csrfProtection, zValidator('form', revokeSchema), async (c) => 
         // parseOpaqueToken returns tokenId as UUID only, prefix separately
         if (token_type_hint === 'refresh_token' || parsed.prefix === 'rt') {
             // Try to revoke as refresh token
-            await prisma.refreshToken.updateMany({
-                where: {
-                    id: parsed.tokenId,
-                    revokedAt: null,
-                },
-                data: {
-                    revokedAt: now,
-                },
-            });
+            await refreshTokenRepository.revokeById(parsed.tokenId, now);
         } else {
             // Try to revoke as PAT (api_key)
-            await prisma.apiKey.updateMany({
-                where: {
-                    id: parsed.tokenId,
-                    revokedAt: null,
-                },
-                data: {
-                    revokedAt: now,
-                },
-            });
+            await tokenRepository.revokeById(parsed.tokenId, now);
         }
 
         // Per RFC 7009 Section 2.2: return 200 OK regardless of whether token existed

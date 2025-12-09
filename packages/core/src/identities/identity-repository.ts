@@ -31,6 +31,23 @@ export class IdentityRepository {
     >;
   }
 
+  async findByProviderAndSubject(
+    provider: IdentityProvider | string,
+    providerSubject: string
+  ): Promise<Array<{ userId: string; provider: IdentityProvider; providerSubject: string }>> {
+    return this.prisma.userIdentity.findMany({
+      where: {
+        provider: provider as IdentityProvider,
+        providerSubject,
+      },
+      select: {
+        userId: true,
+        provider: true,
+        providerSubject: true,
+      },
+    });
+  }
+
   async create(params: CreateIdentityParams): Promise<UserIdentity> {
     return this.prisma.userIdentity.create({
       data: {

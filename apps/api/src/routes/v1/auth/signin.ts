@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { setCookie } from 'hono/cookie';
 import { COOKIE_NAME, generateSessionTransferToken } from '@repo/auth';
-import { prisma } from '@repo/database';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { authenticatePasswordIdentity } from '../../../lib/identity-provider.js';
@@ -12,6 +11,7 @@ import {
     trackFailedAuth,
 } from '../../../middleware/rate-limit/failed-auth-tracking.js';
 import { generateCsrfToken, setCsrfCookie } from '../../../middleware/csrf.js';
+import { sessionTransferTokenRepository } from '../../../services/index.js';
 
 const signin = new Hono();
 
@@ -79,15 +79,13 @@ signin.post('/password', zValidator('json', passwordSchema), async (c) => {
         // Mobile apps can't share cookies with the system browser, so they use this
         // opaque token to transfer the authenticated session to /v1/oauth/authorize
         const sessionTransfer = generateSessionTransferToken();
-        await prisma.sessionTransferToken.create({
-            data: {
-                id: sessionTransfer.tokenId,
-                sessionId: session.sessionId,
-                hashEnvelope: sessionTransfer.hashEnvelope,
-                expiresAt: sessionTransfer.expiresAt,
-                createdIp: ipAddress,
-                userAgent,
-            },
+        await sessionTransferTokenRepository.create({
+            id: sessionTransfer.tokenId,
+            sessionId: session.sessionId,
+            hashEnvelope: sessionTransfer.hashEnvelope,
+            expiresAt: sessionTransfer.expiresAt,
+            createdIp: ipAddress,
+            userAgent,
         });
         sessionTransferToken = sessionTransfer.token;
     }

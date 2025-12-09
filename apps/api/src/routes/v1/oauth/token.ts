@@ -2,15 +2,12 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
-import { Prisma, prisma } from '@repo/database';
 import {
-  requireOAuthClient,
   AuthorizationError,
   validatePkcePair,
   generateAccessToken,
   generateIdToken,
   extractClientSecret,
-  authenticateConfidentialClient,
 } from '@repo/auth-core';
 import type { ClientType } from '@repo/auth-core';
 import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
@@ -18,6 +15,13 @@ import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { buildUserClaimsForTokenResponse } from '../../../lib/user-claims.js';
 import type { AppBindings } from '../../../types/context.js';
+import {
+  authorizationCodeRepository,
+  oauthClientService,
+  refreshTokenRepository,
+  serviceIdentityRepository,
+  userRepository,
+} from '../../../services/index.js';
 import {
   extractIp,
   handleRevokedTokenReuse,
@@ -58,21 +62,9 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
   try {
     if (body.grant_type === 'client_credentials') {
       const { client_id, client_secret, scope, workspace_id } = body;
-      const serviceIdentity = await prisma.serviceIdentity.findUnique({
-        where: { clientId: client_id },
-        include: {
-          clientSecrets: {
-            where: {
-              revokedAt: null,
-              OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-            },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          },
-        },
-      });
+      const serviceIdentity = await serviceIdentityRepository.findActiveWithLatestSecret(client_id);
 
-      if (!serviceIdentity || serviceIdentity.disabledAt) {
+      if (!serviceIdentity) {
         throw new AuthorizationError('Invalid client credentials');
       }
 
@@ -127,8 +119,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
       const { client_id, code, redirect_uri, code_verifier, client_secret } = body;
 
       // 1. Validate client
-      const client = await requireOAuthClient({
-        prisma,
+      const client = await oauthClientService.requireClient({
         clientId: client_id,
         redirectUri: redirect_uri,
       });
@@ -136,7 +127,10 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
       // 2. Authenticate confidential clients
       const authHeader = c.req.header('Authorization');
       const extractedSecret = extractClientSecret(authHeader, client_secret);
-      await authenticateConfidentialClient({ prisma, client, clientSecret: extractedSecret });
+      await oauthClientService.authenticateConfidentialClient({
+        client,
+        clientSecret: extractedSecret,
+      });
 
       // 3. Parse and verify the authorization code
       const parsed = parseOpaqueToken(code);
@@ -144,16 +138,34 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         throw new AuthorizationError('Invalid authorization code format');
       }
 
-      // 4. Find the authorization code in the database
-      const authCode = await prisma.oAuthAuthorizationCode.findFirst({
-        where: {
-          clientId: client_id,
-          redirectUri: redirect_uri,
-          expiresAt: { gt: new Date() },
-          consumedAt: null,
-        },
-        orderBy: {
-          createdAt: 'desc',
+      const authCode = await authorizationCodeRepository.consume({
+        id: parsed.tokenId,
+        validate: (record) => {
+          if (record.clientId !== client_id || record.redirectUri !== redirect_uri) {
+            return false;
+          }
+          const hashIsValid = verifyTokenSecret(
+            parsed.tokenSecret,
+            record.codeHash as TokenHashEnvelope
+          );
+          if (!hashIsValid) {
+            return false;
+          }
+          if (record.codeChallenge) {
+            if (!code_verifier) {
+              return false;
+            }
+            try {
+              validatePkcePair({
+                codeVerifier: code_verifier,
+                codeChallenge: record.codeChallenge,
+                codeChallengeMethod: record.codeChallengeMethod,
+              });
+            } catch {
+              return false;
+            }
+          }
+          return true;
         },
       });
 
@@ -161,36 +173,8 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
         throw new AuthorizationError('Authorization code not found or expired');
       }
 
-      // 4. Verify the code hash
-      const isValid = await verifyTokenSecret(parsed.tokenSecret, authCode.codeHash);
-      if (!isValid) {
-        throw new AuthorizationError('Invalid authorization code');
-      }
-
-      // 5. Verify PKCE (skip for external provider flows where challenge is empty)
-      if (authCode.codeChallenge && code_verifier) {
-        validatePkcePair({
-          codeVerifier: code_verifier,
-          codeChallenge: authCode.codeChallenge,
-          codeChallengeMethod: authCode.codeChallengeMethod,
-        });
-      } else if (authCode.codeChallenge && !code_verifier) {
-        // PKCE was required but verifier not provided
-        throw new AuthorizationError('PKCE code_verifier is required');
-      }
-      // If no challenge was set (external provider flow), skip PKCE validation
-
-      // 6. Mark code as consumed
-      await prisma.oAuthAuthorizationCode.update({
-        where: { id: authCode.id },
-        data: { consumedAt: new Date() },
-      });
-
       // 7. Fetch user details for identity and id_token
-      const user = await prisma.user.findUnique({
-        where: { id: authCode.userId },
-        select: { primaryEmail: true, emailVerified: true, displayName: true, picture: true },
-      });
+      const user = await userRepository.findProfileForTokenPayload(authCode.userId);
 
       // 8. Create session and get access token + refresh token
       // Use local_password as a catch-all since the actual IdP is verified at /oauth/authorize
@@ -267,8 +251,7 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
     // grant_type === refresh_token
     const { client_id, refresh_token, client_secret } = body;
 
-    const client = await requireOAuthClient({
-      prisma,
+    const client = await oauthClientService.requireClient({
       clientId: client_id,
       allowDisabled: false,
     });
@@ -276,25 +259,17 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
     // Authenticate confidential clients
     const authHeader = c.req.header('Authorization');
     const extractedSecret = extractClientSecret(authHeader, client_secret);
-    await authenticateConfidentialClient({ prisma, client, clientSecret: extractedSecret });
+    await oauthClientService.authenticateConfidentialClient({
+      client,
+      clientSecret: extractedSecret,
+    });
 
     const parsed = parseOpaqueToken(refresh_token);
     if (!parsed) {
       return invalidGrant(c);
     }
 
-    const tokenRecord = await prisma.refreshToken.findUnique({
-      where: { id: parsed.tokenId },
-      include: {
-        session: {
-          include: {
-            user: {
-              select: { id: true, userState: true },
-            },
-          },
-        },
-      },
-    });
+    const tokenRecord = await refreshTokenRepository.findWithSession(parsed.tokenId);
 
     if (!tokenRecord) {
       return invalidGrant(c);
@@ -341,33 +316,30 @@ token.post('/', zValidator('form', tokenSchema), async (c) => {
       return invalidGrant(c);
     }
 
-    try {
-      await prisma.refreshToken.update({
-        where: { id: tokenRecord.id, revokedAt: null },
-        data: {
-          revokedAt: now,
-          lastUsedAt: now,
-          lastUsedIp: ipAddress,
-          userAgent,
-        },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        await handleRevokedTokenReuse(
-          {
-            tokenId: tokenRecord.id,
-            sessionId: session.id,
-            familyId: tokenRecord.familyId,
-            userId: tokenRecord.userId,
-            ipAddress,
-            userAgent,
-            requestId,
-          },
-          now
-        );
-        return invalidGrant(c);
+    const revokeResult = await refreshTokenRepository.revokeToken(
+      tokenRecord.id,
+      {
+        revokedAt: now,
+        lastUsedAt: now,
+        lastUsedIp: ipAddress,
+        userAgent,
       }
-      throw error;
+    );
+
+    if (revokeResult === 'not_found') {
+      await handleRevokedTokenReuse(
+        {
+          tokenId: tokenRecord.id,
+          sessionId: session.id,
+          familyId: tokenRecord.familyId,
+          userId: tokenRecord.userId,
+          ipAddress,
+          userAgent,
+          requestId,
+        },
+        now
+      );
+      return invalidGrant(c);
     }
 
     const sessionUpdate = await updateSessionTimestamps(session.id, now);

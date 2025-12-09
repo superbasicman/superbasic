@@ -103,6 +103,41 @@ export class SessionRepository {
     }) as Promise<SessionDetails[]>;
   }
 
+  async findActiveById(
+    sessionId: string
+  ): Promise<{ id: string; userId: string; expiresAt: Date; revokedAt: Date | null } | null> {
+    return this.prisma.authSession.findFirst({
+      where: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true, userId: true, expiresAt: true, revokedAt: true },
+    });
+  }
+
+  async findManyActiveForUsers(userIds: string[]): Promise<Array<{ id: string; userId: string }>> {
+    if (userIds.length === 0) {
+      return [];
+    }
+    return this.prisma.authSession.findMany({
+      where: {
+        userId: { in: userIds },
+        revokedAt: null,
+      },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+  }
+
+  async findOwners(sessionIds: string[]): Promise<Array<{ id: string; userId: string }>> {
+    if (sessionIds.length === 0) {
+      return [];
+    }
+    return this.prisma.authSession.findMany({
+      where: { id: { in: sessionIds } },
+      select: { id: true, userId: true },
+    });
+  }
+
   async revokeSessionAndRefreshTokens(
     sessionId: string,
     options: { client?: PrismaClientOrTransaction; skipSessionUpdate?: boolean } = {}

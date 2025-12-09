@@ -49,12 +49,12 @@
 26. [x] apps/api/src/routes/v1/auth/refresh.ts
 27. [x] apps/api/src/routes/v1/auth/session.ts
 28. [x] apps/api/src/routes/v1/auth/sessions.ts
-29. [ ] apps/api/src/routes/v1/auth/sso-logout.ts
+29. [x] apps/api/src/routes/v1/auth/sso-logout.ts
 
 // ===== apps/api/src/routes/v1/oauth =====
-30. [ ] apps/api/src/routes/v1/oauth/authorize.ts
-31. [ ] apps/api/src/routes/v1/oauth/revoke.ts
-32. [ ] apps/api/src/routes/v1/oauth/token.ts
+30. [x] apps/api/src/routes/v1/oauth/authorize.ts
+31. [x] apps/api/src/routes/v1/oauth/revoke.ts
+32. [x] apps/api/src/routes/v1/oauth/token.ts
 
 // ===== apps/api/src/routes/v1/oauth/__tests__ =====
 33. [ ] apps/api/src/routes/v1/oauth/__tests__/authorize.test.ts
