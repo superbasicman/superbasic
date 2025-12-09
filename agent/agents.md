@@ -154,4 +154,8 @@ Use this as a routing table for deeper context. Open only the docs relevant to t
 - **If you need general coding standards, readability guidelines, or reminders on layering discipline**, refer to:
   - `agent/steering/code-quality.md` — code style expectations, error-handling rules, and testing hygiene.
 
+### 2.11 Auth architecture & migrations
+
+- **If you are working on auth flows, tokens, or migration planning**, start with `docs/auth-migration/end-auth-goal.index.md` to jump to the right section of `docs/auth-migration/end-auth-goal.md`.
+
 When in doubt, start from the smallest relevant doc in this map instead of reading everything. If specs and reality diverge, update the spec as part of the change and call that out in your notes.
