@@ -23,8 +23,13 @@ vi.mock('@repo/rate-limit', async (importOriginal) => {
 });
 
 import app from '../../../app.js';
-import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
-import { makeRequest, createTestUserCredentials } from '../../../test/helpers.js';
+import { resetDatabase } from '../../../test/setup.js';
+import {
+  makeRequest,
+  createTestUserCredentials,
+  getUser,
+  getUserPassword,
+} from '../../../test/helpers.js';
 import { authEvents } from '@repo/auth';
 import { verifyPassword } from '@repo/auth';
 
@@ -58,7 +63,6 @@ describe('POST /v1/register', () => {
 
     it('should create user in database with hashed password', async () => {
       const credentials = createTestUserCredentials();
-      const prisma = getTestPrisma();
 
       const response = await makeRequest(app, 'POST', '/v1/register', {
         body: credentials,
@@ -70,14 +74,12 @@ describe('POST /v1/register', () => {
       const userId = data.user.id;
 
       // Verify user exists in database
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await getUser(userId);
 
       expect(user).toBeTruthy();
       expect(user?.primaryEmail).toBe(credentials.email.toLowerCase());
 
-      const passwordRecord = await prisma.userPassword.findUnique({ where: { userId } });
+      const passwordRecord = await getUserPassword(userId);
       expect(passwordRecord?.passwordHash).toBeTruthy();
       expect(passwordRecord?.passwordHash).not.toBe(credentials.password);
       expect(passwordRecord?.passwordHash).toMatch(/^\$2[aby]\$/); // bcrypt hash format

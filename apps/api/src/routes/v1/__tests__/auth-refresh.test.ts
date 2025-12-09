@@ -3,15 +3,20 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.unmock('@repo/database');
 
 import app from '../../../app.js';
-import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
-import { createTestUser, createSessionRecord, makeRequest } from '../../../test/helpers.js';
+import { resetDatabase } from '../../../test/setup.js';
+import {
+  createTestUser,
+  createSessionRecord,
+  makeRequest,
+  getRefreshToken,
+  getAuthSession,
+  updateRefreshToken,
+} from '../../../test/helpers.js';
 import { authService } from '../../../lib/auth-service.js';
 import { REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
 import { authEvents } from '@repo/auth';
 
 describe('POST /v1/auth/refresh', () => {
-  const prisma = getTestPrisma;
-
   beforeEach(async () => {
     await resetDatabase();
   });
@@ -45,7 +50,7 @@ describe('POST /v1/auth/refresh', () => {
     );
     expect(hasRefreshCookie).toBe(true);
 
-    const dbToken = await prisma().refreshToken.findUnique({ where: { id: initial.token.id } });
+    const dbToken = await getRefreshToken(initial.token.id);
     expect(dbToken?.revokedAt).not.toBeNull();
   });
 
@@ -118,12 +123,8 @@ describe('POST /v1/auth/refresh', () => {
     });
 
     // Mark the first as reused/revoked.
-    // Mark the first as reused/revoked.
     // Set revocation time to > 10s ago to bypass the benign race window
-    await prisma().refreshToken.update({
-      where: { id: first.token.id },
-      data: { revokedAt: new Date(Date.now() - 15000) },
-    });
+    await updateRefreshToken(first.token.id, { revokedAt: new Date(Date.now() - 15000) });
 
     // Create another in the same family to simulate sibling active token.
     const sibling = await authService.issueRefreshToken({
@@ -140,9 +141,9 @@ describe('POST /v1/auth/refresh', () => {
     });
 
     expect(response.status).toBe(401);
-    const updatedSession = await prisma().authSession.findUnique({ where: { id: session.id } });
+    const updatedSession = await getAuthSession(session.id);
     expect(updatedSession?.revokedAt).not.toBeNull();
-    const siblingRow = await prisma().refreshToken.findUnique({ where: { id: sibling.token.id } });
+    const siblingRow = await getRefreshToken(sibling.token.id);
     expect(siblingRow?.revokedAt).not.toBeNull();
   });
 

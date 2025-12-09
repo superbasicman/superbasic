@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono';
 import { authService } from '../lib/auth-service.js';
-import { prisma, resetPostgresContext } from '@repo/database';
+import { resetGlobalPostgresContext } from '@repo/database';
 import { AuthorizationError } from '@repo/auth-core';
 import type { PermissionScope } from '@repo/auth-core';
 import { checkFailedAuthRateLimit, trackFailedAuth } from './rate-limit/index.js';
@@ -19,7 +19,7 @@ export async function patMiddleware(c: Context, next: Next) {
       return;
     }
     try {
-      await resetPostgresContext(prisma);
+      await resetGlobalPostgresContext();
     } catch (contextError) {
       console.error('[pat] Failed to reset Postgres context', contextError);
     } finally {

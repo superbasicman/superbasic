@@ -1,22 +1,17 @@
-/**
- * Integration tests for rate limiting on token operations
- * Tests token creation rate limiting and failed auth rate limiting
- */
-
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // Unmock @repo/database for integration tests (use real Prisma client)
 vi.unmock('@repo/database');
 
 import { Hono } from 'hono';
-import { setupTestDatabase, resetDatabase, getTestPrisma } from '../../test/setup.js';
+import { setupTestDatabase, resetDatabase } from '../../test/setup.js';
 import {
   makeAuthenticatedRequest,
   createTestUser,
   createAccessToken,
   makeRequest,
+  createPersonalAccessToken,
 } from '../../test/helpers.js';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import { tokensRoute } from '../../routes/v1/tokens/index.js';
 import { corsMiddleware } from '../../middleware/cors.js';
 import { patMiddleware } from '../../middleware/pat.js';
@@ -220,7 +215,6 @@ describe('Rate Limiting Integration Tests', () => {
   describe('Failed Authentication Rate Limiting', () => {
     it('should enforce 100 failed auth attempts per hour per IP', async () => {
       const app = createPATTestApp();
-      const prisma = getTestPrisma();
 
       // Create a valid token in database
       const { user } = await createTestUser();
@@ -230,20 +224,11 @@ describe('Rate Limiting Integration Tests', () => {
         throw new Error('Test user must have a profile');
       }
 
-      const opaque = createOpaqueToken();
-      const token = opaque.value;
-      const keyHash = createTokenHashEnvelope(opaque.tokenSecret);
-
-      await prisma.apiKey.create({
-        data: {
-          id: opaque.tokenId,
-          userId: user.id,
-          name: 'Test Token',
-          keyHash,
-          last4: token.slice(-4),
-          scopes: ['read:transactions'],
-          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-        },
+      await createPersonalAccessToken({
+        userId: user.id,
+        name: 'Test Token',
+        scopes: ['read:transactions'],
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       });
 
       // Mock rate limiter to allow first 100 failed attempts and track usage count
@@ -304,7 +289,6 @@ describe('Rate Limiting Integration Tests', () => {
       // Skipped: Flaky test that times out
       // Behavior is already covered by other passing tests in this suite
       const app = createPATTestApp();
-      const prisma = getTestPrisma();
 
       // Create a valid token in database
       const { user } = await createTestUser();
@@ -314,20 +298,11 @@ describe('Rate Limiting Integration Tests', () => {
         throw new Error('Test user must have a profile');
       }
 
-      const opaque = createOpaqueToken();
-      const token = opaque.value;
-      const keyHash = createTokenHashEnvelope(opaque.tokenSecret);
-
-      await prisma.apiKey.create({
-        data: {
-          id: opaque.tokenId,
-          userId: user.id,
-          name: 'Test Token',
-          keyHash,
-          last4: token.slice(-4),
-          scopes: ['read:transactions'],
-          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-        },
+      const { token } = await createPersonalAccessToken({
+        userId: user.id,
+        name: 'Test Token',
+        scopes: ['read:transactions'],
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
       });
 
       // Mock rate limiter to allow all requests
@@ -464,7 +439,6 @@ describe('Rate Limiting Integration Tests', () => {
 
     it('should track different failure reasons', async () => {
       const app = createPATTestApp();
-      const prisma = getTestPrisma();
 
       // Create a revoked token
       const { user } = await createTestUser();
@@ -474,21 +448,12 @@ describe('Rate Limiting Integration Tests', () => {
         throw new Error('Test user must have a profile');
       }
 
-      const opaque = createOpaqueToken();
-      const token = opaque.value;
-      const keyHash = createTokenHashEnvelope(opaque.tokenSecret);
-
-      await prisma.apiKey.create({
-        data: {
-          id: opaque.tokenId,
-          userId: user.id,
-          name: 'Test Token',
-          keyHash,
-          last4: token.slice(-4),
-          scopes: ['read:transactions'],
-          expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
-          revokedAt: new Date(), // Token is revoked
-        },
+      const { token } = await createPersonalAccessToken({
+        userId: user.id,
+        name: 'Test Token',
+        scopes: ['read:transactions'],
+        expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+        revokedAt: new Date(), // Token is revoked
       });
 
       // Mock rate limiter

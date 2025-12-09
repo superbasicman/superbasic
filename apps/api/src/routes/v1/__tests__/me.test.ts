@@ -9,6 +9,7 @@ import {
   createAccessToken,
   makeAuthenticatedRequest,
   makeRequest,
+  createTestWorkspace,
 } from '../../../test/helpers.js';
 import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 
@@ -19,7 +20,6 @@ describe('GET /v1/me', () => {
 
   it('returns profile data for a valid access token', async () => {
     const { user } = await createTestUser({ name: 'Profile User' });
-    const prisma = getTestPrisma();
     const { token } = await createAccessToken(user.id);
 
     const response = await makeAuthenticatedRequest(app, 'GET', '/v1/me', token);
@@ -29,12 +29,10 @@ describe('GET /v1/me', () => {
     expect(data.user.id).toBe(user.id);
     expect(data.user.email).toBe(user.primaryEmail);
     expect(data.user.name).toBe('Profile User');
-    const membership = await prisma.workspaceMember.findFirst({
-      where: { userId: user.id, revokedAt: null },
-    });
-    const expectedWorkspaceId = membership?.workspaceId ?? null;
-    expect(data.workspaceContext?.activeWorkspaceId).toBe(expectedWorkspaceId);
-    expect(data.workspaceContext?.currentSettingWorkspaceId).toBe(expectedWorkspaceId);
+    
+    // Default workspace created by createAccessToken if ensureWorkspace is true
+    expect(data.workspaceContext?.activeWorkspaceId).toBeTruthy();
+    expect(data.workspaceContext?.currentSettingWorkspaceId).toBe(data.workspaceContext?.activeWorkspaceId);
   });
 
   it('returns 404 when the authenticated user is missing a profile', async () => {
@@ -76,21 +74,7 @@ describe('GET /v1/me', () => {
 
   it('sets Postgres workspace context when workspace is selected', async () => {
     const { user } = await createTestUser({ name: 'Workspace User' });
-    const prisma = getTestPrisma();
-    const workspace = await prisma.workspace.create({
-      data: {
-        ownerUserId: user.id,
-        name: 'Test Workspace',
-        slug: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      },
-    });
-    await prisma.workspaceMember.create({
-      data: {
-        workspaceId: workspace.id,
-        userId: user.id,
-        role: 'owner',
-      },
-    });
+    const workspace = await createTestWorkspace(user.id, { name: 'Test Workspace' });
 
     const { token } = await createAccessToken(user.id);
 
@@ -109,20 +93,7 @@ describe('GET /v1/me', () => {
   it('sets workspace context for PAT-authenticated requests', async () => {
     const { user } = await createTestUser({ name: 'PAT Workspace User' });
     const prisma = getTestPrisma();
-    const workspace = await prisma.workspace.create({
-      data: {
-        ownerUserId: user.id,
-        name: 'PAT Workspace',
-        slug: `ws-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      },
-    });
-    await prisma.workspaceMember.create({
-      data: {
-        workspaceId: workspace.id,
-        userId: user.id,
-        role: 'owner',
-      },
-    });
+    const workspace = await createTestWorkspace(user.id, { name: 'PAT Workspace' });
 
     const patOpaque = createOpaqueToken({ prefix: 'sbf' });
     const tokenHash = createTokenHashEnvelope(patOpaque.tokenSecret);

@@ -232,6 +232,27 @@ async function ensureWorkspaceMembership(userId: string) {
   return workspace.id;
 }
 
+export async function createTestWorkspace(userId: string, overrides: { name?: string } = {}) {
+  const prisma = getTestPrisma();
+  const workspace = await prisma.workspace.create({
+    data: {
+      name: overrides.name ?? 'Test Workspace',
+      slug: `test-workspace-${userId}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      ownerUserId: userId,
+    },
+  });
+
+  await prisma.workspaceMember.create({
+    data: {
+      workspaceId: workspace.id,
+      userId,
+      role: 'owner',
+    },
+  });
+
+  return workspace;
+}
+
 export async function createSessionToken(
   userId: string,
   _email?: string,
@@ -434,4 +455,32 @@ export async function createPersonalAccessToken(options: {
   }
 
   return { token: issued.secret, tokenId: issued.tokenId };
+}
+
+export async function getRefreshToken(id: string) {
+  const prisma = getTestPrisma();
+  return prisma.refreshToken.findUnique({ where: { id } });
+}
+
+export async function getAuthSession(id: string) {
+  const prisma = getTestPrisma();
+  return prisma.authSession.findUnique({ where: { id } });
+}
+
+export async function updateRefreshToken(id: string, data: { revokedAt: Date }) {
+  const prisma = getTestPrisma();
+  return prisma.refreshToken.update({
+    where: { id },
+    data,
+  });
+}
+
+export async function getUser(id: string) {
+  const prisma = getTestPrisma();
+  return prisma.user.findUnique({ where: { id } });
+}
+
+export async function getUserPassword(userId: string) {
+  const prisma = getTestPrisma();
+  return prisma.userPassword.findUnique({ where: { userId } });
 }

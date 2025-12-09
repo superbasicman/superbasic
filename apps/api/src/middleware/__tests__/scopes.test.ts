@@ -9,13 +9,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.unmock('@repo/database');
 
 import app from '../../app.js';
-import { resetDatabase, getTestPrisma } from '../../test/setup.js';
+import { resetDatabase } from '../../test/setup.js';
 import {
   makeRequest,
   makeAuthenticatedRequest,
   createTestUser,
   createAccessToken,
   createPersonalAccessToken,
+  createTestWorkspace,
 } from '../../test/helpers.js';
 
 // Use the full app which includes all routes (login, me, etc.)
@@ -105,14 +106,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should allow PAT with read:profile scope to access GET /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token with read:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Read Profile Token',
         scopes: ['read:profile'],
       });
@@ -132,14 +128,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should deny PAT without read:profile scope from accessing GET /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token without read:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Write Only Token',
         scopes: ['write:transactions'],
       });
@@ -160,28 +151,11 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should allow PAT with admin scope to access GET /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
 
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
-      const workspace = await prisma.workspace.create({
-        data: {
-          ownerUserId: user.id,
-          name: 'Admin Scope Workspace',
-          slug: `admin-scope-${Date.now()}`,
-        },
-      });
-      await prisma.workspaceMember.create({
-        data: {
-          workspaceId: workspace.id,
-          userId: user.id,
-          role: 'owner',
-        },
-      });
+      const workspace = await createTestWorkspace(user.id, { name: 'Admin Scope Workspace' });
 
       // Create token with admin scope (grants all permissions)
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Admin Token',
         scopes: ['admin'],
         workspaceId: workspace.id,
@@ -227,14 +201,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should allow PAT with write:profile scope to access PATCH /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token with write:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Write Profile Token',
         scopes: ['write:profile'],
       });
@@ -257,14 +226,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should deny PAT with only read:profile scope from accessing PATCH /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token with only read:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Read Only Token',
         scopes: ['read:profile'],
       });
@@ -288,14 +252,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should deny PAT without write:profile scope from accessing PATCH /v1/me', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token without write:profile scope
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Wrong Scope Token',
         scopes: ['read:transactions', 'write:transactions'],
       });
@@ -323,14 +282,9 @@ describe('Scope Enforcement Middleware', () => {
   describe('Multiple Scopes', () => {
     it('should allow PAT with multiple scopes including required scope', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token with multiple scopes
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Multi-Scope Token',
         scopes: ['read:profile', 'write:profile', 'read:transactions'],
       });
@@ -359,14 +313,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should deny PAT with multiple scopes but missing required scope', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token with multiple scopes but not read:profile
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Wrong Scopes Token',
         scopes: ['read:transactions', 'write:transactions', 'read:budgets'],
       });
@@ -389,14 +338,9 @@ describe('Scope Enforcement Middleware', () => {
   describe('Error Response Format', () => {
     it('should return 403 with error and required scope in response', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create token without required scope
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Limited Token',
         scopes: ['read:transactions'],
       });
@@ -438,14 +382,9 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should enforce scopes for PAT auth while session auth succeeds due to granted scopes', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-
-      const profile = await prisma.profile.findUnique({
-        where: { userId: user.id },
-      });
 
       // Create read-only token
-      const { token } = await createApiToken(user.id, profile!.id, user.email, {
+      const { token } = await createApiToken(user.id, user.profile.id, user.email, {
         name: 'Read Only Token',
         scopes: ['read:profile'],
       });
@@ -491,21 +430,7 @@ describe('Scope Enforcement Middleware', () => {
 
     it('should allow session auth with workspace membership scopes for read:accounts operations', async () => {
       const { user } = await createTestUser();
-      const prisma = getTestPrisma();
-      const workspace = await prisma.workspace.create({
-        data: {
-          name: 'Session Scope Workspace',
-          slug: `session-scope-${Date.now()}`,
-          ownerUserId: user.id,
-        },
-      });
-      await prisma.workspaceMember.create({
-        data: {
-          workspaceId: workspace.id,
-          userId: user.id,
-          role: 'owner',
-        },
-      });
+      const workspace = await createTestWorkspace(user.id, { name: 'Session Scope Workspace' });
 
       const { token } = await createAccessToken(user.id);
       const response = await makeAuthenticatedRequest(testApp, 'GET', '/v1/tokens', token, {

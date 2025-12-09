@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Hono } from 'hono';
-import { prisma as sharedPrisma } from '@repo/database';
 import { patMiddleware } from '../pat.js';
-import { resetDatabase, getTestPrisma } from '../../test/setup.js';
-import { makeRequest, createPersonalAccessToken, createTestUser } from '../../test/helpers.js';
+import { resetDatabase } from '../../test/setup.js';
+import {
+  makeRequest,
+  createPersonalAccessToken,
+  createTestUser,
+  createTestWorkspace,
+} from '../../test/helpers.js';
 
 // Ensure we use the real database, not the mock
 vi.unmock('@repo/database');
@@ -38,11 +42,8 @@ function createTestApp() {
 }
 
 describe('PAT middleware (auth-core)', () => {
-  let prisma: typeof sharedPrisma;
-
   beforeEach(async () => {
     await resetDatabase();
-    prisma = getTestPrisma();
   });
 
   afterEach(() => {
@@ -115,20 +116,7 @@ describe('PAT middleware (auth-core)', () => {
     const { user } = await createTestUser();
     const app = createTestApp();
 
-    const workspace = await prisma.workspace.create({
-      data: {
-        ownerUserId: user.id,
-        name: 'Workspace Token',
-        slug: `workspace-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      },
-    });
-    await prisma.workspaceMember.create({
-      data: {
-        workspaceId: workspace.id,
-        userId: user.id,
-        role: 'owner',
-      },
-    });
+    const workspace = await createTestWorkspace(user.id, { name: 'Workspace Token' });
 
     const pat = await createPersonalAccessToken({
       userId: user.id,

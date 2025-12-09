@@ -3,18 +3,18 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 vi.unmock('@repo/database');
 
 import app from '../../../app.js';
-import { resetDatabase, getTestPrisma } from '../../../test/setup.js';
+import { resetDatabase } from '../../../test/setup.js';
 import {
   createTestUser,
   createSessionRecord,
   makeRequest,
   createAccessToken,
+  getAuthSession,
+  getRefreshToken,
 } from '../../../test/helpers.js';
 import { generateAccessToken } from '@repo/auth-core';
 import { authService } from '../../../lib/auth-service.js';
 import { REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
-
-const prisma = getTestPrisma;
 
 describe('GET /v1/auth/session', () => {
   beforeEach(async () => {
@@ -64,11 +64,11 @@ describe('GET /v1/auth/session', () => {
 
     expect(response.status).toBe(204);
 
-    const sessions = await prisma().authSession.findMany({
-      where: { userId: user.id },
-    });
-    const revokedIds = sessions.filter((s: any) => s.revokedAt !== null).map((s: any) => s.id);
-    expect(revokedIds).toEqual(expect.arrayContaining([session.id, otherSession.id]));
+    const s1 = await getAuthSession(session.id);
+    const s2 = await getAuthSession(otherSession.id);
+    
+    expect(s1?.revokedAt).not.toBeNull();
+    expect(s2?.revokedAt).not.toBeNull();
   });
 });
 
@@ -136,12 +136,10 @@ describe('POST /v1/auth/logout', () => {
     const setCookies = response.headers.getSetCookie?.() ?? [];
     expect(setCookies.some((value) => value.startsWith(`${REFRESH_TOKEN_COOKIE}=`))).toBe(true);
 
-    const updatedSession = await prisma().authSession.findUnique({ where: { id: session.id } });
+    const updatedSession = await getAuthSession(session.id);
     expect(updatedSession?.revokedAt).not.toBeNull();
 
-    const refreshTokenRow = await prisma().refreshToken.findUnique({
-      where: { id: refresh.token.id },
-    });
+    const refreshTokenRow = await getRefreshToken(refresh.token.id);
     expect(refreshTokenRow?.revokedAt).not.toBeNull();
   });
 
@@ -175,15 +173,13 @@ describe('DELETE /v1/auth/sessions/:id', () => {
 
     expect(response.status).toBe(204);
 
-    const updated = await prisma().authSession.findUnique({ where: { id: otherSession.id } });
+    const updated = await getAuthSession(otherSession.id);
     expect(updated?.revokedAt).not.toBeNull();
 
-    const refreshTokenRow = await prisma().refreshToken.findUnique({
-      where: { id: refresh.token.id },
-    });
+    const refreshTokenRow = await getRefreshToken(refresh.token.id);
     expect(refreshTokenRow?.revokedAt).not.toBeNull();
 
-    const currentSession = await prisma().authSession.findUnique({ where: { id: session.id } });
+    const currentSession = await getAuthSession(session.id);
     expect(currentSession?.revokedAt).toBeNull();
   });
 

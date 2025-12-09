@@ -5,7 +5,7 @@ vi.unmock('@repo/database');
 import { Hono } from 'hono';
 import { unifiedAuthMiddleware } from '../auth-unified.js';
 import { attachAuthContext } from '../auth-context.js';
-import { resetDatabase, getTestPrisma } from '../../test/setup.js';
+import { resetDatabase } from '../../test/setup.js';
 import {
   makeRequest,
   makeAuthenticatedRequest,
@@ -33,11 +33,8 @@ function createTestApp() {
 }
 
 describe('Unified Authentication Middleware', () => {
-  let prisma: ReturnType<typeof getTestPrisma>;
-
   beforeEach(async () => {
     await resetDatabase();
-    prisma = getTestPrisma();
   });
 
   it('authenticates PAT Bearer tokens when present', async () => {
@@ -82,7 +79,6 @@ describe('Unified Authentication Middleware', () => {
 
   it('propagates profile context for both auth modes', async () => {
     const { user } = await createTestUser();
-    const profile = await prisma.profile.findUnique({ where: { userId: user.id } });
     const app = createTestApp();
 
     const patToken = await createPersonalAccessToken({
@@ -95,13 +91,13 @@ describe('Unified Authentication Middleware', () => {
     });
     const patData = await patResponse.json();
     expect(patData.userId).toBe(user.id);
-    expect(patData.profileId).toBe(profile!.id);
+    expect(patData.profileId).toBe(user.profile.id);
 
     const { token } = await createAccessToken(user.id);
     const sessionResponse = await makeAuthenticatedRequest(app, 'GET', '/protected', token);
     const sessionData = await sessionResponse.json();
     expect(sessionData.userId).toBe(user.id);
-    expect(sessionData.profileId).toBe(profile!.id);
+    expect(sessionData.profileId).toBe(user.profile.id);
   });
 
   it('returns 401 for invalid Bearer tokens', async () => {

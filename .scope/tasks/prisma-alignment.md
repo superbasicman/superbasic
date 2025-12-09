@@ -24,11 +24,11 @@
 
 // ===== apps/api/src/middleware =====
 11. [x] apps/api/src/middleware/auth-context.ts
-12. [ ] apps/api/src/middleware/pat.ts
+12. [x] apps/api/src/middleware/pat.ts
 
 // ===== apps/api/src/middleware/__tests__ =====
-13. [ ] apps/api/src/middleware/__tests__/auth-unified.test.ts
-14. [ ] apps/api/src/middleware/__tests__/pat.test.ts
+13. [x] apps/api/src/middleware/__tests__/auth-unified.test.ts
+14. [x] apps/api/src/middleware/__tests__/pat.test.ts
 15. [ ] apps/api/src/middleware/__tests__/rate-limit-integration.test.ts
 16. [ ] apps/api/src/middleware/__tests__/scopes.test.ts
 
@@ -36,10 +36,10 @@
 17. [x] apps/api/src/routes/v1/me.ts
 
 // ===== apps/api/src/routes/v1/__tests__ =====
-18. [ ] apps/api/src/routes/v1/__tests__/auth-refresh.test.ts
-19. [ ] apps/api/src/routes/v1/__tests__/auth-session.test.ts
-20. [ ] apps/api/src/routes/v1/__tests__/me.test.ts
-21. [ ] apps/api/src/routes/v1/__tests__/register.test.ts
+18. [x] apps/api/src/routes/v1/__tests__/auth-refresh.test.ts
+19. [x] apps/api/src/routes/v1/__tests__/auth-session.test.ts
+20. [x] apps/api/src/routes/v1/__tests__/me.test.ts
+21. [x] apps/api/src/routes/v1/__tests__/register.test.ts
 
 // ===== apps/api/src/routes/v1/auth =====
 22. [ ] apps/api/src/routes/v1/auth/bulk-revoke.ts
