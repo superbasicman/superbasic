@@ -31,6 +31,21 @@ export class SessionRepository {
     }) as Promise<SessionWithUser | null>;
   }
 
+  async findManyActiveSessionIdsForUser(
+    userId: string,
+    client?: PrismaClientOrTransaction
+  ): Promise<string[]> {
+    const db = this.getClient(client);
+    const sessions = await db.authSession.findMany({
+      where: {
+        userId,
+        revokedAt: null,
+      },
+      select: { id: true },
+    });
+    return sessions.map((s) => s.id);
+  }
+
   async revokeSessionAndRefreshTokens(
     sessionId: string,
     options: { client?: PrismaClientOrTransaction; skipSessionUpdate?: boolean } = {}
@@ -68,3 +83,4 @@ export class SessionRepository {
 function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClient {
   return typeof (client as PrismaClient).$transaction === 'function';
 }
+

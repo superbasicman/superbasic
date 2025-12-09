@@ -484,3 +484,15 @@ export async function getUserPassword(userId: string) {
   const prisma = getTestPrisma();
   return prisma.userPassword.findUnique({ where: { userId } });
 }
+
+export async function getAllActiveSessionIdsForUser(userId: string) {
+  const prisma = getTestPrisma();
+  const sessions = await prisma.authSession.findMany({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+    select: { id: true },
+  });
+  return sessions.map((s) => s.id);
+}

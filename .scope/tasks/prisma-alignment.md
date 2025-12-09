@@ -42,7 +42,7 @@
 21. [x] apps/api/src/routes/v1/__tests__/register.test.ts
 
 // ===== apps/api/src/routes/v1/auth =====
-22. [ ] apps/api/src/routes/v1/auth/bulk-revoke.ts
+22. [x] apps/api/src/routes/v1/auth/bulk-revoke.ts
 23. [ ] apps/api/src/routes/v1/auth/google.ts
 24. [ ] apps/api/src/routes/v1/auth/magic-link.ts
 25. [ ] apps/api/src/routes/v1/auth/refresh-utils.ts

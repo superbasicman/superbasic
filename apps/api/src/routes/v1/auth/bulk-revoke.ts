@@ -1,10 +1,10 @@
 import type { Context } from 'hono';
-import { prisma } from '@repo/database';
 import type { AppBindings } from '../../../types/context.js';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import { requireRecentAuth } from '@repo/auth-core';
 import { listPersonalAccessTokens, revokePersonalAccessToken } from '../../../lib/pat-tokens.js';
+import { sessionRepository } from '../../../services/index.js';
 
 export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const auth = c.get('auth');
@@ -25,28 +25,19 @@ export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const userAgent = c.req.header('user-agent') ?? null;
   const requestId = c.get('requestId') ?? null;
 
-  await prisma.$transaction(async (tx) => {
-    const sessions = await tx.authSession.findMany({
-      where: {
-        userId,
-        revokedAt: null,
-      },
-      select: { id: true },
-    });
+  const sessionIdsToRevoke = await sessionRepository.findManyActiveSessionIdsForUser(userId);
 
-    for (const session of sessions) {
-      await revokeSessionForUser({
-        sessionId: session.id,
-        userId,
-        revokedBy: userId,
-        reason: 'user_bulk_logout',
-        ipAddress,
-        userAgent,
-        requestId,
-        client: tx,
-      });
-    }
-  });
+  for (const sessionId of sessionIdsToRevoke) {
+    await revokeSessionForUser({
+      sessionId,
+      userId,
+      revokedBy: userId,
+      reason: 'user_bulk_logout',
+      ipAddress,
+      userAgent,
+      requestId,
+    });
+  }
 
   clearRefreshTokenCookie(c);
   return c.body(null, 204);
