@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// Unmock @repo/database for integration tests (uses real Prisma via getTestPrisma to seed/verify DB state in line with 3-tier layering)
 vi.unmock('@repo/database');
 
 import app from '../../../../app.js';

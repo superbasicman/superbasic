@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
 
+// Unmock @repo/database for integration tests (uses real Prisma via getTestPrisma) to match the 3-tier layering (tests seed through repos/db layer, not handlers)
 vi.unmock('@repo/database');
 
 import app from '../../../../app.js';

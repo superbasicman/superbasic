@@ -448,6 +448,28 @@ export class AuthCoreService implements AuthService {
     });
   }
 
+  async ensureProfileExists(userId: string): Promise<string> {
+    const existing = await this.prisma.profile.findUnique({
+      where: { userId },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return existing.id;
+    }
+
+    const created = await this.prisma.profile.create({
+      data: {
+        userId,
+        timezone: 'UTC', // Default to UTC
+        currency: 'USD', // Default to USD
+      },
+      select: { id: true },
+    });
+
+    return created.id;
+  }
+
   getJwks() {
     return this.keyStore.getJwks();
   }

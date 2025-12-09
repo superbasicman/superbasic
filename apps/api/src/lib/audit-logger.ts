@@ -1,5 +1,4 @@
 import { authEvents, type AuthEvent } from '@repo/auth';
-import { Prisma } from '@repo/database';
 import { logger } from '@repo/observability';
 import { securityEventRepository } from '../services/index.js';
 import type { SecurityEventCreateParams } from '@repo/core';
@@ -184,7 +183,7 @@ function mapSecurityEvent(event: AuthEvent): SecurityEventPayload | null {
   };
 
   if (Object.keys(metadata).length > 0) {
-    payload.metadata = metadata as Prisma.InputJsonValue;
+    payload.metadata = metadata as SecurityEventCreateParams['metadata'];
   }
 
   return payload;

@@ -11,7 +11,7 @@
 2.  [x] apps/api/vitest.setup.ts
 
 // ===== apps/api/src/lib =====
-3.  [ ] apps/api/src/lib/audit-logger.ts
+3.  [x] apps/api/src/lib/audit-logger.ts
 4.  [x] apps/api/src/lib/auth-service.ts
 5.  [x] apps/api/src/lib/identity-provider.ts
 6.  [x] apps/api/src/lib/oauth-authorization-codes.ts
@@ -29,8 +29,8 @@
 // ===== apps/api/src/middleware/__tests__ =====
 13. [x] apps/api/src/middleware/__tests__/auth-unified.test.ts
 14. [x] apps/api/src/middleware/__tests__/pat.test.ts
-15. [ ] apps/api/src/middleware/__tests__/rate-limit-integration.test.ts
-16. [ ] apps/api/src/middleware/__tests__/scopes.test.ts
+15. [x] apps/api/src/middleware/__tests__/rate-limit-integration.test.ts
+16. [x] apps/api/src/middleware/__tests__/scopes.test.ts
 
 // ===== apps/api/src/routes/v1 =====
 17. [x] apps/api/src/routes/v1/me.ts
@@ -57,15 +57,15 @@
 32. [x] apps/api/src/routes/v1/oauth/token.ts
 
 // ===== apps/api/src/routes/v1/oauth/__tests__ =====
-33. [ ] apps/api/src/routes/v1/oauth/__tests__/authorize.test.ts
-34. [ ] apps/api/src/routes/v1/oauth/__tests__/revoke.test.ts
-35. [ ] apps/api/src/routes/v1/oauth/__tests__/token.test.ts
+33. [x] apps/api/src/routes/v1/oauth/__tests__/authorize.test.ts
+34. [x] apps/api/src/routes/v1/oauth/__tests__/revoke.test.ts
+35. [x] apps/api/src/routes/v1/oauth/__tests__/token.test.ts
 
 // ===== apps/api/src/routes/v1/tokens/__tests__ =====
-36. [ ] apps/api/src/routes/v1/tokens/__tests__/create.test.ts
-37. [ ] apps/api/src/routes/v1/tokens/__tests__/list.test.ts
-38. [ ] apps/api/src/routes/v1/tokens/__tests__/revoke.test.ts
-39. [ ] apps/api/src/routes/v1/tokens/__tests__/update.test.ts
+36. [x] apps/api/src/routes/v1/tokens/__tests__/create.test.ts
+37. [x] apps/api/src/routes/v1/tokens/__tests__/list.test.ts
+38. [x] apps/api/src/routes/v1/tokens/__tests__/revoke.test.ts
+39. [x] apps/api/src/routes/v1/tokens/__tests__/update.test.ts
 
 // ===== apps/api/src/services =====
 40. [x] apps/api/src/services/index.ts
@@ -81,14 +81,14 @@
 45. [ ] docs/vercel-deployment-guide.md
 
 // ===== packages/auth =====
-46. [ ] packages/auth/package.json
-47. [ ] packages/auth/tsup.config.ts
+46. [x] packages/auth/package.json
+47. [x] packages/auth/tsup.config.ts
 
 // ===== packages/auth/src =====
-48. [ ] packages/auth/src/profile.ts
+48. [x] packages/auth/src/profile.ts
 
 // ===== packages/auth/src/__tests__ =====
-49. [ ] packages/auth/src/__tests__/profile.test.ts
+49. [x] packages/auth/src/__tests__/profile.test.ts
 
 // ===== packages/auth-core/src =====
 50. [ ] packages/auth-core/src/json.ts

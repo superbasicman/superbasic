@@ -5,7 +5,7 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 
-// Unmock @repo/database for integration tests (use real Prisma client)
+// Unmock @repo/database for integration tests (uses real Prisma via getTestPrisma to seed/verify DB in line with 3-tier layering)
 vi.unmock('@repo/database');
 
 import { Hono } from 'hono';

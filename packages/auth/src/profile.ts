@@ -5,7 +5,10 @@
  * Profiles store user preferences and own business logic data.
  */
 
+import { createAuthService } from '@repo/auth-core';
 import { prisma } from '@repo/database';
+
+const authServicePromise = createAuthService({ prisma });
 
 /**
  * Ensures a profile exists for the given user ID.
@@ -23,25 +26,7 @@ import { prisma } from '@repo/database';
  * ```
  */
 export async function ensureProfileExists(userId: string): Promise<string> {
-  // Check if profile already exists
-  const existingProfile = await prisma.profile.findUnique({
-    where: { userId },
-    select: { id: true },
-  });
-
-  if (existingProfile) {
-    return existingProfile.id;
-  }
-
-  // Create new profile with default settings
-  const newProfile = await prisma.profile.create({
-    data: {
-      userId,
-      timezone: 'UTC',
-      currency: 'USD',
-    },
-    select: { id: true },
-  });
-
-  return newProfile.id;
+  // Delegate to auth-core service which handles profile creation via data layer
+  const authService = await authServicePromise;
+  return authService.ensureProfileExists(userId);
 }
