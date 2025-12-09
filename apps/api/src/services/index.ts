@@ -10,6 +10,8 @@ import { authEvents } from '@repo/auth';
 import {
   ProfileRepository,
   ProfileService,
+  TokenRepository,
+  TokenService,
   UserRepository,
   UserService,
   VerificationRepository,
@@ -19,6 +21,7 @@ import {
 export const profileRepository = new ProfileRepository(prisma);
 export const userRepository = new UserRepository(prisma);
 export const verificationRepository = new VerificationRepository(prisma);
+export const tokenRepository = new TokenRepository(prisma);
 
 // Create service instances (inject repositories and dependencies)
 export const profileService = new ProfileService(prisma);
@@ -28,3 +31,4 @@ export const verificationService = new VerificationService(
   verificationRepository,
   authEvents
 );
+export const tokenService = new TokenService(tokenRepository, authEvents);

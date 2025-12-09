@@ -6,7 +6,7 @@
  */
 
 import type { ApiKey } from '@repo/database';
-import { generateToken, hashToken, validateScopes } from '@repo/auth';
+import { generateToken, hashToken, parseOpaqueToken, validateScopes } from '@repo/auth';
 import type { TokenRepository } from './token-repository.js';
 import {
   DuplicateTokenNameError,
@@ -68,6 +68,10 @@ export class TokenService {
 
     // Generate token and extract metadata
     const token = generateToken();
+    const parsed = parseOpaqueToken(token, { expectedPrefix: 'sbf' });
+    if (!parsed) {
+      throw new Error('Failed to generate a valid personal access token');
+    }
     const keyHash = hashToken(token);
     const last4 = token.slice(-4);
 
@@ -76,6 +80,7 @@ export class TokenService {
 
     // Create token record via repository
     const apiKey = await this.tokenRepo.create({
+      id: parsed.tokenId,
       userId: params.userId,
       name: params.name,
       keyHash,

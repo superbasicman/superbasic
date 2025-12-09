@@ -1,14 +1,5 @@
-import type { ApiKey } from '@repo/database';
-import { prisma, Prisma } from '@repo/database';
-import { authEvents, validateScopes } from '@repo/auth';
-import {
-  DuplicateTokenNameError,
-  InvalidExpirationError,
-  InvalidScopesError,
-  TokenNotFoundError,
-} from '@repo/core';
 import type { PermissionScope } from '@repo/auth-core';
-import { authService } from './auth-service.js';
+import { tokenService } from '../services/index.js';
 
 type RequestContext = {
   ip?: string;
@@ -17,8 +8,6 @@ type RequestContext = {
   workspaceId?: string | null;
 };
 
-const MIN_EXPIRATION_DAYS = 1;
-const MAX_EXPIRATION_DAYS = 365;
 const DEFAULT_EXPIRATION_DAYS = 90;
 
 export async function issuePersonalAccessToken(options: {
@@ -30,64 +19,22 @@ export async function issuePersonalAccessToken(options: {
   workspaceId?: string | null;
   requestContext?: RequestContext;
 }) {
-  validateCreateParams(options.scopes, options.expiresInDays);
-
-  await assertNameIsUnique({
+  const expiresInDays = options.expiresInDays ?? DEFAULT_EXPIRATION_DAYS;
+  const requestContext = toTokenRequestContext(options.requestContext);
+  const result = await tokenService.createToken({
     userId: options.userId,
     name: options.name,
-  });
-
-  const expiresAt = calculateExpiresAt(options.expiresInDays);
-  const issued = await authService.issuePersonalAccessToken({
-    userId: options.userId,
-    workspaceId: options.workspaceId ?? options.requestContext?.workspaceId ?? null,
     scopes: options.scopes,
-    name: options.name,
-    expiresAt,
+    workspaceId: options.workspaceId ?? options.requestContext?.workspaceId ?? null,
+    expiresInDays,
+    ...(requestContext ? { requestContext } : {}),
   });
 
-  const last4 = issued.secret.slice(-4);
-  await prisma.apiKey.update({
-    where: { id: issued.tokenId },
-    data: {
-      metadata: mergeMetadata({ last4 }),
-    },
-  });
-
-  await authEvents.emit({
-    type: 'token.created',
-    userId: options.userId,
-    metadata: {
-      tokenId: issued.tokenId,
-      profileId: options.profileId,
-      workspaceId: issued.workspaceId ?? options.workspaceId ?? null,
-      tokenName: options.name,
-      scopes: options.scopes,
-      expiresAt: expiresAt?.toISOString() ?? null,
-      ip: options.requestContext?.ip ?? 'unknown',
-      userAgent: options.requestContext?.userAgent ?? 'unknown',
-      requestId: options.requestContext?.requestId ?? 'unknown',
-      timestamp: new Date().toISOString(),
-    },
-  });
-
-  const created = await prisma.apiKey.findUniqueOrThrow({
-    where: { id: issued.tokenId },
-  });
-
-  return mapToken(created, issued.secret, last4);
+  return { ...result.apiKey, token: result.token };
 }
 
 export async function listPersonalAccessTokens(userId: string) {
-  const tokens = await prisma.apiKey.findMany({
-    where: {
-      userId,
-      revokedAt: null,
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  return tokens.map((token) => mapToken(token));
+  return tokenService.listTokens({ userId });
 }
 
 export async function renamePersonalAccessToken(options: {
@@ -96,40 +43,13 @@ export async function renamePersonalAccessToken(options: {
   name: string;
   requestContext?: RequestContext;
 }) {
-  const token = await prisma.apiKey.findUnique({
-    where: { id: options.tokenId },
-  });
-
-  if (!isOwnedActivePat(token, options.userId)) {
-    throw new TokenNotFoundError(options.tokenId);
-  }
-
-  await assertNameIsUnique({
+  const requestContext = toTokenRequestContext(options.requestContext);
+  return tokenService.updateToken({
+    id: options.tokenId,
     userId: options.userId,
     name: options.name,
-    excludeId: options.tokenId,
+    ...(requestContext ? { requestContext } : {}),
   });
-
-  const updated = await prisma.apiKey.update({
-    where: { id: options.tokenId },
-    data: { name: options.name },
-  });
-
-  await authEvents.emit({
-    type: 'token.updated',
-    userId: options.userId,
-    metadata: {
-      tokenId: options.tokenId,
-      previousName: token?.name ?? '',
-      newName: options.name,
-      ip: options.requestContext?.ip ?? 'unknown',
-      userAgent: options.requestContext?.userAgent ?? 'unknown',
-      requestId: options.requestContext?.requestId ?? null,
-      timestamp: new Date().toISOString(),
-    },
-  });
-
-  return mapToken(updated);
 }
 
 export async function revokePersonalAccessToken(options: {
@@ -137,98 +57,27 @@ export async function revokePersonalAccessToken(options: {
   userId: string;
   requestContext?: RequestContext;
 }) {
-  const token = await prisma.apiKey.findUnique({
-    where: { id: options.tokenId },
-    select: { id: true, userId: true, revokedAt: true, name: true, workspaceId: true },
+  const requestContext = toTokenRequestContext(options.requestContext);
+  return tokenService.revokeToken({
+    id: options.tokenId,
+    userId: options.userId,
+    ...(requestContext ? { requestContext } : {}),
   });
-
-  if (!token || token.userId !== options.userId) {
-    throw new TokenNotFoundError(options.tokenId);
-  }
-
-  if (!token.revokedAt) {
-    await authService.revokeToken({
-      tokenId: options.tokenId,
-      revokedBy: options.userId,
-      reason: 'user_revoke',
-    });
-
-    await authEvents.emit({
-      type: 'token.revoked',
-      userId: options.userId,
-      metadata: {
-        tokenId: options.tokenId,
-        tokenName: token.name ?? '',
-        workspaceId: token.workspaceId ?? null,
-        ip: options.requestContext?.ip ?? 'unknown',
-        userAgent: options.requestContext?.userAgent ?? 'unknown',
-        requestId: options.requestContext?.requestId ?? 'unknown',
-        timestamp: new Date().toISOString(),
-      },
-    });
-  }
 }
 
-function validateCreateParams(scopes: PermissionScope[], expiresInDays?: number) {
-  if (!validateScopes(scopes)) {
-    throw new InvalidScopesError(scopes);
+function toTokenRequestContext(
+  context?: RequestContext
+): { ip?: string; userAgent?: string; requestId?: string } | undefined {
+  if (!context) {
+    return undefined;
   }
 
-  const days = expiresInDays ?? DEFAULT_EXPIRATION_DAYS;
-  if (days < MIN_EXPIRATION_DAYS || days > MAX_EXPIRATION_DAYS) {
-    throw new InvalidExpirationError(days);
-  }
-}
+  const { ip, userAgent, requestId } = context;
+  const cleaned: { ip?: string; userAgent?: string; requestId?: string } = {};
 
-async function assertNameIsUnique(options: { userId: string; name: string; excludeId?: string }) {
-  const existing = await prisma.apiKey.findFirst({
-    where: {
-      userId: options.userId,
-      name: options.name,
-      revokedAt: null,
-      ...(options.excludeId ? { NOT: { id: options.excludeId } } : {}),
-    },
-    select: { id: true },
-  });
+  if (ip) cleaned.ip = ip;
+  if (userAgent) cleaned.userAgent = userAgent;
+  if (requestId) cleaned.requestId = requestId;
 
-  if (existing) {
-    throw new DuplicateTokenNameError(options.name);
-  }
-}
-
-function calculateExpiresAt(expiresInDays?: number | null) {
-  const days = expiresInDays ?? DEFAULT_EXPIRATION_DAYS;
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + days);
-  return expiresAt;
-}
-
-function mapToken(record: ApiKey, secret?: string, last4Override?: string) {
-  const last4 = last4Override ?? record.last4 ?? null;
-  const maskedToken = `sbf_****${(last4 as string | null) ?? '????'}`;
-
-  const base = {
-    id: record.id,
-    name: record.name ?? '',
-    scopes: record.scopes,
-    workspaceId: record.workspaceId ?? null,
-    createdAt: record.createdAt.toISOString(),
-    lastUsedAt: record.lastUsedAt ? record.lastUsedAt.toISOString() : null,
-    expiresAt: record.expiresAt ? record.expiresAt.toISOString() : null,
-    maskedToken,
-  };
-
-  if (secret) {
-    return { ...base, token: secret };
-  }
-
-  return base;
-}
-
-function mergeMetadata(additions: Record<string, unknown>): Prisma.InputJsonValue {
-  return additions as Prisma.InputJsonValue;
-}
-
-function isOwnedActivePat(token: ApiKey | null, userId: string) {
-  return token && token.userId === userId && token.revokedAt === null;
+  return Object.keys(cleaned).length ? cleaned : undefined;
 }

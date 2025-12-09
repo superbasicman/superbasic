@@ -4,7 +4,7 @@ import type { AppBindings } from '../../../types/context.js';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import { requireRecentAuth } from '@repo/auth-core';
-import { revokePersonalAccessToken } from '../../../lib/pat-tokens.js';
+import { listPersonalAccessTokens, revokePersonalAccessToken } from '../../../lib/pat-tokens.js';
 
 export async function bulkRevokeSessions(c: Context<AppBindings>) {
   const auth = c.get('auth');
@@ -86,13 +86,7 @@ export async function bulkRevokeTokens(c: Context<AppBindings>) {
     requestContext.requestId = requestId;
   }
 
-  const tokens = await prisma.apiKey.findMany({
-    where: {
-      userId: auth.userId,
-      revokedAt: null,
-    },
-    select: { id: true },
-  });
+  const tokens = await listPersonalAccessTokens(auth.userId);
 
   for (const token of tokens) {
     await revokePersonalAccessToken({
