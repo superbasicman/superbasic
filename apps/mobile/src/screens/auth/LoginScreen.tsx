@@ -308,9 +308,12 @@ export default function LoginScreen() {
               </Text>
             </View>
 
-            <View className="space-y-6 mb-16">
-              <View className="flex-row items-center gap-4">
-                <View className={`w-10 h-10 border rounded-full items-center justify-center ${t.accentBorderSoft} ${t.chipBg}`}>
+            {/* Features */}
+            <View className="mb-16">
+              <View className="flex-row items-center">
+                <View
+                  className={`w-10 h-10 border rounded-full items-center justify-center mr-4 ${t.accentBorderSoft} ${t.chipBg}`}
+                >
                   <Text className={`${t.chipIcon} text-lg`}>→</Text>
                 </View>
                 <View>
@@ -318,8 +321,11 @@ export default function LoginScreen() {
                   <Text className={`${t.secondaryText} text-xs`}>By date or keyword</Text>
                 </View>
               </View>
-              <View className="flex-row items-center gap-4">
-                <View className={`w-10 h-10 border rounded-full items-center justify-center ${t.accentBorderSoft} ${t.chipBg}`}>
+
+              <View className="flex-row items-center mt-6">
+                <View
+                  className={`w-10 h-10 border rounded-full items-center justify-center mr-4 ${t.accentBorderSoft} ${t.chipBg}`}
+                >
                   <Text className={`${t.chipIcon} text-lg`}>○</Text>
                 </View>
                 <View>
@@ -327,8 +333,11 @@ export default function LoginScreen() {
                   <Text className={`${t.secondaryText} text-xs`}>With friends, family, or advisors</Text>
                 </View>
               </View>
-              <View className="flex-row items-center gap-4">
-                <View className={`w-10 h-10 border rounded-full items-center justify-center ${t.accentBorderSoft} ${t.chipBg}`}>
+
+              <View className="flex-row items-center mt-6">
+                <View
+                  className={`w-10 h-10 border rounded-full items-center justify-center mr-4 ${t.accentBorderSoft} ${t.chipBg}`}
+                >
                   <Text className={`${t.chipIcon} text-lg`}>◇</Text>
                 </View>
                 <View>
@@ -336,8 +345,11 @@ export default function LoginScreen() {
                   <Text className={`${t.secondaryText} text-xs`}>With filters, sorts & groups</Text>
                 </View>
               </View>
-              <View className="flex-row items-center gap-4">
-                <View className={`w-10 h-10 border rounded-full items-center justify-center ${t.accentBorderSoft} ${t.chipBg}`}>
+
+              <View className="flex-row items-center mt-6">
+                <View
+                  className={`w-10 h-10 border rounded-full items-center justify-center mr-4 ${t.accentBorderSoft} ${t.chipBg}`}
+                >
                   <Text className={`${t.chipIcon} text-lg`}>✶</Text>
                 </View>
                 <View>
@@ -394,11 +406,15 @@ export default function LoginScreen() {
         <ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
           <View className="px-6 pt-14 pb-6">
             <TouchableOpacity
-              onPress={step === 'initial' ? () => {
-                setFromGetStarted(false);
-                setCurrentScreen('welcome');
-              } : handleBack}
-              className="flex-row items-center gap-2"
+              onPress={
+                step === 'initial'
+                  ? () => {
+                      setFromGetStarted(false);
+                      setCurrentScreen('welcome');
+                    }
+                  : handleBack
+              }
+              className="flex-row items-center"
             >
               <Text className={`${t.secondaryText} text-sm`}>←</Text>
             </TouchableOpacity>
@@ -422,7 +438,7 @@ export default function LoginScreen() {
                   </Text>
                 </View>
 
-                <View className="space-y-3 mb-8">
+                <View className="mb-8">
                   <TouchableOpacity
                     onPress={() => {
                       setError(null);
@@ -520,7 +536,7 @@ export default function LoginScreen() {
                   <Text className={`${t.secondaryText} text-sm`}>{email}</Text>
                 </View>
 
-                <View className="space-y-3 mb-6">
+                <View className="mb-6">
                   <TextInput
                     value={password}
                     onChangeText={setPassword}
@@ -528,7 +544,7 @@ export default function LoginScreen() {
                     placeholderTextColor="rgba(156,163,175,0.9)"
                     secureTextEntry
                     autoFocus
-                    className={`w-full py-4 px-4 text-sm ${t.inputBg} border ${t.inputBorder} ${t.primaryText}`}
+                    className={`w-full py-4 px-4 text-sm mb-3 ${t.inputBg} border ${t.inputBorder} ${t.primaryText}`}
                   />
                   <TextInput
                     value={confirmPassword}
