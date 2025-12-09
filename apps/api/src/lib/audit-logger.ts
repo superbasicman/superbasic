@@ -1,6 +1,8 @@
 import { authEvents, type AuthEvent } from '@repo/auth';
-import { prisma, Prisma } from '@repo/database';
+import { Prisma } from '@repo/database';
 import { logger } from '@repo/observability';
+import { securityEventRepository } from '../services/index.js';
+import type { SecurityEventCreateParams } from '@repo/core';
 
 type SecurityEventPayload = {
   userId?: string | null;
@@ -9,7 +11,7 @@ type SecurityEventPayload = {
   eventType: string;
   ipAddress?: string | null;
   userAgent?: string | null;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: SecurityEventCreateParams['metadata'];
 };
 
 const SECURITY_EVENT_TYPES = new Set<AuthEvent['type']>([
@@ -154,7 +156,7 @@ async function handleAuthEvent(event: AuthEvent) {
   try {
     const payload = mapSecurityEvent(event);
     if (payload) {
-      await prisma.securityEvent.create({ data: payload });
+      await securityEventRepository.create(payload);
     }
   } catch (error) {
     logger.error({ err: error, eventType: type }, 'Failed to persist security event');

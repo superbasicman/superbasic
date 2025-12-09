@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@repo/auth": "workspace:*",
+    "@repo/auth-core": "workspace:*",
     "@repo/database": "workspace:*",
     "@repo/types": "workspace:*",
     "zod": "^3.22.4"

@@ -1,4 +1,3 @@
-import { prisma } from '@repo/database';
 import {
   LOCAL_PASSWORD_PROVIDER_ID,
   LOCAL_MAGIC_LINK_PROVIDER_ID,
@@ -6,14 +5,16 @@ import {
   verifyPassword,
 } from '@repo/auth';
 import type { VerifiedIdentity } from '@repo/auth-core';
+import {
+  identityRepository,
+  securityEventRepository,
+  userRepository,
+} from '../services/index.js';
 
 export async function authenticatePasswordIdentity(email: string, password: string) {
   const normalizedEmail = email.toLowerCase().trim();
 
-  const user = await prisma.user.findFirst({
-    where: { primaryEmail: normalizedEmail, deletedAt: null },
-    include: { password: true },
-  });
+  const user = await userRepository.findByEmailWithPassword(normalizedEmail);
 
   if (!user || !user.password?.passwordHash) {
     return null;
@@ -36,9 +37,7 @@ export async function authenticatePasswordIdentity(email: string, password: stri
 
 export async function upsertMagicLinkIdentity(email: string) {
   const normalizedEmail = email.toLowerCase().trim();
-  let user = await prisma.user.findFirst({
-    where: { primaryEmail: normalizedEmail, deletedAt: null },
-  });
+  let user = await userRepository.findByEmail(normalizedEmail);
 
   if (!user) {
     // Check cooling-off period to prevent claiming recently unlinked emails
@@ -49,19 +48,15 @@ export async function upsertMagicLinkIdentity(email: string) {
       );
     }
 
-    user = await prisma.user.create({
-      data: {
-        primaryEmail: normalizedEmail,
-        emailVerified: true,
-        userState: 'active',
-        profile: { create: { timezone: 'UTC', currency: 'USD' } },
-      },
+    user = await userRepository.createUserWithProfileOnly({
+      email: normalizedEmail,
+      emailVerified: true,
+      timezone: 'UTC',
+      currency: 'USD',
     });
   } else if (!user.emailVerified) {
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { emailVerified: true },
-    });
+    await userRepository.verifyEmail(user.id);
+    user = { ...user, emailVerified: true };
   }
 
   const identity: VerifiedIdentity = {
@@ -85,15 +80,10 @@ export type GoogleProfile = {
 export async function resolveGoogleIdentity(profile: GoogleProfile) {
   const normalizedEmail = profile.email.toLowerCase();
 
-  const existingIdentity = await prisma.userIdentity.findUnique({
-    where: {
-      provider_providerSubject: {
-        provider: 'google',
-        providerSubject: profile.providerSubject,
-      },
-    },
-    include: { user: true },
-  });
+  const existingIdentity = await identityRepository.findByProviderSubject(
+    'google',
+    profile.providerSubject
+  );
 
   if (existingIdentity) {
     return {
@@ -102,9 +92,7 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
     };
   }
 
-  const existingUser = await prisma.user.findFirst({
-    where: { primaryEmail: normalizedEmail, deletedAt: null },
-  });
+  const existingUser = await userRepository.findByEmail(normalizedEmail);
 
   if (existingUser) {
     // Check cooling-off period to prevent immediate relinking after unlink
@@ -115,36 +103,31 @@ export async function resolveGoogleIdentity(profile: GoogleProfile) {
       );
     }
 
-    await prisma.userIdentity.create({
-      data: {
-        userId: existingUser.id,
-        provider: 'google',
-        providerSubject: profile.providerSubject,
-        emailAtProvider: profile.email,
-        emailVerifiedAtProvider: profile.emailVerified,
-        rawProfile: { name: profile.name, picture: profile.picture },
-      },
+    await identityRepository.create({
+      userId: existingUser.id,
+      provider: 'google',
+      providerSubject: profile.providerSubject,
+      emailAtProvider: profile.email,
+      emailVerifiedAtProvider: profile.emailVerified,
+      rawProfile: { name: profile.name, picture: profile.picture },
     });
     return { userId: existingUser.id, identity: toVerifiedGoogleIdentity(profile) };
   }
 
-  const created = await prisma.user.create({
-    data: {
-      primaryEmail: normalizedEmail,
-      displayName: profile.name || null,
-      emailVerified: profile.emailVerified,
-      userState: 'active',
-      identities: {
-        create: {
-          provider: 'google',
-          providerSubject: profile.providerSubject,
-          emailAtProvider: profile.email,
-          emailVerifiedAtProvider: profile.emailVerified,
-          rawProfile: { name: profile.name, picture: profile.picture },
-        },
-      },
-      profile: { create: { timezone: 'UTC', currency: 'USD' } },
-    },
+  const created = await userRepository.createUserWithProfileOnly({
+    email: normalizedEmail,
+    displayName: profile.name ?? null,
+    emailVerified: profile.emailVerified,
+    timezone: 'UTC',
+    currency: 'USD',
+  });
+  await identityRepository.create({
+    userId: created.id,
+    provider: 'google',
+    providerSubject: profile.providerSubject,
+    emailAtProvider: profile.email,
+    emailVerifiedAtProvider: profile.emailVerified,
+    rawProfile: { name: profile.name, picture: profile.picture },
   });
 
   return { userId: created.id, identity: toVerifiedGoogleIdentity(profile) };
@@ -181,16 +164,7 @@ async function checkEmailCoolingOff(email: string): Promise<boolean> {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - COOLING_OFF_DAYS);
 
-  const recentUnlink = await prisma.securityEvent.findFirst({
-    where: {
-      eventType: 'identity.unlinked',
-      metadata: {
-        path: ['email'],
-        equals: email,
-      },
-      createdAt: { gte: cutoff },
-    },
-  });
+  const recentUnlink = await securityEventRepository.findRecentIdentityUnlink(email, cutoff);
 
   return !!recentUnlink;
 }

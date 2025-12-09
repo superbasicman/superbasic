@@ -6,9 +6,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { authEvents } from '@repo/auth';
-import { prisma } from '@repo/database';
 import { logger } from '@repo/observability';
 import { initializeAuditLogging } from '../audit-logger.js';
+import { securityEventRepository } from '../../services/index.js';
 
 describe('Audit Logger', () => {
   let mockInfo: ReturnType<typeof vi.spyOn>;
@@ -23,7 +23,7 @@ describe('Audit Logger', () => {
     mockInfo = vi.spyOn(logger, 'info');
     mockWarn = vi.spyOn(logger, 'warn');
     try {
-      securityEventSpy = vi.spyOn(prisma.securityEvent, 'create').mockResolvedValue({
+      securityEventSpy = vi.spyOn(securityEventRepository, 'create').mockResolvedValue({
         id: 'evt_1',
         userId: null,
         workspaceId: null,

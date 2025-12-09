@@ -1,6 +1,6 @@
 import { authEvents } from '@repo/auth';
-import { prisma } from '@repo/database';
-import type { Prisma, PrismaClient, PrismaClientOrTransaction } from '@repo/database';
+import type { PrismaClientOrTransaction } from '@repo/database';
+import { sessionRepository } from '../services/index.js';
 
 type RevokeSessionOptions = {
   sessionId: string;
@@ -27,61 +27,22 @@ export type RevokeSessionResult =
       session: RevokedSessionInfo;
     };
 
-function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClient {
-  return typeof (client as PrismaClient).$transaction === 'function';
-}
-
 export async function revokeSessionForUser(
   options: RevokeSessionOptions
 ): Promise<RevokeSessionResult> {
-  const client = options.client ?? prisma;
-
-  const session = await client.authSession.findFirst({
-    where: {
-      id: options.sessionId,
-      userId: options.userId,
-    },
-    select: {
-      id: true,
-      userId: true,
-      revokedAt: true,
-      user: {
-        select: {
-          primaryEmail: true,
-        },
-      },
-    },
-  });
+  const session = await sessionRepository.findByIdForUser(
+    options.sessionId,
+    options.userId,
+    options.client
+  );
 
   if (!session) {
     return { status: 'not_found' };
   }
 
-  const now = new Date();
-
-  const runInTransaction = async (action: (tx: Prisma.TransactionClient) => Promise<void>) => {
-    if (isPrismaClient(client)) {
-      return client.$transaction((tx) => action(tx as Prisma.TransactionClient));
-    }
-    // Already inside a transaction
-    return action(client as Prisma.TransactionClient);
-  };
-
-  await runInTransaction(async (tx) => {
-    if (!session.revokedAt) {
-      await tx.authSession.update({
-        where: { id: session.id },
-        data: { revokedAt: now, lastActivityAt: now },
-      });
-    }
-
-    await tx.refreshToken.updateMany({
-      where: {
-        sessionId: session.id,
-        revokedAt: null,
-      },
-      data: { revokedAt: now, lastUsedAt: now },
-    });
+  await sessionRepository.revokeSessionAndRefreshTokens(session.id, {
+    ...(options.client ? { client: options.client } : {}),
+    skipSessionUpdate: !!session.revokedAt,
   });
 
   const timestamp = new Date().toISOString();
@@ -89,7 +50,7 @@ export async function revokeSessionForUser(
   await authEvents.emit({
     type: 'session.revoked',
     userId: session.userId,
-    email: session.user?.primaryEmail ?? undefined,
+    email: session.user?.primaryEmail ?? 'unknown',
     metadata: {
       sessionId: session.id,
       revokedBy: options.revokedBy ?? null,

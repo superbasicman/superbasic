@@ -12,3 +12,7 @@ export * from './tokens/index.js';
 export * from './profiles/index.js';
 export * from './users/index.js';
 export * from './verification/index.js';
+export * from './identities/index.js';
+export * from './security/index.js';
+export * from './sessions/index.js';
+export * from './oauth/index.js';

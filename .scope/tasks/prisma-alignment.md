@@ -1,18 +1,26 @@
+// Context
+// Goal: align auth code with end-auth target by removing direct Prisma usage except in allowed layers.
+// Marking:
+// - [ ] needs refactor away from Prisma
+// - [x] refactor done (Prisma-free)
+// - [ok] intentional Prisma usage allowed (e.g., database package or shared test infra)
+// As you complete an item, flip [ ] → [x]; use [ok] for the few files that should keep Prisma.
+
 // ===== apps/api =====
 1.  [ ] apps/api/vitest.config.ts
-2.  [ ] apps/api/vitest.setup.ts
+2.  [x  apps/api/vitest.setup.ts
 
 // ===== apps/api/src/lib =====
 3.  [ ] apps/api/src/lib/audit-logger.ts
 4.  [x] apps/api/src/lib/auth-service.ts
-5.  [ ] apps/api/src/lib/identity-provider.ts
-6.  [ ] apps/api/src/lib/oauth-authorization-codes.ts
+5.  [x] apps/api/src/lib/identity-provider.ts
+6.  [x] apps/api/src/lib/oauth-authorization-codes.ts
 7.  [x] apps/api/src/lib/pat-tokens.ts
-8.  [ ] apps/api/src/lib/session-revocation.ts
-9.  [ ] apps/api/src/lib/user-claims.ts
+8.  [?] apps/api/src/lib/session-revocation.ts
+9.  [x] apps/api/src/lib/user-claims.ts
 
 // ===== apps/api/src/lib/__tests__ =====
-10. [ ] apps/api/src/lib/__tests__/audit-logger.test.ts
+10. [x] apps/api/src/lib/__tests__/audit-logger.test.ts
 
 // ===== apps/api/src/middleware =====
 11. [ ] apps/api/src/middleware/auth-context.ts
@@ -25,7 +33,7 @@
 16. [ ] apps/api/src/middleware/__tests__/scopes.test.ts
 
 // ===== apps/api/src/routes/v1 =====
-17. [ ] apps/api/src/routes/v1/me.ts
+17. [x] apps/api/src/routes/v1/me.ts
 
 // ===== apps/api/src/routes/v1/__tests__ =====
 18. [ ] apps/api/src/routes/v1/__tests__/auth-refresh.test.ts
@@ -60,14 +68,14 @@
 39. [ ] apps/api/src/routes/v1/tokens/__tests__/update.test.ts
 
 // ===== apps/api/src/services =====
-40. [ ] apps/api/src/services/index.ts
+40. [x] apps/api/src/services/index.ts
 
 // ===== apps/api/src/test =====
 // (Shared test infra – *optionally* OK to use Prisma directly)
-41. [x] apps/api/src/test/helpers.ts
-42. [x] apps/api/src/test/infrastructure.test.ts
+41. [ok] apps/api/src/test/helpers.ts
+42. [ok] apps/api/src/test/infrastructure.test.ts
 43. [ ] apps/api/src/test/README.md
-44. [x] apps/api/src/test/setup.ts
+44. [ok] apps/api/src/test/setup.ts
 
 // ===== docs =====
 45. [ ] docs/vercel-deployment-guide.md
@@ -89,6 +97,7 @@
 53. [ ] packages/auth-core/src/service.ts
 54. [ ] packages/auth-core/src/token-service.ts
 
+
 // ===== packages/auth-core/src/__tests__ =====
 55. [ ] packages/auth-core/src/__tests__/auth-context.test.ts
 56. [ ] packages/auth-core/src/__tests__/auth-service.test.ts
@@ -103,30 +112,33 @@
 61. [ ] packages/core/src/profiles/__tests__/profile-repository.test.ts
 62. [ ] packages/core/src/profiles/__tests__/profile-service.test.ts
 
+// ===== packages/core/src/security =====
+63. [ ] packages/core/src/security/security-event-repository.ts
+
 // ===== packages/core/src/tokens =====
-63. [ ] packages/core/src/tokens/token-repository.ts
-64. [ ] packages/core/src/tokens/token-service.ts
+64. [ ] packages/core/src/tokens/token-repository.ts
+65. [ ] packages/core/src/tokens/token-service.ts
 
 // ===== packages/core/src/tokens/__tests__ =====
-65. [ ] packages/core/src/tokens/__tests__/token-repository.test.ts
+66. [ ] packages/core/src/tokens/__tests__/token-repository.test.ts
 
 // ===== packages/core/src/users =====
-66. [ ] packages/core/src/users/user-repository.ts
+67. [ ] packages/core/src/users/user-repository.ts
 
 // ===== packages/core/src/users/__tests__ =====
-67. [ ] packages/core/src/users/__tests__/user-repository.test.ts
+68. [ ] packages/core/src/users/__tests__/user-repository.test.ts
 
 // ===== packages/core/src/verification =====
-68. [ ] packages/core/src/verification/verification-repository.ts
-69. [ ] packages/core/src/verification/verification-service.ts
+69. [ ] packages/core/src/verification/verification-repository.ts
+70. [ ] packages/core/src/verification/verification-service.ts
 
 // ===== packages/core/src/verification/__tests__ =====
-70. [ ] packages/core/src/verification/__tests__/verification-service.test.ts
+71. [ ] packages/core/src/verification/__tests__/verification-service.test.ts
 
 // ===== packages/database =====
 // (Database layer – definitely OK to use Prisma here)
-71. [x] packages/database/package.json
-72. [x] packages/database/schema.prisma
-73. [x] packages/database/scripts/execute_with_env.sh
-74. [x] packages/database/src/context.ts
-75. [x] packages/database/src/index.ts
+72. [ok] packages/database/package.json
+73. [ok] packages/database/schema.prisma
+74. [ok] packages/database/scripts/execute_with_env.sh
+75. [ok] packages/database/src/context.ts
+76. [ok] packages/database/src/index.ts

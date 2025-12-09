@@ -55,4 +55,18 @@ export class ProfileRepository {
       },
     });
   }
+
+  /**
+   * Get the current postgres workspace setting (diagnostic)
+   */
+  async getCurrentWorkspaceSetting(): Promise<string | null> {
+    try {
+      const rows = await this.prisma.$queryRaw<{ workspace: string | null }[]>`
+        SELECT current_setting('app.workspace_id', true) AS workspace
+      `;
+      return rows[0]?.workspace ?? null;
+    } catch {
+      return null;
+    }
+  }
 }

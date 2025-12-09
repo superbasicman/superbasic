@@ -127,6 +127,14 @@ export class ProfileService {
   }
 
   /**
+   * Get the current database workspace setting
+   * Used for diagnostics to verify RLS context
+   */
+  async getDiagnosticWorkspaceSetting(): Promise<string | null> {
+    return this.profileRepo.getCurrentWorkspaceSetting();
+  }
+
+  /**
    * Validate profile data using Zod schema
    *
    * @param data - Profile data to validate

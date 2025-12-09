@@ -15,7 +15,6 @@ import { unifiedAuthMiddleware } from '../../middleware/auth-unified.js';
 import { requireScope } from '../../middleware/scopes.js';
 import { profileService } from '../../services/index.js';
 import { UpdateProfileSchema, ProfileNotFoundError, InvalidProfileDataError } from '@repo/core';
-import { prisma } from '@repo/database';
 import type { AuthContext } from '@repo/auth-core';
 import type { AppBindings } from '../../types/context.js';
 
@@ -38,10 +37,7 @@ meRoute.get('/', unifiedAuthMiddleware, requireScope('read:profile'), async (c) 
     const result = await profileService.getCurrentProfile({ userId });
     let workspaceSetting: string | null = null;
     try {
-      const rows = await prisma.$queryRaw<{ workspace: string | null }[]>`
-        SELECT current_setting('app.workspace_id', true) AS workspace
-      `;
-      const rawSetting = rows[0]?.workspace ?? null;
+      const rawSetting = await profileService.getDiagnosticWorkspaceSetting();
       workspaceSetting = rawSetting && rawSetting.length > 0 ? rawSetting : null;
     } catch (contextError) {
       console.warn('[me] Failed to read current_setting(app.workspace_id)', contextError);

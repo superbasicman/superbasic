@@ -4,7 +4,7 @@
  * Fields are gated by email and profile scopes per OIDC spec.
  */
 
-import { prisma } from '@repo/database';
+import { userRepository } from '../services/index.js';
 
 export type UserClaims = {
   id: string;
@@ -42,16 +42,7 @@ export async function buildUserClaimsForTokenResponse(
   const hasProfile = scopes.includes('profile');
 
   // Fetch id and createdAt always, other fields based on scopes
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: {
-      id: true,
-      createdAt: true,
-      primaryEmail: hasEmail,
-      emailVerified: hasEmail,
-      displayName: hasProfile,
-    },
-  });
+  const user = await userRepository.findById(userId);
 
   if (!user) {
     return null;

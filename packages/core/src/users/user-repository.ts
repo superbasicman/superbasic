@@ -36,6 +36,20 @@ export class UserRepository {
   }
 
   /**
+   * Find user by email including password relation
+   */
+  async findByEmailWithPassword(email: string): Promise<(User & { password?: { passwordHash: string } | null }) | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.prisma.user.findFirst({
+      where: {
+        primaryEmail: normalizedEmail,
+        deletedAt: null,
+      },
+      include: { password: true },
+    });
+  }
+
+  /**
    * Find user by ID
    */
   async findById(userId: string): Promise<User | null> {
@@ -119,6 +133,33 @@ export class UserRepository {
   }
 
   /**
+   * Create a passwordless user with profile for identity providers (e.g., magic link)
+   */
+  async createUserWithProfileOnly(params: {
+    email: string;
+    emailVerified?: boolean;
+    displayName?: string | null;
+    timezone?: string;
+    currency?: string;
+  }): Promise<User> {
+    const normalizedEmail = params.email.toLowerCase().trim();
+    return this.prisma.user.create({
+      data: {
+        primaryEmail: normalizedEmail,
+        displayName: params.displayName ?? null,
+        emailVerified: params.emailVerified ?? false,
+        userState: 'active',
+        profile: {
+          create: {
+            timezone: params.timezone ?? 'UTC',
+            currency: params.currency ?? 'USD',
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Update a user's status and return previous value
    */
   async updateStatus(
@@ -148,6 +189,16 @@ export class UserRepository {
     });
 
     return { user: updated, previousStatus: existing.userState };
+  }
+
+  /**
+   * Mark a user's email as verified
+   */
+  async verifyEmail(userId: string): Promise<User | null> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerified: true },
+    });
   }
 }
 
