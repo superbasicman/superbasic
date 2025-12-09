@@ -20,6 +20,7 @@ import {
   SecurityEventRepository,
   SessionRepository,
   AuthorizationCodeRepository,
+  RefreshTokenRepository,
 } from '@repo/core';
 
 export const profileRepository = new ProfileRepository(prisma);
@@ -30,6 +31,7 @@ export const identityRepository = new IdentityRepository(prisma);
 export const securityEventRepository = new SecurityEventRepository(prisma);
 export const sessionRepository = new SessionRepository(prisma);
 export const authorizationCodeRepository = new AuthorizationCodeRepository(prisma);
+export const refreshTokenRepository = new RefreshTokenRepository(prisma);
 
 // Create service instances (inject repositories and dependencies)
 export const profileService = new ProfileService(prisma);

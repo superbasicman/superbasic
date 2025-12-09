@@ -135,8 +135,35 @@ export class SessionRepository {
       });
     });
   }
+
+  async updateActivityAndExpiry(
+    sessionId: string,
+    data: { lastActivityAt: Date; expiresAt: Date },
+    client?: PrismaClientOrTransaction
+  ): Promise<{ expiresAt: Date } | null> {
+    const db = this.getClient(client);
+    try {
+      return await db.authSession.update({
+        where: { id: sessionId },
+        data: {
+          lastActivityAt: data.lastActivityAt,
+          expiresAt: data.expiresAt,
+        },
+        select: { expiresAt: true },
+      });
+    } catch (error) {
+      if (isPrismaNotFoundError(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
 }
 
 function isPrismaClient(client: PrismaClientOrTransaction): client is PrismaClient {
   return typeof (client as PrismaClient).$transaction === 'function';
+}
+
+function isPrismaNotFoundError(error: unknown): error is { code: string } {
+  return typeof error === 'object' && error !== null && 'code' in error && (error as any).code === 'P2025';
 }

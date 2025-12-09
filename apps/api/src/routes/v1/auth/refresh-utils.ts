@@ -1,8 +1,8 @@
-import { prisma } from '@repo/database';
 import { authEvents } from '@repo/auth';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import type { Context } from 'hono';
 import type { AppBindings } from '../../../types/context.js';
+import { refreshTokenRepository, sessionRepository } from '../../../services/index.js';
 
 export const DEFAULT_INACTIVITY_WINDOW_SECONDS = 14 * 24 * 60 * 60;
 
@@ -32,18 +32,12 @@ export function extractIp(c: Context<AppBindings>): string | undefined {
 export async function updateSessionTimestamps(sessionId: string, now: Date) {
   const candidateExpiresAt = new Date(now.getTime() + DEFAULT_INACTIVITY_WINDOW_SECONDS * 1000);
 
-  const updated = await prisma.authSession.update({
-    where: { id: sessionId },
-    data: {
-      lastActivityAt: now,
-      expiresAt: candidateExpiresAt,
-    },
-    select: {
-      expiresAt: true,
-    },
+  const updated = await sessionRepository.updateActivityAndExpiry(sessionId, {
+    lastActivityAt: now,
+    expiresAt: candidateExpiresAt,
   });
 
-  return updated;
+  return updated ?? { expiresAt: candidateExpiresAt };
 }
 
 export type ReuseContext = {
@@ -63,28 +57,13 @@ export async function handleRevokedTokenReuse(context: ReuseContext, now: Date) 
   const sessionId = context.sessionId;
   const familyId = context.familyId;
 
-  const activeSibling = await prisma.refreshToken.findFirst({
-    where: {
-      familyId,
-      revokedAt: null,
-    },
-  });
+  const activeSibling = await refreshTokenRepository.findActiveSiblingForFamily(familyId);
 
   if (!activeSibling) {
     return;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.refreshToken.updateMany({
-      where: { familyId },
-      data: { revokedAt: now },
-    });
-
-    await tx.authSession.update({
-      where: { id: sessionId },
-      data: { revokedAt: now },
-    });
-  });
+  await refreshTokenRepository.revokeFamilyAndSession(familyId, sessionId, now);
 
   console.warn('[auth-refresh] Detected refresh token reuse', {
     familyId,

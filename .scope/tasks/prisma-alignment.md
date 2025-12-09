@@ -7,8 +7,8 @@
 // As you complete an item, flip [ ] → [x]; use [ok] for the few files that should keep Prisma.
 
 // ===== apps/api =====
-1.  [ ] apps/api/vitest.config.ts
-2.  [x  apps/api/vitest.setup.ts
+1.  [x] apps/api/vitest.config.ts
+2.  [x] apps/api/vitest.setup.ts
 
 // ===== apps/api/src/lib =====
 3.  [ ] apps/api/src/lib/audit-logger.ts
@@ -16,7 +16,7 @@
 5.  [x] apps/api/src/lib/identity-provider.ts
 6.  [x] apps/api/src/lib/oauth-authorization-codes.ts
 7.  [x] apps/api/src/lib/pat-tokens.ts
-8.  [?] apps/api/src/lib/session-revocation.ts
+8.  [x] apps/api/src/lib/session-revocation.ts
 9.  [x] apps/api/src/lib/user-claims.ts
 
 // ===== apps/api/src/lib/__tests__ =====
@@ -43,10 +43,10 @@
 
 // ===== apps/api/src/routes/v1/auth =====
 22. [x] apps/api/src/routes/v1/auth/bulk-revoke.ts
-23. [ ] apps/api/src/routes/v1/auth/google.ts
-24. [ ] apps/api/src/routes/v1/auth/magic-link.ts
-25. [ ] apps/api/src/routes/v1/auth/refresh-utils.ts
-26. [ ] apps/api/src/routes/v1/auth/refresh.ts
+23. [x] apps/api/src/routes/v1/auth/google.ts
+24. [x] apps/api/src/routes/v1/auth/magic-link.ts
+25. [x] apps/api/src/routes/v1/auth/refresh-utils.ts
+26. [x] apps/api/src/routes/v1/auth/refresh.ts
 27. [x] apps/api/src/routes/v1/auth/session.ts
 28. [x] apps/api/src/routes/v1/auth/sessions.ts
 29. [ ] apps/api/src/routes/v1/auth/sso-logout.ts

@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
-import { prisma } from '@repo/database';
 import {
   sendMagicLinkEmail,
   createOpaqueToken,
@@ -14,6 +13,8 @@ import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { randomBytes } from 'node:crypto';
 import { upsertMagicLinkIdentity } from '../../../lib/identity-provider.js';
 import { generateCsrfToken, setCsrfCookie } from '../../../middleware/csrf.js';
+import { authorizationCodeRepository, verificationRepository } from '../../../services/index.js';
+import type { PermissionScope } from '@repo/auth-core';
 
 const magicLink = new Hono();
 
@@ -45,14 +46,12 @@ magicLink.post(
     const tokenId = randomBytes(16).toString('base64url');
 
     // Store the verification token
-    await prisma.verificationToken.create({
-      data: {
-        identifier: normalizedEmail,
-        tokenId,
-        hashEnvelope: tokenHash,
-        type: 'magic_link',
-        expiresAt,
-      },
+    await verificationRepository.create({
+      identifier: normalizedEmail,
+      tokenId,
+      hashEnvelope: tokenHash,
+      type: 'magic_link',
+      expiresAt,
     });
 
     // Build magic link URL
@@ -96,17 +95,10 @@ magicLink.get(
     const normalizedEmail = email.toLowerCase().trim();
 
     // Find the verification token
-    const verificationToken = await prisma.verificationToken.findFirst({
-      where: {
-        identifier: normalizedEmail,
-        type: 'magic_link',
-        expiresAt: { gt: new Date() },
-        consumedAt: null,
-      },
-      orderBy: {
-        expiresAt: 'desc',
-      },
-    });
+    const verificationToken = await verificationRepository.findValidByEmail(
+      normalizedEmail,
+      'magic_link'
+    );
 
     if (!verificationToken) {
       const errorUrl = new URL('/login', WEB_APP_URL);
@@ -126,10 +118,7 @@ magicLink.get(
     }
 
     // Mark the token as consumed (don't delete, keep for audit)
-    await prisma.verificationToken.update({
-      where: { id: verificationToken.id },
-      data: { consumedAt: new Date() },
-    });
+    await verificationRepository.markConsumed(verificationToken.id);
 
     const { userId, identity } = await upsertMagicLinkIdentity(normalizedEmail);
 
@@ -166,18 +155,17 @@ magicLink.get(
     const codeHash = createTokenHashEnvelope(opaque.tokenSecret);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await prisma.oAuthAuthorizationCode.create({
-      data: {
-        id: opaque.tokenId,
-        userId,
-        clientId: 'web-dashboard',
-        redirectUri: `${WEB_APP_URL}/auth/callback`,
-        codeHash,
-        codeChallenge: '', // No PKCE for magic link flow
-        codeChallengeMethod: 'S256',
-        scopes: ['openid', 'profile', 'email'],
-        expiresAt,
-      },
+    await authorizationCodeRepository.create({
+      id: opaque.tokenId,
+      userId,
+      clientId: 'web-dashboard',
+      redirectUri: `${WEB_APP_URL}/auth/callback`,
+      codeHash,
+      codeChallenge: '', // No PKCE for magic link flow
+      codeChallengeMethod: 'S256',
+      scopes: ['read:profile'] as PermissionScope[],
+      nonce: null,
+      expiresAt,
     });
 
     // Redirect to frontend callback with authorization code

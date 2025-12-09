@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { authEvents, parseOpaqueToken, verifyTokenSecret } from '@repo/auth';
 import type { Context } from 'hono';
 import type { AppBindings } from '../../../types/context.js';
-import { prisma, Prisma } from '@repo/database';
 import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { buildUserClaimsForTokenResponse } from '../../../lib/user-claims.js';
@@ -18,6 +17,7 @@ import {
   updateSessionTimestamps,
 } from './refresh-utils.js';
 import type { ClientType } from '@repo/auth-core';
+import { refreshTokenRepository } from '../../../services/index.js';
 
 const RefreshRequestSchema = z.object({
   refreshToken: z.string().optional(),
@@ -62,21 +62,7 @@ export async function refreshTokens(c: Context<AppBindings>) {
     return invalidGrant(c);
   }
 
-  const tokenRecord = await prisma.refreshToken.findUnique({
-    where: { id: parsed.tokenId },
-    include: {
-      session: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              userState: true,
-            },
-          },
-        },
-      },
-    },
-  });
+  const tokenRecord = await refreshTokenRepository.findWithSession(parsed.tokenId);
 
   if (!tokenRecord) {
     return invalidGrant(c);
@@ -136,46 +122,36 @@ export async function refreshTokens(c: Context<AppBindings>) {
       ? ((clientInfo as any).type as ClientType)
       : 'web';
 
-  try {
-    await prisma.refreshToken.update({
-      where: { id: tokenRecord.id, revokedAt: null },
-      data: {
-        revokedAt: now,
-        lastUsedAt: now,
-        lastUsedIp: ipAddress,
-        userAgent,
-      },
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-      // Token was already revoked - check if this is a benign race or true reuse
-      const freshToken = await prisma.refreshToken.findUnique({
-        where: { id: tokenRecord.id },
-        select: { revokedAt: true },
-      });
-
-      if (freshToken?.revokedAt) {
-        const timeSinceRevocation = now.getTime() - freshToken.revokedAt.getTime();
-        if (timeSinceRevocation > BENIGN_RACE_THRESHOLD_MS) {
-          // Token was revoked more than 10s ago - this is true reuse, revoke family
-          await handleRevokedTokenReuse(
-            {
-              tokenId: tokenRecord.id,
-              sessionId: session.id,
-              familyId: tokenRecord.familyId,
-              userId: tokenRecord.userId,
-              ipAddress,
-              userAgent,
-              requestId,
-            },
-            now
-          );
-        }
-        // Within 10s window - treat as benign race, just reject without revoking family
-      }
-      return invalidGrant(c);
+  const revokeResult = await refreshTokenRepository.revokeToken(
+    tokenRecord.id,
+    {
+      revokedAt: now,
+      lastUsedAt: now,
+      lastUsedIp: ipAddress,
+      userAgent,
     }
-    throw error;
+  );
+
+  if (revokeResult === 'not_found') {
+    const revokedAt = await refreshTokenRepository.findRevokedAt(tokenRecord.id);
+    if (revokedAt) {
+      const timeSinceRevocation = now.getTime() - revokedAt.getTime();
+      if (timeSinceRevocation > BENIGN_RACE_THRESHOLD_MS) {
+        await handleRevokedTokenReuse(
+          {
+            tokenId: tokenRecord.id,
+            sessionId: session.id,
+            familyId: tokenRecord.familyId,
+            userId: tokenRecord.userId,
+            ipAddress,
+            userAgent,
+            requestId,
+          },
+          now
+        );
+      }
+    }
+    return invalidGrant(c);
   }
 
   // Preserve the existing family; if missing, seed with the current token id to keep the family stable.

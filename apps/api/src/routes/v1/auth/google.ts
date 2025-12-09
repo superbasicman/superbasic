@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie, getCookie } from 'hono/cookie';
-import { prisma } from '@repo/database';
 import { COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
@@ -10,6 +9,8 @@ import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import { randomBytes } from 'node:crypto';
 import { resolveGoogleIdentity } from '../../../lib/identity-provider.js';
 import { generateCsrfToken, setCsrfCookie } from '../../../middleware/csrf.js';
+import { authorizationCodeRepository } from '../../../services/index.js';
+import type { PermissionScope } from '@repo/auth-core';
 
 const google = new Hono();
 
@@ -220,18 +221,17 @@ google.get(
       const codeHash = createTokenHashEnvelope(opaque.tokenSecret);
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      await prisma.oAuthAuthorizationCode.create({
-        data: {
-          id: opaque.tokenId,
-          userId,
-          clientId: 'web-dashboard',
-          redirectUri: `${WEB_APP_URL}/auth/callback`,
-          codeHash,
-          codeChallenge: '', // Not using PKCE for this redirect flow
-          codeChallengeMethod: 'S256',
-          scopes: ['openid', 'profile', 'email'],
-          expiresAt,
-        },
+      await authorizationCodeRepository.create({
+        id: opaque.tokenId,
+        userId,
+        clientId: 'web-dashboard',
+        redirectUri: `${WEB_APP_URL}/auth/callback`,
+        codeHash,
+        codeChallenge: '', // Not using PKCE for this redirect flow
+        codeChallengeMethod: 'S256',
+        scopes: ['read:profile'] as PermissionScope[],
+        nonce: null,
+        expiresAt,
       });
 
       // Redirect to frontend callback with our authorization code
