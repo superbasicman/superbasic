@@ -59,6 +59,34 @@ export class UserRepository {
   }
 
   /**
+   * Find user with profile details for profile responses
+   */
+  async findWithProfileById(userId: string): Promise<{
+    id: string;
+    primaryEmail: string;
+    displayName: string | null;
+    createdAt: Date;
+    profile: { id: string; timezone: string; currency: string } | null;
+  } | null> {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        primaryEmail: true,
+        displayName: true,
+        createdAt: true,
+        profile: {
+          select: {
+            id: true,
+            timezone: true,
+            currency: true,
+          },
+        },
+      },
+    });
+  }
+
+  /**
    * Find user details for token/id_token payloads
    */
   async findProfileForTokenPayload(userId: string): Promise<{
@@ -242,6 +270,16 @@ export class UserRepository {
     return this.prisma.user.update({
       where: { id: userId },
       data: { emailVerified: true },
+    });
+  }
+
+  /**
+   * Update display name for a user
+   */
+  async updateDisplayName(userId: string, displayName: string | null): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { displayName },
     });
   }
 }

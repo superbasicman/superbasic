@@ -44,7 +44,7 @@ export const serviceIdentityRepository = new ServiceIdentityRepository(prisma);
 export const oauthClientRepository = new PrismaOAuthClientRepository(prisma);
 
 // Create service instances (inject repositories and dependencies)
-export const profileService = new ProfileService(prisma);
+export const profileService = new ProfileService(profileRepository, userRepository);
 export const userService = new UserService(userRepository, authEvents);
 export const verificationService = new VerificationService(
   prisma,

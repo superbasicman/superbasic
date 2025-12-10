@@ -105,8 +105,8 @@
 58. [x] packages/auth-core/src/__tests__/token-service.test.ts
 
 // ===== packages/core/src/profiles =====
-59. [ ] packages/core/src/profiles/profile-repository.ts
-60. [ ] packages/core/src/profiles/profile-service.ts
+59. [ok] packages/core/src/profiles/profile-repository.ts
+60. [x] packages/core/src/profiles/profile-service.ts
 
 // ===== packages/core/src/profiles/__tests__ =====
 61. [ ] packages/core/src/profiles/__tests__/profile-repository.test.ts

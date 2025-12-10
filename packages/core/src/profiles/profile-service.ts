@@ -5,7 +5,6 @@
  * Orchestrates profile and user data access through repositories.
  */
 
-import type { PrismaClient } from '@repo/database';
 import { ProfileRepository } from './profile-repository.js';
 import { ProfileNotFoundError, InvalidProfileDataError } from './profile-errors.js';
 import type {
@@ -16,12 +15,15 @@ import type {
   UpdateProfileInput,
 } from './profile-types.js';
 import { UpdateProfileSchema } from './profile-types.js';
+import type { UserRepository } from '../users/user-repository.js';
 
 export class ProfileService {
   private profileRepo: ProfileRepository;
+  private userRepo: UserRepository;
 
-  constructor(private prisma: PrismaClient) {
-    this.profileRepo = new ProfileRepository(prisma);
+  constructor(profileRepo: ProfileRepository, userRepo: UserRepository) {
+    this.profileRepo = profileRepo;
+    this.userRepo = userRepo;
   }
 
   /**
@@ -37,22 +39,7 @@ export class ProfileService {
     const { userId } = params;
 
     // Fetch user and profile from database
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        primaryEmail: true,
-        displayName: true,
-        createdAt: true,
-        profile: {
-          select: {
-            id: true,
-            timezone: true,
-            currency: true,
-          },
-        },
-      },
-    });
+    const user = await this.userRepo.findWithProfileById(userId);
 
     if (!user) {
       throw new ProfileNotFoundError(userId);
@@ -80,10 +67,7 @@ export class ProfileService {
 
     // Update user name if provided
     if (name !== undefined) {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { displayName: name },
-      });
+      await this.userRepo.updateDisplayName(userId, name);
     }
 
     // Update profile if provided and profileId exists
@@ -102,22 +86,7 @@ export class ProfileService {
     }
 
     // Fetch updated user and profile
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        primaryEmail: true,
-        displayName: true,
-        createdAt: true,
-        profile: {
-          select: {
-            id: true,
-            timezone: true,
-            currency: true,
-          },
-        },
-      },
-    });
+    const user = await this.userRepo.findWithProfileById(userId);
 
     if (!user) {
       throw new ProfileNotFoundError(userId);
