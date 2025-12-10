@@ -1,0 +1,12 @@
+- [ ] 1. Audit current mobile auth flow (AuthContext, api.ts, navigation) to identify all touchpoints using `authApi.login`/password pre-auth and PKCE storage.
+  - Sanity check: Notes captured showing every call site and redirect/PKCE dependencies with no missing references.
+- [ ] 2. Refactor `login` path to drop the `/v1/auth/signin/password` step and always initiate the PKCE `/v1/oauth/authorize` flow (system browser) with existing scopes and redirect `superbasic://auth/callback`.
+  - Sanity check: Run `pnpm --filter=@repo/mobile exec tsc --noEmit` and verify login triggers only `/v1/oauth/authorize` (no password call) in the network inspector/simulator.
+- [ ] 3. Ensure system browser handling is consistent across iOS/web (ASWebAuthenticationSession/SafariView on native; full redirect on web) and that cancellations surface user-friendly errors.
+  - Sanity check: On iOS simulator, start login then cancel; app shows “Login cancelled” (or equivalent) and remains on Login screen.
+- [ ] 4. Harden callback handling to persist tokens, clear PKCE state, and reset guards; include error paths that return the user to Login with actionable messaging.
+  - Sanity check: Simulate a callback with invalid/absent state and confirm user is routed back to Login with error cleared after dismiss.
+- [ ] 5. Verify logout/refresh flows still function with the new pure-OAuth path (clear SecureStore, refresh via `/v1/oauth/token`, navigate to Auth stack).
+  - Sanity check: After logging in, perform logout and ensure tokens are cleared; then reopen app and confirm it requires fresh OAuth.
+- [ ] 6. End-to-end QA on iOS: launch app, tap Login, complete web email/password form, consent, return via deep link, land on Home with user set; confirm refresh and subsequent app relaunch keep session.
+  - Sanity check: Manual run on iOS simulator hitting real backend; verify access token works for `/v1/me` and app state persists after relaunch.

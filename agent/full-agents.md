@@ -19,9 +19,10 @@ Treat this section as the per-chat system prompt for any work in this repo.
 - SuperBasic Finance is an **API-first personal finance platform** in a TypeScript **pnpm/Turborepo** monorepo.
 - The **web app** is a thin **React SPA** that only talks to a typed **`/v1` JSON API** generated from **Zod → OpenAPI 3.1**.
 - **Identity vs domain:**
-  - Auth.js adapter owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`).
+  - Auth-core owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`) per `docs/auth-migration/end-auth-goal.md`; no Auth.js adapter or legacy compatibility is needed in this repo.
   - Domain starts at `profiles.id` and flows:
-    `profiles → workspaces → connections → bank_accounts → transactions → overlays`.
+    - Profiles own connections (banks) and bank accounts: `profiles → connections → bank_accounts → transactions → overlays`.
+    - Workspaces link to connections to decide which banks are available per workspace; views then filter transactions (by accounts, date, name, include/exclude, custom rules).
 - **Ledger invariants:**
   - `transactions` are **append-only / immutable**; user edits live in overlay / adjustment tables, not direct row mutation.
   - Everything is **multi-tenant** and protected by **Postgres RLS** using `current_setting('app.user_id'/'app.profile_id'/'app.workspace_id')`.
@@ -2886,8 +2887,7 @@ agent/steering/database-structure-identity-and-access.md
 
 This file covers:
 
-- Auth.js identity tables (users, accounts, sessions, verification_tokens)
-- How the Auth.js adapter must be aligned with the DB schema
+- Auth-core identity tables (users, user_identities, auth_sessions, refresh_tokens, verification_tokens, api_keys, session_transfer_tokens)
 - Profiles and subscriptions (domain-level identity, billing linkage)
 - API keys (PATs) and their ownership rules
 
@@ -2895,176 +2895,28 @@ Use this when you’re touching auth, identity, or per-user access surfaces. RLS
 
 ---
 
-## 1. Auth / Identity (Auth.js Tables)
+## 1. Auth / Identity (auth-core tables)
 
-Auth.js tables are the entry point for identity. They are accessed by a dedicated database role (e.g. `auth_service`) with `BYPASSRLS`. Application traffic uses `app_user` and never touches these tables directly.
+Auth-core owns identity and session tables. Auth.js adapters and schemas are not used in this repo; there is no legacy compatibility requirement.
 
-RLS is intentionally disabled on these tables; security is enforced via:
-
-- Hashed tokens (no plaintext)
-- Strict uniqueness and timestamp contracts
-- Clear separation between `auth_service` and `app_user` roles
-
-### 1.1 users
-
-Represents Auth.js identities.
-
-Core columns:
-
-- `id` — UUID PK.
-- `email` — TEXT, original casing, not used for uniqueness.
-- `email_lower` — TEXT NOT NULL UNIQUE, canonical lowercase email:
-  - Must always be `LOWER(email)`.
-  - This is the only column with a uniqueness constraint for emails.
-- `emailVerified` — TIMESTAMPTZ, optional verification timestamp.
-- `name` — TEXT, optional display name.
-- `image` — TEXT, optional avatar URL.
-- `password_hash` — TEXT, optional:
-  - Stores bcrypt or similar password hashes (e.g. cost 12+).
-  - Never stores plaintext passwords.
-  - Column is NOT NULL when credentials-based login is enabled for the user.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL, maintained via Prisma `@updatedAt`.
-
-Notes:
-
-- Optional non-unique index on `email` can exist for lookups by original casing.
-- Uniqueness must be enforced on `email_lower` only; do not keep a UNIQUE index on `email`.
-
-### 1.2 accounts
-
-Represents OAuth / external accounts linked to a `user`.
-
-Core columns:
-
-- `id` — UUID PK.
-- `user_id` — FK to `users(id)`, NOT NULL.
-- `provider` — TEXT NOT NULL (e.g. `github`, `google`).
-- `provider_account_id` — TEXT NOT NULL, provider-specific account identifier.
-- `refresh_token` — encrypted (never plaintext).
-- `access_token` — encrypted (never plaintext).
-- `expires_at` — TIMESTAMPTZ, optional.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL.
-
-Constraints and indexes:
-
-- `UNIQUE (provider, provider_account_id)` — a user cannot have two rows for the same external account.
-- Indexes on `user_id` (and often `(provider, provider_account_id)` via the UNIQUE index).
-
-### 1.3 sessions (optional DB sessions)
-
-Used when Auth.js is configured with DB-backed sessions instead of (or in addition to) JWT-only sessions.
-
-Core columns:
-
-- `id` — UUID PK.
-- `user_id` — FK to `users(id)`, NOT NULL.
-- `session_token_hash` — JSONB NOT NULL UNIQUE:
-  - Stores a hashed representation of the session token, never plaintext.
-  - Uses the shared JSONB envelope described in `database-structure-tokens-and-secrets.md`.
-- `expires` — TIMESTAMPTZ NOT NULL, session expiration.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL.
-
-Indexes and maintenance:
-
-- Index on `(expires)` for TTL sweeps.
-- Scheduled job purges expired sessions regularly to prevent unbounded growth.
-
-Notes:
-
-- No plaintext `sessionToken` column should exist.
-- Only the token hash envelope and non-sensitive metadata are stored.
-
-### 1.4 verification_tokens
-
-Used for passwordless login, email verification links, etc.
-
-Core columns:
-
-- `id` — UUID PK.
-- `identifier` — TEXT NOT NULL:
-  - Usually an email or similar identifier for the recipient.
-- `token_hash` — JSONB NOT NULL UNIQUE:
-  - Hashed token envelope; no plaintext token storage.
-- `expires` — TIMESTAMPTZ NOT NULL, token expiration time.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL.
-
-Indexes and maintenance:
-
-- Index on `(expires)` for TTL sweeps.
-- Periodic job deletes expired verification tokens.
-
-Contract with sessions:
-
-- Both `sessions` and `verification_tokens` use the same token hash envelope format.
-- This allows shared verification/rotation logic and consistent behavior.
-
-### 1.5 Auth.js Adapter Access Pattern
-
-- Auth.js flows run before a user/profile context exists, so:
-  - A dedicated DB role (e.g. `auth_service`) with `BYPASSRLS` owns/queries the Auth.js tables.
-  - Application traffic uses `app_user` with RLS on domain tables.
-- Because these tables are pre-auth and accessed via `auth_service`:
-  - RLS is not enabled on `users`, `accounts`, `sessions`, or `verification_tokens`.
-  - Security relies on:
-    - Hashed tokens.
-    - Strong uniqueness constraints.
-    - Separation between roles.
-
-### 1.6 Adapter Alignment and Verification
-
-The Prisma Auth.js adapter models must mirror the DB contract:
-
-Adapter schema requirements:
-
-- UUID PKs:
-  - All primary keys are UUIDs with `@default(uuid())` (or SQL `gen_random_uuid()`), mapped as `@db.Uuid`.
-- Email:
-  - `email_lower` column is present, `TEXT NOT NULL UNIQUE`.
-  - Legacy email uniqueness constraints on `email` must be dropped to avoid case collisions.
-- Timestamps:
-  - `created_at` and `updated_at` are `TIMESTAMPTZ`.
-  - `created_at` uses `@default(now())`.
-  - `updated_at` uses Prisma `@updatedAt`.
-- Token storage:
-  - Token material is stored only as digests:
-    - `sessions.session_token_hash` (no plaintext session token).
-    - `verification_tokens.token_hash` (no plaintext verification token).
-  - Any plaintext token columns (e.g. `sessionToken`, `token`) must be removed during migration.
-
-Auth.js configuration expectations:
-
-- Adapter must be wired to use the Prisma models as defined above.
-- Custom adapter hooks may be required to:
-  - Ensure `email_lower` is set on user creation (e.g. custom `createUser`).
-  - Hash tokens before persistence (custom session and verification token adapter methods).
-- All tokens follow the canonical format described in `database-structure-tokens-and-secrets.md` (token envelope and HMAC hashing).
-
-Testing expectations (packages/auth):
-
-- Integration tests provision a Neon preview database with the finalized schema.
-- Tests cover:
-  - Email/password sign-up.
-  - OAuth login.
-  - Passwordless login via email magic link.
-  - Email verification flows.
-- Each test asserts:
-  - UUID primary keys are used for all auth entities.
-  - `email_lower` is non-null and unique.
-  - Token hash columns are populated and no plaintext tokens remain.
-- Tests run via:
-  - `pnpm test --filter auth -- --run`
-  - `DATABASE_URL` points to a disposable Neon branch.
-- CI treats these tests as required before migrations touching Auth.js tables can merge.
+- Token model: JWT access tokens (short-lived) + opaque refresh tokens (rotated, hash envelopes) + PATs (opaque, hash envelopes) as described in `docs/auth-migration/end-auth-goal.md`.
+- Key tables:
+  - `users` — canonical auth user; includes default workspace/profile linkage.
+  - `user_identities` — external identity linkage (Google, etc.).
+  - `auth_sessions` — session records with MFA level and device metadata.
+  - `refresh_tokens` — rotated refresh tokens (family_id, last4, hash_envelope, scopes).
+  - `verification_tokens` — opaque tokens for email verification/passwordless flows (hash_envelope).
+  - `session_transfer_tokens` — short-lived tokens to bridge mobile OAuth flows.
+  - `api_keys` — PATs; workspace- or user-scoped with scope arrays and hash_envelope.
+- Access pattern:
+  - Use auth-core repositories/services; do not query these tables directly from apps.
+  - RLS/GUCs: set `app.user_id`, `app.profile_id` (when applicable), `app.workspace_id`, `app.mfa_level`, `app.service_id` per request; clear between pool usages.
 
 ---
 
 ## 2. Profiles
 
-Profiles represent domain-level identity and preferences, distinct from Auth.js `users`. All core application tables use `profiles.id` (not `users.id`) as the key for ownership.
+Profiles represent domain-level identity and preferences, distinct from auth-core `users`. All core application tables use `profiles.id` (not `users.id`) as the key for ownership.
 
 Table: `profiles`
 
@@ -3072,7 +2924,7 @@ Core columns:
 
 - `id` — UUID PK.
 - `user_id` — FK to `users(id)` NOT NULL, UNIQUE:
-  - v1 assumption: one profile per Auth.js user.
+  - v1 assumption: one profile per auth-core user.
 - `timezone` — TEXT:
   - User’s preferred timezone; used for date bucketing and UI defaults.
 - `currency` — `VARCHAR(3) CHECK (char_length(currency) = 3)`:
@@ -3243,7 +3095,7 @@ These invariants must hold across all identity/access tables:
   - All rows have `created_at` (and usually `updated_at`) as `TIMESTAMPTZ`.
 - RLS:
   - Domain-level identity (profiles, api_keys, subscriptions) is protected via RLS and GUC-based context.
-  - Auth.js tables remain outside RLS but use separate roles.
+  - Auth-core tables rely on the same GUC-based context; do not bypass RLS with special roles.
 
 For security-sensitive changes (e.g., token format or schema changes to these tables), always load:
 
@@ -3329,7 +3181,7 @@ Core invariants:
 - GDPR-style deletion:
   - Implemented via a script (e.g. `tooling/scripts/gdpr-delete.ts`) that:
     - Walks from `users.id` to:
-      - Auth.js records (`users`, `accounts`, `sessions`, `verification_tokens`).
+      - Auth-core records (`users`, `user_identities`, `auth_sessions`, `refresh_tokens`, `verification_tokens`, `session_transfer_tokens`, `api_keys`).
       - `profiles`.
       - `workspaces` and `workspace_members`.
       - `connections` and bank-access caches.
@@ -3765,10 +3617,10 @@ Before a production launch:
 - Identity and keys:
 
   - UUIDs everywhere, FK types consistent (`uuid` vs `text` alignment).
-  - Auth.js adapter:
+  - Auth-core:
     - Uses UUID PKs.
     - Stores lowercased emails with unique index (`email_lower`).
-    - Stores only hashed tokens.
+    - Stores only hashed/enveloped tokens (refresh, verification, PATs, session-transfer).
 
 - Constraints:
 
@@ -3883,293 +3735,7 @@ This file, together with the schema, RLS, constraints, and budget docs, defines 
 
 <!-- source: steering/database/database-structure-overview.md -->
 
-# SuperBasic Finance — Database Schema Overview (Auth.js + Prisma 6 + Neon)
-
-API-first, multi-tenant, append-only finance DB.
-
-- Auth.js handles identity; domain logic keys off `profiles.id`.
-- Transactions are immutable; edits live in overlays.
-- Workspaces enable collaboration via scoped connection-links.
-- All bearer tokens are hashed; provider secrets are encrypted.
-- Enums prefer `TEXT + CHECK` instead of `ENUM` to avoid migration pain.
-
-This file gives you the big-picture shape of the database and the core conventions. For table-level details, refer to the more specific `database-structure-*.md` files listed in `database-structure-reference.md`.
-
----
-
-## 1. Tech and Conventions
-
-### 1.1 Engine and ORM
-
-- Engine: Postgres (Neon).
-- ORM: Prisma 6 (strict mode).
-- Prisma schema is the primary generated model; SQL migrations define advanced constraints, indexes, RLS, and triggers.
-
-### 1.2 IDs
-
-- All primary keys use UUID v4.
-- Auth.js adapter models are aligned to UUIDs:
-  - Prisma models for Auth.js tables use `@default(uuid())` and `@db.Uuid` (or `gen_random_uuid()` at the SQL layer).
-- Foreign keys must use the same UUID type; no mixing of text/UUID.
-
-### 1.3 Timestamps
-
-- Timestamps use `TIMESTAMPTZ` everywhere.
-- `created_at`:
-  - `TIMESTAMPTZ NOT NULL DEFAULT now()`.
-- `updated_at`:
-  - Managed by Prisma via `@updatedAt`; **no database DEFAULT** to avoid drift.
-- Append-only tables (e.g. `transactions`, `transaction_audit_log`) may omit `updated_at` but still require `created_at TIMESTAMPTZ NOT NULL DEFAULT now()`.
-
-### 1.4 Money Representation
-
-All monetary values follow a strict pattern:
-
-- Type pair:
-  - `amount_cents BIGINT`
-  - `currency VARCHAR(3) CHECK (char_length(currency) = 3)`
-- Sign convention:
-  - Inflows / credits (deposits, refunds, income) are stored as **positive** `amount_cents`.
-  - Outflows / debits (purchases, payments, fees) are stored as **negative** `amount_cents`.
-  - Zero is reserved for explicit adjustments tracked via overlays.
-- Provider payload normalization:
-  - Ingestion must normalize all provider values to this sign convention before persistence so downstream reporting and budgeting stay consistent.
-- Zero-amount rows:
-  - Provider-supplied zero-amount holds/voids should be normalized away or represented only as overlays; **base `transactions` rows never store 0-cent amounts**.
-  - This keeps reporting math deterministic and avoids spurious entries.
-- Money pair everywhere:
-  - Every monetary column appears as the `(amount_cents BIGINT, currency VARCHAR(3))` pair documented here (e.g. `transactions`, `budget_actuals.posted_amount_cents`, `budget_actuals.authorized_amount_cents`).
-  - Introducing a new money field without this pair is disallowed.
-  - Migrations must add both columns together and wire them into the schema docs before review.
-- Single exception:
-  - `budget_envelopes.limit_cents` is the lone standalone cents column.
-  - Its currency is always equal to `budget_plans.currency`, enforced via `budget_plans_enforce_currency`.
-  - Treat `(limit_cents, budget_plans.currency)` as that table’s logical money pair.
-  - Do not introduce additional standalone `*_cents` columns elsewhere.
-
-### 1.5 JSON / JSONB
-
-- Use `JSONB` for configuration, scopes, and flexible filters.
-- Typical JSONB columns:
-  - `settings`, `scope_json`, `account_scope_json`, `config`, `raw_payload`, `stats`, `splits`, `tags` (arrays), etc.
-- GIN indexes are added only when a JSONB column is on a hot query path.
-- Prefer `jsonb_path_ops` GIN when queries use `@>` containment.
-
-### 1.6 Auth.js Tables and Access
-
-- Auth tables:
-  - `users`
-  - `accounts`
-  - `sessions` (if using DB sessions)
-  - `verification_tokens`
-- These tables:
-  - Store hashed tokens (never plaintext).
-  - Use `TIMESTAMPTZ` timestamps (`created_at` / `updated_at` / `expires`).
-  - Are accessed by a dedicated database role (e.g. `auth_service`) with `BYPASSRLS`.
-- RLS is **not** enabled on Auth.js tables:
-  - They are protected by hashed tokens, strict adapter usage, and separation between the auth role and the general `app_user` role.
-- Application traffic:
-  - Uses `app_user` with RLS enabled on domain tables.
-  - Never connects using `auth_service` credentials.
-
-### 1.7 RLS GUCs and Session Context
-
-Most domain tables rely on three Postgres GUCs for row-level security:
-
-- `current_setting('app.user_id', true)`
-- `current_setting('app.profile_id', true)`
-- `current_setting('app.workspace_id', true)`
-
-At request start:
-
-- Within a single DB session/transaction:
-
-  - `SET LOCAL app.user_id = '<users.id>';`
-  - `SET LOCAL app.profile_id = '<profiles.id>';`
-  - `SET LOCAL app.workspace_id = '<workspaces.id or NULL>';`
-
-- All application queries for that request must run inside this transaction and use the same connection so the GUCs remain in scope.
-
-Application contract:
-
-- All user traffic goes through a shared helper (e.g. `withAppContext`) that:
-  - Opens a transaction.
-  - Sets the three GUCs via `SET LOCAL`.
-  - Hands a transactional Prisma client (`tx`) to downstream code.
-- Direct `prisma.<model>` calls outside that helper are considered violations and should be blocked by lint rules and code review.
-
-### 1.8 Not-Null Discipline and Soft Deletes
-
-Not-null discipline:
-
-- All foreign keys (`*_id`), key/hash/status columns, and timestamps (`created_at` / `updated_at`) are `NOT NULL`, with sensible defaults where applicable.
-- Append-only tables still follow these rules but may omit `updated_at`.
-
-Soft deletes:
-
-- `deleted_at` and `revoked_at` fields:
-  - Default to `NULL`.
-  - Represent soft-deleted/archived rows when non-NULL.
-- RLS predicates and partial indexes must:
-  - Filter active rows with `WHERE deleted_at IS NULL` or `WHERE revoked_at IS NULL`.
-  - Keep inactive rows out of hot paths and conflict checks.
-- Archived data:
-  - Remains stored for audit/maintenance flows under dedicated roles.
-  - Is invisible to normal application queries unless a specific admin/reporting path opts in.
-
-Admin/reporting access:
-
-- Only explicitly documented admin/reporting flows may read archived rows.
-- These flows use dedicated roles or flags; they do not reuse the general `app_user` policies.
-
-### 1.9 ZERO_UUID Shorthand
-
-- `ZERO_UUID` is a literal sentinel UUID value:
-
-  - `'00000000-0000-0000-0000-000000000000'::uuid`
-
-- Used when coalescing nullable keys into a uniform scope, for example:
-
-  - `COALESCE(profile_id, ZERO_UUID)` in uniqueness constraints or indexes (e.g. categories slug uniqueness).
-
-Guideline:
-
-- Whenever documentation or code references `ZERO_UUID`, it means this exact literal sentinel UUID.
-
-### 1.10 Email Handling
-
-- Email addresses are stored and compared case-insensitively.
-- Canonical columns:
-  - `users.email` — original casing, not unique.
-  - `users.email_lower` — `LOWER(email)`, `TEXT NOT NULL UNIQUE`.
-- Requirements:
-  - Enforce uniqueness on `email_lower`, **not** on `email`.
-  - Drop any legacy unique index on `email` to avoid case-collision issues.
-  - Optional non-unique index on `email` is fine for lookups by original casing if needed.
-
----
-
-## 2. Core Principles
-
-These principles guide every schema, constraint, and policy:
-
-1. **Append-only ledger**
-   - Base `transactions` rows are **never** updated or deleted.
-   - Mutations happen through overlays, new append entries, or supporting tables.
-   - Triggers and privileges enforce this at the database level.
-
-2. **Profile-centric domain**
-   - Domain tables key ownership off `profiles.id`, not `users.id`.
-   - Auth.js `users` represent identity; `profiles` represent domain-level presence and preferences (timezone, currency, etc.).
-   - Many entities reference `profile_id` rather than `user_id` to allow future multi-profile-per-user patterns.
-
-3. **Workspace collaboration**
-   - Collaboration flows through `workspaces` and `workspace_members`.
-   - Access to connections/accounts and transactions in a workspace is controlled via:
-     - `workspace_connection_links` (JSON account scopes) and
-     - `workspace_allowed_accounts` (normalized account scopes).
-   - RLS and application logic assume this graph is the single source of truth for workspace visibility.
-
-4. **Deterministic uniqueness**
-   - Provider IDs, token IDs, and other externally supplied identifiers are always combined with context and hashed or constrained to avoid collisions.
-   - Example: `UNIQUE (provider, provider_item_id)` on `connections`.
-   - All uniqueness constraints mirror soft-delete predicates to avoid archived rows causing conflicts.
-
-5. **Observability**
-   - Audit tables, sync logs, and soft-delete fields preserve history.
-   - Append-only logs and audit tables (e.g. `transaction_audit_log`, `sync_audit_log`, `connection_sponsor_history`) provide a clear trail for operations and debugging.
-   - Partial indexes focus hot operations on active rows; archival data remains queryable but off the hot path.
-
----
-
-## 3. Entity Tree (High-Level)
-
-This is the conceptual layout of the main tables and how they hang together. Use it to orient yourself before jumping into specific table specs.
-
-`db`
-- `users` — Auth.js identities (UUID PK)
-  - `accounts` (FK `users.id`) — OAuth accounts
-  - `sessions` (FK `users.id`) — optional DB-backed sessions
-  - `verification_tokens` — passwordless and email flows (hashed)
-- `profiles` (FK `users.id`) — user metadata (timezone, currency, settings)
-  - `api_keys` (FK `users.id`, `profiles.id`, optionally `workspaces.id`) — hashed PATs + scopes
-  - `subscriptions` (FK `profiles.id`) — Stripe linkage + slot limits
-  - `categories` (FK `profiles.id`, nullable) — system tree when `profile_id` is NULL; parent/slug structure
-  - `profile_category_overrides` (FK `profiles.id`, source/target `categories.id`) — per-profile remaps
-
-- `workspaces` (FK `profiles.id` as owner)
-  - `workspace_members` (FK `workspaces.id`, member profile, role, scope JSON)
-  - `saved_views` (FK `workspaces.id`)
-    - `view_filters` (FK `saved_views.id`)
-    - `view_sorts` (FK `saved_views.id`)
-    - `view_group_by` (FK `saved_views.id`)
-    - `view_rule_overrides` (FK `saved_views.id`)
-    - `view_category_groups` (FK `saved_views.id`)
-    - `view_shares` (FK `saved_views.id`, `profiles.id`)
-    - `view_links` (FK `saved_views.id`) — token_hash + passcode_hash + expiry
-    - `view_category_overrides` (FK `saved_views.id`, source/target categories/workspace_categories)
-  - `account_groups` (FK `workspaces.id`)
-    - `account_group_memberships` (FK `account_groups.id`, `bank_accounts.id`)
-  - `workspace_connection_links`
-    - Workspace-scoped access to connections and accounts:
-      - `workspaces.id`
-      - `connections.id`
-      - `granted_by_profile.id`
-      - `account_scope_json`
-      - `expires_at`, `revoked_at`
-  - `workspace_allowed_accounts`
-    - Normalized per-account scope:
-      - `workspaces.id`
-      - `bank_accounts.id`
-      - `granted_by_profile.id`
-  - `workspace_categories`
-    - Shared, workspace-level category tree:
-      - `workspaces.id`
-      - `slug`, `name`, `parent_id`, optional `color`
-  - `workspace_category_overrides`
-    - Workspace-level category remaps:
-      - `workspaces.id`
-      - Source/target category IDs and scope info
-
-- `budget_plans` (FK `workspaces.id`, `profiles.id` owner)
-  - `budget_versions` (FK `budget_plans.id`)
-    - `budget_envelopes` (FK `budget_versions.id`, optional `categories.id`)
-
-- `connections` (FK `profiles.id` owner)
-  - `connection_sponsor_history` (FK `connections.id`, from/to `profiles.id`)
-  - `bank_accounts` (FK `connections.id`)
-    - `transactions` (FK `bank_accounts.id`, `connections.id`) — immutable base ledger
-      - `transaction_overlays` (FK `transactions.id`, `profiles.id`)
-      - `transaction_audit_log` (FK `transactions.id`, `sync_sessions.id`)
-
-  - `sync_sessions` (FK `connections.id`, `profiles.id` initiator)
-    - `session_page_payloads` (FK `sync_sessions.id`)
-    - `session_idempotency` (FK `sync_sessions.id`)
-    - `session_leases` (FK `sync_sessions.id`)
-    - `sync_audit_log` (FK `connections.id`, optional `sync_sessions.id`, optional initiator profile)
-
-- `performance_caches` (logical grouping)
-  - `user_connection_access_cache`
-    - Keys: `profile_id`, `connection_id`, optional `workspace_id`, `account_scope_json`, optional `user_id`
-  - `profile_transaction_access_cache`
-    - Keys: `transaction_id`, `profile_id`, optional `workspace_id`, `connection_id`, `account_id`
-
-Additional sections (budgets, constraints, RLS, tokens, migrations, ops) are described in detail in the more focused files:
-
-- `database-structure-identity-and-access.md`
-- `database-structure-categories-and-resolution.md`
-- `database-structure-workspaces-and-views.md`
-- `database-structure-budgets.md`
-- `database-structure-connections-and-ledger.md`
-- `database-structure-sync-and-caches.md`
-- `database-structure-constraints-indexes-and-triggers.md`
-- `database-structure-rls-and-access-control.md`
-- `database-structure-rls-policies-and-ddl.sql.md`
-- `database-structure-tokens-and-secrets.md`
-- `database-structure-migrations-ops-and-testing.md`
-
-
----
+*Legacy Auth.js database overview removed. Auth-core is the source of truth for identity/tokens; see `docs/auth-migration/end-auth-goal.md` and `agent/steering/database/database-structure-identity-and-access.md` for current schema guidance.*
 
 <!-- source: steering/database/database-structure-reference.md -->
 
@@ -4212,7 +3778,7 @@ The original monolithic doc has been split across the following files. Together 
   - Postgres + Prisma 6 basics.  
   - UUID PKs, timestamp contract, money column pattern (`amount_cents` + `currency`).  
   - Zero-amount rules, overlays, and the single exception for `budget_envelopes.limit_cents`.  
-  - JSONB usage, Auth.js adapter tables, RLS GUCs (`app.user_id`, `app.profile_id`, `app.workspace_id`).  
+  - JSONB usage, auth-core tables, RLS GUCs (`app.user_id`, `app.profile_id`, `app.workspace_id`).  
   - Not-null discipline and soft-delete semantics.  
   - ZERO_UUID convention and lowercase email handling.
 - Section 2: Core Principles  
@@ -4225,12 +3791,12 @@ The original monolithic doc has been split across the following files. Together 
 ### 2. Identity, profiles, subscriptions, and API keys
 
 **File:** `agent/steering/database-structure-identity-and-access.md`  
-**Use when:** You’re touching Auth.js tables, profiles, subscriptions, or personal API keys (PATs).
+**Use when:** You’re touching auth-core tables, profiles, subscriptions, or personal API keys (PATs).
 
 **Covers:**
 
-- Auth/identity tables (`users`, `accounts`, `sessions`, `verification_tokens`) and their essential fields.
-- Token hashing for sessions and verification tokens in the Auth.js adapter.
+- Auth/identity tables (`users`, `user_identities`, `auth_sessions`, `refresh_tokens`, `verification_tokens`, `session_transfer_tokens`, `api_keys`) and their essential fields.
+- Token hashing/envelopes for refresh tokens, verification tokens, session transfer tokens, and PATs.
 - Profiles:
   - `profiles` table (one profile per user assumption in v1).
   - Timezone, currency, and settings fields.
@@ -4242,7 +3808,7 @@ The original monolithic doc has been split across the following files. Together 
   - Constraint triggers ensuring `profile_id ↔ user_id` alignment and workspace membership checks.
   - Index and partial index strategy for keys.
 - Cross-cutting identity constraints:
-  - UUID usage, `email_lower` uniqueness, and the Auth.js adapter alignment requirements.
+  - UUID usage, `email_lower` uniqueness, and auth-core alignment requirements.
   - Tests and expectations around hashed tokens and absence of plaintext.
 
 ---
@@ -4417,7 +3983,7 @@ The original monolithic doc has been split across the following files. Together 
   - How `app.user_id`, `app.profile_id`, `app.workspace_id` are set via `SET LOCAL` at transaction start.
   - Contract that all user traffic goes through a shared `withAppContext` helper using Prisma `$transaction`.
 - DB roles:
-  - `app_user`, migration role, auth service role (`auth_service` with BYPASSRLS for Auth.js tables).
+  - `app_user`, migration role; no separate auth adapter role with BYPASSRLS.
 - Policy coverage:
   - Tables where RLS is enabled + forced.
   - Expectations for caches and sync-helper tables under FORCE RLS.
@@ -4466,7 +4032,7 @@ The original monolithic doc has been split across the following files. Together 
   - `<token_id>.<token_secret>` pattern.
   - JSONB hash structure: `{ "algo": "hmac-sha256", "key_id": "v1", "hash": "<base64>" }`.
 - One-way hashes:
-  - `api_keys.key_hash`, `view_links.token_hash`, `view_links.passcode_hash`, `sessions.session_token_hash`, `verification_tokens.token_hash`.
+  - `api_keys.key_hash`, `refresh_tokens.hash_envelope`, `verification_tokens.hash_envelope`, `session_transfer_tokens.hash_envelope`, `view_links.token_hash`, `view_links.passcode_hash`.
 - Token hashing rules:
   - No plaintext tokens or passcodes stored.
   - Only `token_id` in plaintext; `token_secret` always hashed with HMAC-SHA-256 + server-side key and optional salt.
@@ -4518,7 +4084,7 @@ The original monolithic doc has been split across the following files. Together 
 - **General DB shape / what table lives where?**  
   → `database-structure-overview.md`
 
-- **Auth.js tables, profiles, subscriptions, PATs?**  
+- **Auth-core tables, profiles, subscriptions, PATs?**  
   → `database-structure-identity-and-access.md`  
   → `database-structure-tokens-and-secrets.md` (for token details)
 
@@ -4667,7 +4233,7 @@ Background jobs:
 
 ## 3. Tables Under RLS and FORCE RLS
 
-RLS is enabled and forced for all user-facing application tables, plus internal caches, except Auth.js tables (which are isolated behind `auth_service`).
+RLS is enabled and forced for all user-facing application tables, plus internal caches; auth-core tables follow the same GUC-based context and are not bypassed.
 
 RLS is enabled/forced on:
 
@@ -4728,18 +4294,7 @@ RLS is enabled/forced on:
   - `budget_envelopes`
   - `budget_actuals`
 
-Auth.js adapter tables are intentionally **not** under RLS:
-
-- `users`
-- `accounts`
-- `sessions`
-- `verification_tokens`
-
-They are protected instead via:
-
-- Isolation behind a dedicated `auth_service` DB role.
-- Hashed tokens.
-- Application-level access control.
+Auth-core tables follow the same GUC-based context and RLS approach; no separate adapter role or BYPASSRLS is used.
 
 For the exact `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` and `FORCE ROW LEVEL SECURITY` statements, see:
 
@@ -4951,12 +4506,6 @@ We use distinct roles for separation of concerns:
 
   - Cannot modify RLS policies or schema.
 
-- `auth_service`:
-
-  - Used by Auth.js flows, separate from `app_user`.
-  - May have `BYPASSRLS` on Auth.js tables (`users`, `accounts`, `sessions`, `verification_tokens`).
-  - Kept behind a separate connection pool or logical service.
-
 - `maintenance_user` (optional):
 
   - Used for maintenance/TTL jobs.
@@ -5019,13 +4568,6 @@ Checklist (implemented via scripts/tests described in `database-structure-migrat
   - Playwright or equivalent tests the main flows (dashboards, overlays, budgets, sharing, view links) under each role plus link-based access.
   - Confirm:
     - SDK/API handle denied responses gracefully.
-
-Auth.js tables:
-
-- Run under `auth_service` with `BYPASSRLS`.
-- They are intentionally excluded from the RLS coverage checklist.
-
----
 
 ## 9. When Changing RLS Policies
 
@@ -8596,7 +8138,7 @@ Quick reference for the main technologies and everyday commands used in SuperBas
 - **Framework:** Hono (Node adapter; future Edge-capable)
 - **Validation & contracts:** Zod → OpenAPI 3.1
 - **ORM & DB:** Prisma 6 on Neon Postgres (UUID PKs, `TIMESTAMPTZ`, `BIGINT` cents)
-- **Auth:** Auth.js
+- **Auth:** Auth-core OAuth 2.1/OIDC + PATs
 - **Payments:** Stripe (Checkout, Portal, webhooks)
 - **Banking:** Plaid (Link + server-side token exchange)
 - **Background jobs:** Upstash Redis / QStash + Vercel Cron

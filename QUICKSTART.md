@@ -31,7 +31,7 @@ pnpm tsx tooling/scripts/setup-env.ts
 The wizard will guide you through:
 
 - ✅ Neon database connection
-- ✅ Auth.js secret generation
+- ✅ Auth-core signing key and token hash secret generation
 - ✅ Upstash Redis configuration
 - ✅ Google OAuth setup (optional)
 - ✅ Resend email setup (optional)
@@ -60,10 +60,9 @@ Open http://localhost:5173 and try:
 
 ✅ **Authentication**
 
-- Credentials (email/password)
-- Google OAuth
-- Magic links (passwordless)
-- JWT sessions with httpOnly cookies
+- OAuth 2.1/OIDC via auth-core (email/password + magic link + Google)
+- Short-lived access tokens + rotated refresh tokens (HttpOnly cookies)
+- Personal Access Tokens (PATs) for programmatic access
 
 ✅ **API Key Management**
 
@@ -92,7 +91,8 @@ apps/
 └── web/          # React SPA (Vite)
 
 packages/
-├── auth/         # Auth.js configuration
+├── auth-core/    # Auth-core OAuth 2.1/OIDC logic and token management
+├── auth/         # Legacy Auth.js helpers (to be removed)
 ├── database/     # Prisma schema and client
 ├── design-system/# React components
 └── types/        # Shared TypeScript types
@@ -137,11 +137,7 @@ This is expected - Redis state persists between test runs. Tests are still passi
 
 ### "Google OAuth not working"
 
-1. Check redirect URI in Google Cloud Console:
-   ```
-   http://localhost:3000/v1/auth/callback/google
-   ```
-2. Verify `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env.local`
+See `docs/auth-migration/end-auth-goal.md` for the current OAuth client configuration and redirect URIs; ensure `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set to match the configured client.
 
 ### "Magic links not sending"
 

@@ -619,11 +619,11 @@ Trailing slashes cause double slashes in URLs (`//v1/auth/session`).
 ### ❌ Mismatched AUTH_URL and WEB_APP_URL
 
 **Wrong**: Both pointing to same domain  
-**Right**: AUTH_URL = API domain, WEB_APP_URL = web domain
+**Right**: API_URL = API domain, WEB_APP_URL = web domain (auth-core uses the API base)
 
 ```bash
 # API environment variables
-AUTH_URL=https://superbasic-api.vercel.app
+API_URL=https://superbasic-api.vercel.app
 WEB_APP_URL=https://superbasic-web.vercel.app
 ```
 
@@ -634,14 +634,14 @@ After deploying web app, you must:
 1. Add `WEB_APP_URL` to API environment variables
 2. **Redeploy the API** (environment changes don't auto-deploy)
 
-### ❌ Using Wrong Google OAuth Redirect URI
+### ❌ Using Wrong Google OAuth Redirect URI (auth-core)
 
 **Wrong**: `http://localhost:3000/v1/auth/callback/google`  
-**Right**: `https://your-api-domain.vercel.app/v1/auth/callback/google`
+**Right**: `https://your-api-domain.vercel.app/v1/oauth/callback/google` (or the auth-core callback defined in `docs/auth-migration/end-auth-goal.md`)
 
 Must match your production API domain exactly.
 
-### ❌ Auth.js Redirecting to /login on API Server (404)
+### ❌ OAuth Redirecting to /login on API Server (404)
 
 **Error**: `GET https://api.vercel.app/login?error=MissingCSRF 404`
 

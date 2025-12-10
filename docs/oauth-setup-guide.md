@@ -1,6 +1,6 @@
 # OAuth Provider Setup Guide
 
-This guide walks through setting up OAuth providers (Google and GitHub) for SuperBasic Finance authentication.
+This guide walks through setting up OAuth providers (Google and GitHub) for SuperBasic Finance authentication via auth-core (Auth.js is not used).
 
 ## Prerequisites
 
@@ -70,19 +70,7 @@ If prompted to configure consent screen:
 
 ### Step 7: Configure Authorized Redirect URIs
 
-Add the following redirect URIs:
-
-**Development:**
-```
-http://localhost:3000/v1/auth/callback/google
-```
-
-**Production (when ready):**
-```
-https://api.superbasicfinance.com/v1/auth/callback/google
-```
-
-Click "Create"
+Add the authorized redirect URI from `docs/auth-migration/end-auth-goal.md` (auth-core authorize callback, e.g., `https://api.superbasicfinance.com/v1/oauth/callback/google`). Click "Create".
 
 ### Step 8: Copy Credentials
 
@@ -167,10 +155,7 @@ http://localhost:3000
 Personal finance platform with bank sync and budgeting
 ```
 
-**Authorization callback URL:**
-```
-http://localhost:3000/v1/auth/callback/github
-```
+**Authorization callback URL:** use the auth-core callback from `docs/auth-migration/end-auth-goal.md` (e.g., `http://localhost:3000/v1/oauth/callback/github`)
 
 3. Click "Register application"
 
@@ -304,7 +289,7 @@ After completing setup, verify:
 
 After completing OAuth setup:
 
-1. ✅ Proceed to **Task 8**: Add OAuth Providers to Auth.js Config
+1. ✅ Proceed to **Task 8**: Add OAuth providers to auth-core configuration
 2. ✅ Implement profile creation helper (Task 9)
 3. ✅ Test OAuth flows end-to-end (Tasks 11-12)
 4. ✅ (deprecated) Magic link authentication (Tasks 14-18)
@@ -323,17 +308,12 @@ After completing OAuth setup:
 - **Cause**: Client ID or secret is incorrect
 - **Fix**: Double-check credentials in `.env.local`, ensure no extra spaces or quotes
 
-**Issue: OAuth flow redirects but no session created**
-- **Cause**: Profile creation callback may have failed
-- **Fix**: Check API logs for errors, verify database connection, ensure `signIn` callback is implemented
-
 **Issue: CORS errors during OAuth flow**
 - **Cause**: CORS not configured for OAuth callback URLs
 - **Fix**: Update CORS middleware to allow `http://localhost:3000` origin (Task 27)
 
 ### Getting Help
 
-- **Auth.js Documentation**: https://authjs.dev/getting-started/providers/oauth
 - **Google OAuth Docs**: https://developers.google.com/identity/protocols/oauth2
 - **GitHub OAuth Docs**: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps
 

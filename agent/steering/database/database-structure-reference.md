@@ -37,7 +37,7 @@ The original monolithic doc has been split across the following files. Together 
   - Postgres + Prisma 6 basics.  
   - UUID PKs, timestamp contract, money column pattern (`amount_cents` + `currency`).  
   - Zero-amount rules, overlays, and the single exception for `budget_envelopes.limit_cents`.  
-  - JSONB usage, Auth.js adapter tables, RLS GUCs (`app.user_id`, `app.profile_id`, `app.workspace_id`).  
+- JSONB usage, auth-core tables, RLS GUCs (`app.user_id`, `app.profile_id`, `app.workspace_id`).  
   - Not-null discipline and soft-delete semantics.  
   - ZERO_UUID convention and lowercase email handling.
 - Section 2: Core Principles  
@@ -50,12 +50,12 @@ The original monolithic doc has been split across the following files. Together 
 ### 2. Identity, profiles, subscriptions, and API keys
 
 **File:** `agent/steering/database-structure-identity-and-access.md`  
-**Use when:** You’re touching Auth.js tables, profiles, subscriptions, or personal API keys (PATs).
+**Use when:** You’re touching auth-core tables, profiles, subscriptions, or personal API keys (PATs).
 
 **Covers:**
 
 - Auth/identity tables (`users`, `accounts`, `sessions`, `verification_tokens`) and their essential fields.
-- Token hashing for sessions and verification tokens in the Auth.js adapter.
+- Token hashing/envelopes for auth-core refresh tokens, verification tokens, session-transfer tokens, and PATs.
 - Profiles:
   - `profiles` table (one profile per user assumption in v1).
   - Timezone, currency, and settings fields.
@@ -67,7 +67,7 @@ The original monolithic doc has been split across the following files. Together 
   - Constraint triggers ensuring `profile_id ↔ user_id` alignment and workspace membership checks.
   - Index and partial index strategy for keys.
 - Cross-cutting identity constraints:
-  - UUID usage, `email_lower` uniqueness, and the Auth.js adapter alignment requirements.
+- UUID usage, `email_lower` uniqueness, and auth-core alignment requirements.
   - Tests and expectations around hashed tokens and absence of plaintext.
 
 ---
@@ -242,7 +242,7 @@ The original monolithic doc has been split across the following files. Together 
   - How `app.user_id`, `app.profile_id`, `app.workspace_id` are set via `SET LOCAL` at transaction start.
   - Contract that all user traffic goes through a shared `withAppContext` helper using Prisma `$transaction`.
 - DB roles:
-  - `app_user`, migration role, auth service role (`auth_service` with BYPASSRLS for Auth.js tables).
+  - `app_user`, migration role.
 - Policy coverage:
   - Tables where RLS is enabled + forced.
   - Expectations for caches and sync-helper tables under FORCE RLS.
@@ -343,7 +343,7 @@ The original monolithic doc has been split across the following files. Together 
 - **General DB shape / what table lives where?**  
   → `database-structure-overview.md`
 
-- **Auth.js tables, profiles, subscriptions, PATs?**  
+- **Auth-core tables, profiles, subscriptions, PATs?**  
   → `database-structure-identity-and-access.md`  
   → `database-structure-tokens-and-secrets.md` (for token details)
 

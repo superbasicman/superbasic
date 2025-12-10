@@ -71,7 +71,7 @@ Core invariants:
 - GDPR-style deletion:
   - Implemented via a script (e.g. `tooling/scripts/gdpr-delete.ts`) that:
     - Walks from `users.id` to:
-      - Auth.js records (`users`, `accounts`, `sessions`, `verification_tokens`).
+      - Auth-core records (`users`, `user_identities`, `auth_sessions`, `refresh_tokens`, `verification_tokens`, `session_transfer_tokens`, `api_keys`).
       - `profiles`.
       - `workspaces` and `workspace_members`.
       - `connections` and bank-access caches.
@@ -507,10 +507,10 @@ Before a production launch:
 - Identity and keys:
 
   - UUIDs everywhere, FK types consistent (`uuid` vs `text` alignment).
-  - Auth.js adapter:
+  - Auth-core:
     - Uses UUID PKs.
     - Stores lowercased emails with unique index (`email_lower`).
-    - Stores only hashed tokens.
+    - Stores only hashed/enveloped tokens (refresh, verification, PATs, session-transfer).
 
 - Constraints:
 

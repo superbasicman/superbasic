@@ -3,8 +3,7 @@ agent/steering/database-structure-identity-and-access.md
 
 This file covers:
 
-- Auth.js identity tables (users, accounts, sessions, verification_tokens)
-- How the Auth.js adapter must be aligned with the DB schema
+- Auth-core identity tables (users, user_identities, auth_sessions, refresh_tokens, verification_tokens, api_keys, session_transfer_tokens)
 - Profiles and subscriptions (domain-level identity, billing linkage)
 - API keys (PATs) and their ownership rules
 
@@ -12,176 +11,28 @@ Use this when you’re touching auth, identity, or per-user access surfaces. RLS
 
 ---
 
-## 1. Auth / Identity (Auth.js Tables)
+## 1. Auth / Identity (auth-core tables)
 
-Auth.js tables are the entry point for identity. They are accessed by a dedicated database role (e.g. `auth_service`) with `BYPASSRLS`. Application traffic uses `app_user` and never touches these tables directly.
+Auth-core owns identity and session tables. Auth.js adapters and schemas are not used in this repo; there is no legacy compatibility requirement.
 
-RLS is intentionally disabled on these tables; security is enforced via:
-
-- Hashed tokens (no plaintext)
-- Strict uniqueness and timestamp contracts
-- Clear separation between `auth_service` and `app_user` roles
-
-### 1.1 users
-
-Represents Auth.js identities.
-
-Core columns:
-
-- `id` — UUID PK.
-- `email` — TEXT, original casing, not used for uniqueness.
-- `email_lower` — TEXT NOT NULL UNIQUE, canonical lowercase email:
-  - Must always be `LOWER(email)`.
-  - This is the only column with a uniqueness constraint for emails.
-- `emailVerified` — TIMESTAMPTZ, optional verification timestamp.
-- `name` — TEXT, optional display name.
-- `image` — TEXT, optional avatar URL.
-- `password_hash` — TEXT, optional:
-  - Stores bcrypt or similar password hashes (e.g. cost 12+).
-  - Never stores plaintext passwords.
-  - Column is NOT NULL when credentials-based login is enabled for the user.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL, maintained via Prisma `@updatedAt`.
-
-Notes:
-
-- Optional non-unique index on `email` can exist for lookups by original casing.
-- Uniqueness must be enforced on `email_lower` only; do not keep a UNIQUE index on `email`.
-
-### 1.2 accounts
-
-Represents OAuth / external accounts linked to a `user`.
-
-Core columns:
-
-- `id` — UUID PK.
-- `user_id` — FK to `users(id)`, NOT NULL.
-- `provider` — TEXT NOT NULL (e.g. `github`, `google`).
-- `provider_account_id` — TEXT NOT NULL, provider-specific account identifier.
-- `refresh_token` — encrypted (never plaintext).
-- `access_token` — encrypted (never plaintext).
-- `expires_at` — TIMESTAMPTZ, optional.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL.
-
-Constraints and indexes:
-
-- `UNIQUE (provider, provider_account_id)` — a user cannot have two rows for the same external account.
-- Indexes on `user_id` (and often `(provider, provider_account_id)` via the UNIQUE index).
-
-### 1.3 sessions (optional DB sessions)
-
-Used when Auth.js is configured with DB-backed sessions instead of (or in addition to) JWT-only sessions.
-
-Core columns:
-
-- `id` — UUID PK.
-- `user_id` — FK to `users(id)`, NOT NULL.
-- `session_token_hash` — JSONB NOT NULL UNIQUE:
-  - Stores a hashed representation of the session token, never plaintext.
-  - Uses the shared JSONB envelope described in `database-structure-tokens-and-secrets.md`.
-- `expires` — TIMESTAMPTZ NOT NULL, session expiration.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL.
-
-Indexes and maintenance:
-
-- Index on `(expires)` for TTL sweeps.
-- Scheduled job purges expired sessions regularly to prevent unbounded growth.
-
-Notes:
-
-- No plaintext `sessionToken` column should exist.
-- Only the token hash envelope and non-sensitive metadata are stored.
-
-### 1.4 verification_tokens
-
-Used for passwordless login, email verification links, etc.
-
-Core columns:
-
-- `id` — UUID PK.
-- `identifier` — TEXT NOT NULL:
-  - Usually an email or similar identifier for the recipient.
-- `token_hash` — JSONB NOT NULL UNIQUE:
-  - Hashed token envelope; no plaintext token storage.
-- `expires` — TIMESTAMPTZ NOT NULL, token expiration time.
-- `created_at` — TIMESTAMPTZ NOT NULL DEFAULT `now()`.
-- `updated_at` — TIMESTAMPTZ NOT NULL.
-
-Indexes and maintenance:
-
-- Index on `(expires)` for TTL sweeps.
-- Periodic job deletes expired verification tokens.
-
-Contract with sessions:
-
-- Both `sessions` and `verification_tokens` use the same token hash envelope format.
-- This allows shared verification/rotation logic and consistent behavior.
-
-### 1.5 Auth.js Adapter Access Pattern
-
-- Auth.js flows run before a user/profile context exists, so:
-  - A dedicated DB role (e.g. `auth_service`) with `BYPASSRLS` owns/queries the Auth.js tables.
-  - Application traffic uses `app_user` with RLS on domain tables.
-- Because these tables are pre-auth and accessed via `auth_service`:
-  - RLS is not enabled on `users`, `accounts`, `sessions`, or `verification_tokens`.
-  - Security relies on:
-    - Hashed tokens.
-    - Strong uniqueness constraints.
-    - Separation between roles.
-
-### 1.6 Adapter Alignment and Verification
-
-The Prisma Auth.js adapter models must mirror the DB contract:
-
-Adapter schema requirements:
-
-- UUID PKs:
-  - All primary keys are UUIDs with `@default(uuid())` (or SQL `gen_random_uuid()`), mapped as `@db.Uuid`.
-- Email:
-  - `email_lower` column is present, `TEXT NOT NULL UNIQUE`.
-  - Legacy email uniqueness constraints on `email` must be dropped to avoid case collisions.
-- Timestamps:
-  - `created_at` and `updated_at` are `TIMESTAMPTZ`.
-  - `created_at` uses `@default(now())`.
-  - `updated_at` uses Prisma `@updatedAt`.
-- Token storage:
-  - Token material is stored only as digests:
-    - `sessions.session_token_hash` (no plaintext session token).
-    - `verification_tokens.token_hash` (no plaintext verification token).
-  - Any plaintext token columns (e.g. `sessionToken`, `token`) must be removed during migration.
-
-Auth.js configuration expectations:
-
-- Adapter must be wired to use the Prisma models as defined above.
-- Custom adapter hooks may be required to:
-  - Ensure `email_lower` is set on user creation (e.g. custom `createUser`).
-  - Hash tokens before persistence (custom session and verification token adapter methods).
-- All tokens follow the canonical format described in `database-structure-tokens-and-secrets.md` (token envelope and HMAC hashing).
-
-Testing expectations (packages/auth):
-
-- Integration tests provision a Neon preview database with the finalized schema.
-- Tests cover:
-  - Email/password sign-up.
-  - OAuth login.
-  - Passwordless login via email magic link.
-  - Email verification flows.
-- Each test asserts:
-  - UUID primary keys are used for all auth entities.
-  - `email_lower` is non-null and unique.
-  - Token hash columns are populated and no plaintext tokens remain.
-- Tests run via:
-  - `pnpm test --filter auth -- --run`
-  - `DATABASE_URL` points to a disposable Neon branch.
-- CI treats these tests as required before migrations touching Auth.js tables can merge.
+- Token model: JWT access tokens (short-lived) + opaque refresh tokens (rotated, hash envelopes) + PATs (opaque, hash envelopes) as described in `docs/auth-migration/end-auth-goal.md`.
+- Key tables:
+  - `users` — canonical auth user; includes default workspace/profile linkage.
+  - `user_identities` — external identity linkage (Google, etc.).
+  - `auth_sessions` — session records with MFA level and device metadata.
+  - `refresh_tokens` — rotated refresh tokens (family_id, last4, hash_envelope, scopes).
+  - `verification_tokens` — opaque tokens for email verification/passwordless flows (hash_envelope).
+  - `session_transfer_tokens` — short-lived tokens to bridge mobile OAuth flows.
+  - `api_keys` — PATs; workspace- or user-scoped with scope arrays and hash_envelope.
+- Access pattern:
+  - Use auth-core repositories/services; do not query these tables directly from apps.
+  - RLS/GUCs: set `app.user_id`, `app.profile_id` (when applicable), `app.workspace_id`, `app.mfa_level`, `app.service_id` per request; clear between pool usages.
 
 ---
 
 ## 2. Profiles
 
-Profiles represent domain-level identity and preferences, distinct from Auth.js `users`. All core application tables use `profiles.id` (not `users.id`) as the key for ownership.
+Profiles represent domain-level identity and preferences, distinct from auth-core `users`. All core application tables use `profiles.id` (not `users.id`) as the key for ownership.
 
 Table: `profiles`
 
@@ -189,7 +40,7 @@ Core columns:
 
 - `id` — UUID PK.
 - `user_id` — FK to `users(id)` NOT NULL, UNIQUE:
-  - v1 assumption: one profile per Auth.js user.
+  - v1 assumption: one profile per auth-core user.
 - `timezone` — TEXT:
   - User’s preferred timezone; used for date bucketing and UI defaults.
 - `currency` — `VARCHAR(3) CHECK (char_length(currency) = 3)`:
@@ -360,7 +211,7 @@ These invariants must hold across all identity/access tables:
   - All rows have `created_at` (and usually `updated_at`) as `TIMESTAMPTZ`.
 - RLS:
   - Domain-level identity (profiles, api_keys, subscriptions) is protected via RLS and GUC-based context.
-  - Auth.js tables remain outside RLS but use separate roles.
+  - Auth-core tables are accessed via auth-core services with GUC-based context; do not bypass RLS with separate adapter roles.
 
 For security-sensitive changes (e.g., token format or schema changes to these tables), always load:
 

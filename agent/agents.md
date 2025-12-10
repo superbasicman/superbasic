@@ -17,9 +17,10 @@ Treat this section as the per-chat system prompt for any work in this repo.
 - SuperBasic Finance is an **API-first personal finance platform** in a TypeScript **pnpm/Turborepo** monorepo.
 - The **web app** is a thin **React SPA** that only talks to a typed **`/v1` JSON API** generated from **Zod → OpenAPI 3.1**.
 - **Identity vs domain:**
-  - Auth.js adapter currently owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`); see `docs/auth-migration/end-auth-goal.md` for the target auth-core ownership during the migration.
+  - Auth-core owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`) per `docs/auth-migration/end-auth-goal.md`; no Auth.js adapter or legacy compatibility is needed in this repo.
   - Domain starts at `profiles.id` and flows:
-    `profiles → workspaces → connections → bank_accounts → transactions → overlays`.
+    - Profiles own connections (banks) and bank accounts: `profiles → connections → bank_accounts → transactions → overlays`.
+    - Workspaces link to connections to decide which banks are available per workspace; views then filter transactions (by accounts, date, name, include/exclude, custom rules).
 - **Ledger invariants:**
   - `transactions` are **append-only / immutable**; user edits live in overlay / adjustment tables, not direct row mutation.
   - Everything is **multi-tenant** and protected by **Postgres RLS** using `current_setting('app.user_id'/'app.profile_id'/'app.workspace_id')`.

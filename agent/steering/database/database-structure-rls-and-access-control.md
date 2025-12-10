@@ -110,7 +110,7 @@ Background jobs:
 
 ## 3. Tables Under RLS and FORCE RLS
 
-RLS is enabled and forced for all user-facing application tables, plus internal caches, except Auth.js tables (which are isolated behind `auth_service`).
+RLS is enabled and forced for all user-facing application tables, plus internal caches; auth-core tables use the same GUC-based context and are not bypassed.
 
 RLS is enabled/forced on:
 
@@ -171,18 +171,7 @@ RLS is enabled/forced on:
   - `budget_envelopes`
   - `budget_actuals`
 
-Auth.js adapter tables are intentionally **not** under RLS:
-
-- `users`
-- `accounts`
-- `sessions`
-- `verification_tokens`
-
-They are protected instead via:
-
-- Isolation behind a dedicated `auth_service` DB role.
-- Hashed tokens.
-- Application-level access control.
+Auth-core tables (`users`, `user_identities`, `auth_sessions`, `refresh_tokens`, `verification_tokens`, `session_transfer_tokens`, `api_keys`) follow the same GUC-based RLS approach; no BYPASSRLS adapter role is used.
 
 For the exact `ALTER TABLE ... ENABLE ROW LEVEL SECURITY;` and `FORCE ROW LEVEL SECURITY` statements, see:
 
@@ -394,12 +383,6 @@ We use distinct roles for separation of concerns:
 
   - Cannot modify RLS policies or schema.
 
-- `auth_service`:
-
-  - Used by Auth.js flows, separate from `app_user`.
-  - May have `BYPASSRLS` on Auth.js tables (`users`, `accounts`, `sessions`, `verification_tokens`).
-  - Kept behind a separate connection pool or logical service.
-
 - `maintenance_user` (optional):
 
   - Used for maintenance/TTL jobs.
@@ -462,11 +445,6 @@ Checklist (implemented via scripts/tests described in `database-structure-migrat
   - Playwright or equivalent tests the main flows (dashboards, overlays, budgets, sharing, view links) under each role plus link-based access.
   - Confirm:
     - SDK/API handle denied responses gracefully.
-
-Auth.js tables:
-
-- Run under `auth_service` with `BYPASSRLS`.
-- They are intentionally excluded from the RLS coverage checklist.
 
 ---
 

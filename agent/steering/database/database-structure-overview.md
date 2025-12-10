@@ -1,8 +1,8 @@
-# SuperBasic Finance — Database Schema Overview (Auth.js + Prisma 6 + Neon)
+# SuperBasic Finance — Database Schema Overview (Auth-core + Prisma 6 + Neon)
 
 API-first, multi-tenant, append-only finance DB.
 
-- Auth.js handles identity; domain logic keys off `profiles.id`.
+- Auth-core handles identity; domain logic keys off `profiles.id`.
 - Transactions are immutable; edits live in overlays.
 - Workspaces enable collaboration via scoped connection-links.
 - All bearer tokens are hashed; provider secrets are encrypted.
@@ -23,8 +23,7 @@ This file gives you the big-picture shape of the database and the core conventio
 ### 1.2 IDs
 
 - All primary keys use UUID v4.
-- Auth.js adapter models are aligned to UUIDs:
-  - Prisma models for Auth.js tables use `@default(uuid())` and `@db.Uuid` (or `gen_random_uuid()` at the SQL layer).
+- Auth-core models use `@default(uuid())` and `@db.Uuid` (or `gen_random_uuid()` at the SQL layer).
 - Foreign keys must use the same UUID type; no mixing of text/UUID.
 
 ### 1.3 Timestamps
@@ -70,22 +69,22 @@ All monetary values follow a strict pattern:
 - GIN indexes are added only when a JSONB column is on a hot query path.
 - Prefer `jsonb_path_ops` GIN when queries use `@>` containment.
 
-### 1.6 Auth.js Tables and Access
+### 1.6 Auth-core Tables and Access
 
-- Auth tables:
+- Auth-core tables:
   - `users`
-  - `accounts`
-  - `sessions` (if using DB sessions)
+  - `user_identities`
+  - `auth_sessions`
+  - `refresh_tokens`
   - `verification_tokens`
+  - `session_transfer_tokens`
+  - `api_keys`
 - These tables:
-  - Store hashed tokens (never plaintext).
+  - Store hashed/enveloped tokens (never plaintext).
   - Use `TIMESTAMPTZ` timestamps (`created_at` / `updated_at` / `expires`).
-  - Are accessed by a dedicated database role (e.g. `auth_service`) with `BYPASSRLS`.
-- RLS is **not** enabled on Auth.js tables:
-  - They are protected by hashed tokens, strict adapter usage, and separation between the auth role and the general `app_user` role.
-- Application traffic:
-  - Uses `app_user` with RLS enabled on domain tables.
-  - Never connects using `auth_service` credentials.
+  - Are accessed via the standard `app_user` role under the same GUC-based RLS context.
+- RLS:
+  - RLS/GUCs apply consistently; no BYPASSRLS adapter role is used.
 
 ### 1.7 RLS GUCs and Session Context
 
@@ -175,14 +174,13 @@ These principles guide every schema, constraint, and policy:
 
 2. **Profile-centric domain**
    - Domain tables key ownership off `profiles.id`, not `users.id`.
-   - Auth.js `users` represent identity; `profiles` represent domain-level presence and preferences (timezone, currency, etc.).
+   - Auth-core `users` represent identity; `profiles` represent domain-level presence and preferences (timezone, currency, etc.).
    - Many entities reference `profile_id` rather than `user_id` to allow future multi-profile-per-user patterns.
 
 3. **Workspace collaboration**
    - Collaboration flows through `workspaces` and `workspace_members`.
-   - Access to connections/accounts and transactions in a workspace is controlled via:
-     - `workspace_connection_links` (JSON account scopes) and
-     - `workspace_allowed_accounts` (normalized account scopes).
+   - Connections (banks) are owned by a profile; workspaces link to connections to choose which banks are available per workspace.
+   - Views then filter transactions (by accounts, date, name, include/exclude, custom rules) to shape what is shown.
    - RLS and application logic assume this graph is the single source of truth for workspace visibility.
 
 4. **Deterministic uniqueness**
@@ -202,10 +200,12 @@ These principles guide every schema, constraint, and policy:
 This is the conceptual layout of the main tables and how they hang together. Use it to orient yourself before jumping into specific table specs.
 
 `db`
-- `users` — Auth.js identities (UUID PK)
-  - `accounts` (FK `users.id`) — OAuth accounts
-  - `sessions` (FK `users.id`) — optional DB-backed sessions
-  - `verification_tokens` — passwordless and email flows (hashed)
+- `users` — auth-core identities (UUID PK)
+  - `user_identities` (FK `users.id`) — external IdP links
+  - `auth_sessions` (FK `users.id`) — sessions with MFA level
+  - `refresh_tokens` — rotated, hashed refresh tokens
+  - `verification_tokens` — passwordless and email flows (hashed envelope)
+  - `session_transfer_tokens` — short-lived tokens for mobile → browser auth
 - `profiles` (FK `users.id`) — user metadata (timezone, currency, settings)
   - `api_keys` (FK `users.id`, `profiles.id`, optionally `workspaces.id`) — hashed PATs + scopes
   - `subscriptions` (FK `profiles.id`) — Stripe linkage + slot limits

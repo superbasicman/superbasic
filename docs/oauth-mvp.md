@@ -18,7 +18,6 @@ Goal: single OAuth 2.1 path for the web dashboard, matching `docs/auth-migration
 5) Server validates PKCE + auth code, creates a session, issues:
    - `access_token` (JWT, short-lived, in-memory)
    - `refresh_token` (opaque, HttpOnly cookie)
-   - Session cookie (`authjs.session-token`) for server-side session continuity.
 6) SPA stores the access token in memory and uses it for Bearer auth. Refresh uses the cookie via `/v1/oauth/token` (`grant_type=refresh_token`).
 
 ## Error handling
