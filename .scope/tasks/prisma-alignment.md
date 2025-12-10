@@ -109,7 +109,7 @@
 60. [x] packages/core/src/profiles/profile-service.ts
 
 // ===== packages/core/src/profiles/__tests__ =====
-61. [ ] packages/core/src/profiles/__tests__/profile-repository.test.ts
+61. [ok] packages/core/src/profiles/__tests__/profile-repository.test.ts
 62. [x] packages/core/src/profiles/__tests__/profile-service.test.ts
 
 // ===== packages/core/src/security =====
@@ -120,10 +120,10 @@
 65. [x] packages/core/src/tokens/token-service.ts
 
 // ===== packages/core/src/tokens/__tests__ =====
-66. [ ] packages/core/src/tokens/__tests__/token-repository.test.ts
+66. [ok] packages/core/src/tokens/__tests__/token-repository.test.ts
 
 // ===== packages/core/src/users =====
-67. [ ] packages/core/src/users/user-repository.ts
+67. [ok] packages/core/src/users/user-repository.ts
 
 // ===== packages/core/src/users/__tests__ =====
 68. [ ] packages/core/src/users/__tests__/user-repository.test.ts
