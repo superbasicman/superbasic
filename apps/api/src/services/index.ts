@@ -47,9 +47,12 @@ export const oauthClientRepository = new PrismaOAuthClientRepository(prisma);
 export const profileService = new ProfileService(profileRepository, userRepository);
 export const userService = new UserService(userRepository, authEvents);
 export const verificationService = new VerificationService(
-  prisma,
   verificationRepository,
-  authEvents
+  authEvents,
+  {
+    findByEmail: (email: string) => userRepository.findByEmail(email),
+    markEmailVerified: (userId: string) => userRepository.markEmailVerified(userId),
+  }
 );
 export const tokenService = new TokenService(tokenRepository, authEvents);
 

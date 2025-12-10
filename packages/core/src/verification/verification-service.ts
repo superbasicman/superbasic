@@ -5,7 +5,6 @@
  * Handles token creation, verification, and resend flows
  */
 
-import type { PrismaClient } from '@repo/database';
 import {
   createOpaqueToken,
   createTokenHashEnvelope,
@@ -37,9 +36,12 @@ interface AuthEvents {
 
 export class VerificationService {
   constructor(
-    private prisma: PrismaClient,
     private verificationRepo: VerificationRepository,
-    private authEvents: AuthEvents
+    private authEvents: AuthEvents,
+    private userRepo: {
+      findByEmail: (email: string) => Promise<{ id: string; emailVerified: boolean } | null>;
+      markEmailVerified: (userId: string) => Promise<void>;
+    }
   ) {}
 
   /**
@@ -133,12 +135,7 @@ export class VerificationService {
     }
 
     // Find user by email
-    const user = await this.prisma.user.findFirst({
-      where: {
-        primaryEmail: tokenRecord.identifier,
-        deletedAt: null,
-      },
-    });
+    const user = await this.userRepo.findByEmail(tokenRecord.identifier);
 
     if (!user) {
       throw new UserNotFoundForVerificationError();
@@ -150,17 +147,8 @@ export class VerificationService {
     }
 
     // Transaction: mark token consumed and user verified
-    await this.prisma.$transaction(async (tx) => {
-      await tx.verificationToken.update({
-        where: { id: tokenRecord.id },
-        data: { consumedAt: new Date() },
-      });
-
-      await tx.user.update({
-        where: { id: user.id },
-        data: { emailVerified: true },
-      });
-    });
+    await this.verificationRepo.markConsumed(tokenRecord.id);
+    await this.userRepo.markEmailVerified(user.id);
 
     // Emit audit event
     this.authEvents.emit({
@@ -188,12 +176,7 @@ export class VerificationService {
     const normalizedEmail = params.email.toLowerCase().trim();
 
     // Find user
-    const user = await this.prisma.user.findFirst({
-      where: {
-        primaryEmail: normalizedEmail,
-        deletedAt: null,
-      },
-    });
+    const user = await this.userRepo.findByEmail(normalizedEmail);
 
     // Don't reveal if user exists
     if (!user) {

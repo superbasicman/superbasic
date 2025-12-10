@@ -273,6 +273,13 @@ export class UserRepository {
     });
   }
 
+  async markEmailVerified(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { emailVerified: true },
+    });
+  }
+
   /**
    * Update display name for a user
    */

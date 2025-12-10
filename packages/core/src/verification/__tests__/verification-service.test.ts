@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { VerificationService } from '../verification-service.js';
-import { VerificationRepository } from '../verification-repository.js';
+import type { VerificationRepository } from '../verification-repository.js';
 import {
   TokenExpiredError,
   TokenInvalidError,
@@ -41,7 +41,10 @@ vi.mock('@repo/auth', () => ({
 describe('VerificationService', () => {
   let service: VerificationService;
   let mockVerificationRepo: VerificationRepository;
-  let mockPrisma: any;
+  let mockUserRepo: {
+    findByEmail: ReturnType<typeof vi.fn>;
+    markEmailVerified: ReturnType<typeof vi.fn>;
+  };
   let mockAuthEvents: any;
 
   beforeEach(() => {
@@ -62,27 +65,16 @@ describe('VerificationService', () => {
       invalidateAllForEmail: vi.fn(),
     } as unknown as VerificationRepository;
 
-    mockPrisma = {
-      user: {
-        findFirst: vi.fn(),
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-      verificationToken: {
-        update: vi.fn(),
-      },
-      $transaction: vi.fn((callback: Function) => callback(mockPrisma)),
+    mockUserRepo = {
+      findByEmail: vi.fn(),
+      markEmailVerified: vi.fn(),
     };
 
     mockAuthEvents = {
       emit: vi.fn(),
     };
 
-    service = new VerificationService(
-      mockPrisma,
-      mockVerificationRepo,
-      mockAuthEvents
-    );
+    service = new VerificationService(mockVerificationRepo, mockAuthEvents, mockUserRepo);
   });
 
   describe('createEmailVerificationToken', () => {
@@ -153,7 +145,7 @@ describe('VerificationService', () => {
       (mockVerificationRepo.findByTokenId as any).mockResolvedValue(
         mockTokenRecord
       );
-      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockUserRepo.findByEmail.mockResolvedValue(mockUser);
 
       const result = await service.verifyEmailToken({
         token: 'ev_mock-token-id.mock-token-secret',
@@ -238,7 +230,7 @@ describe('VerificationService', () => {
       (mockVerificationRepo.findByTokenId as any).mockResolvedValue(
         mockTokenRecord
       );
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockUserRepo.findByEmail.mockResolvedValue(null);
 
       await expect(
         service.verifyEmailToken({ token: 'ev_mock-token-id.mock-token-secret' })
@@ -265,7 +257,7 @@ describe('VerificationService', () => {
       (mockVerificationRepo.findByTokenId as any).mockResolvedValue(
         mockTokenRecord
       );
-      mockPrisma.user.findFirst.mockResolvedValue(mockUser);
+      mockUserRepo.findByEmail.mockResolvedValue(mockUser);
 
       await expect(
         service.verifyEmailToken({ token: 'ev_mock-token-id.mock-token-secret' })
@@ -275,7 +267,7 @@ describe('VerificationService', () => {
 
   describe('resendVerificationEmail', () => {
     it('should return null if user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
+      mockUserRepo.findByEmail.mockResolvedValue(null);
 
       const result = await service.resendVerificationEmail({
         email: 'nonexistent@example.com',
@@ -285,7 +277,7 @@ describe('VerificationService', () => {
     });
 
     it('should return null if email already verified', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
+      mockUserRepo.findByEmail.mockResolvedValue({
         id: 'user-id',
         primaryEmail: 'test@example.com',
         emailVerified: true,
@@ -299,7 +291,7 @@ describe('VerificationService', () => {
     });
 
     it('should invalidate old tokens and create new one', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
+      mockUserRepo.findByEmail.mockResolvedValue({
         id: 'user-id',
         primaryEmail: 'test@example.com',
         emailVerified: false,
