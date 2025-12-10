@@ -3,15 +3,18 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ensureProfileExists } from '../profile.js';
-import { authService } from '@repo/auth-core';
 
-// Mock authService to avoid hitting Prisma directly in unit tests
+const { mockEnsureProfileExists } = vi.hoisted(() => {
+  return { mockEnsureProfileExists: vi.fn() };
+});
+
 vi.mock('@repo/auth-core', () => ({
-  authService: {
-    ensureProfileExists: vi.fn(),
-  },
+  createAuthService: vi.fn(() => Promise.resolve({
+    ensureProfileExists: mockEnsureProfileExists,
+  })),
 }));
+
+import { ensureProfileExists } from '../profile.js';
 
 describe('ensureProfileExists', () => {
   beforeEach(() => {
@@ -23,24 +26,24 @@ describe('ensureProfileExists', () => {
     const profileId = 'profile-456';
 
     // Mock existing profile
-    vi.mocked(authService.ensureProfileExists).mockResolvedValue(profileId);
+    mockEnsureProfileExists.mockResolvedValue(profileId);
 
     const result = await ensureProfileExists(userId);
 
     expect(result).toBe(profileId);
-    expect(authService.ensureProfileExists).toHaveBeenCalledWith(userId);
+    expect(mockEnsureProfileExists).toHaveBeenCalledWith(userId);
   });
 
   it('should create new profile if none exists', async () => {
     const userId = 'user-789';
     const newProfileId = 'profile-new-123';
 
-    vi.mocked(authService.ensureProfileExists).mockResolvedValue(newProfileId);
+    mockEnsureProfileExists.mockResolvedValue(newProfileId);
 
     const result = await ensureProfileExists(userId);
 
     expect(result).toBe(newProfileId);
-    expect(authService.ensureProfileExists).toHaveBeenCalledWith(userId);
+    expect(mockEnsureProfileExists).toHaveBeenCalledWith(userId);
   });
 
   it('should be idempotent - safe to call multiple times', async () => {
@@ -48,7 +51,7 @@ describe('ensureProfileExists', () => {
     const profileId = 'profile-same';
 
     // Mock existing profile on all calls
-    vi.mocked(authService.ensureProfileExists).mockResolvedValue(profileId);
+    mockEnsureProfileExists.mockResolvedValue(profileId);
 
     // Call multiple times
     const result1 = await ensureProfileExists(userId);
@@ -61,6 +64,6 @@ describe('ensureProfileExists', () => {
     expect(result3).toBe(profileId);
 
     // Should only check for existing profile, never create
-    expect(authService.ensureProfileExists).toHaveBeenCalledTimes(3);
+    expect(mockEnsureProfileExists).toHaveBeenCalledTimes(3);
   });
 });

@@ -74,11 +74,11 @@
 // (Shared test infra – *optionally* OK to use Prisma directly)
 41. [ok] apps/api/src/test/helpers.ts
 42. [ok] apps/api/src/test/infrastructure.test.ts
-43. [ ] apps/api/src/test/README.md
+43. [x] apps/api/src/test/README.md
 44. [ok] apps/api/src/test/setup.ts
 
 // ===== docs =====
-45. [ ] docs/vercel-deployment-guide.md
+45. [x] docs/vercel-deployment-guide.md
 
 // ===== packages/auth =====
 46. [x] packages/auth/package.json
@@ -91,18 +91,18 @@
 49. [x] packages/auth/src/__tests__/profile.test.ts
 
 // ===== packages/auth-core/src =====
-50. [ ] packages/auth-core/src/json.ts
-51. [ ] packages/auth-core/src/oauth-client-auth.ts
-52. [ ] packages/auth-core/src/oauth-clients.ts
-53. [ ] packages/auth-core/src/service.ts
-54. [ ] packages/auth-core/src/token-service.ts
+50. [x] packages/auth-core/src/json.ts
+51. [x] packages/auth-core/src/oauth-client-auth.ts
+52. [x] packages/auth-core/src/oauth-clients.ts
+53. [x] packages/auth-core/src/service.ts
+54. [x] packages/auth-core/src/token-service.ts
 
 
 // ===== packages/auth-core/src/__tests__ =====
-55. [ ] packages/auth-core/src/__tests__/auth-context.test.ts
-56. [ ] packages/auth-core/src/__tests__/auth-service.test.ts
-57. [ ] packages/auth-core/src/__tests__/oauth-clients.test.ts
-58. [ ] packages/auth-core/src/__tests__/token-service.test.ts
+55. [x] packages/auth-core/src/__tests__/auth-context.test.ts
+56. [x] packages/auth-core/src/__tests__/auth-service.test.ts
+57. [x] packages/auth-core/src/__tests__/oauth-clients.test.ts
+58. [x] packages/auth-core/src/__tests__/token-service.test.ts
 
 // ===== packages/core/src/profiles =====
 59. [ ] packages/core/src/profiles/profile-repository.ts

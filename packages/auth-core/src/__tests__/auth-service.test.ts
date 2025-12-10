@@ -1,9 +1,16 @@
 import { generateKeyPairSync } from 'node:crypto';
 import * as authLib from '@repo/auth';
-import type { ApiKey, PrismaClient } from '@repo/database';
+import type { PrismaClient } from '@repo/database';
 import { SignJWT, exportJWK } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthorizationError, InactiveUserError, UnauthorizedError } from '../errors.js';
+import type {
+  ApiKeyRepository,
+  AuthProfileRepository,
+  AuthSessionRepository,
+  AuthUserRepository,
+  WorkspaceMembershipRepository,
+} from '../interfaces.js';
 import { AuthCoreService } from '../service.js';
 import { type SigningKey, SigningKeyStore, signAccessToken } from '../signing.js';
 import type { TokenHashEnvelope } from '../types.js';
@@ -16,27 +23,26 @@ const OTHER_WORKSPACE_ID = '22222222-2222-4222-8222-222222222222';
 describe('AuthCoreService.verifyRequest', () => {
   let signingKey: SigningKey;
   let keyStore: SigningKeyStore;
-  type PrismaStub = {
-    user: {
-      findUnique: ReturnType<typeof vi.fn>;
-    };
-    authSession: {
-      findUnique: ReturnType<typeof vi.fn>;
-    };
-    workspaceMember: {
-      findFirst: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-    };
-    apiKey: {
-      create: ReturnType<typeof vi.fn>;
-      findUnique: ReturnType<typeof vi.fn>;
-      update: ReturnType<typeof vi.fn>;
-    };
-  };
-  let prismaStub: PrismaStub;
+
+  // Mocks
+  const mockUserRepo = { findById: vi.fn() } as unknown as AuthUserRepository;
+  const mockSessionRepo = { findById: vi.fn() } as unknown as AuthSessionRepository;
+  const mockMembershipRepo = {
+    findManyByUserId: vi.fn(),
+    findFirst: vi.fn(),
+  } as unknown as WorkspaceMembershipRepository;
+  const mockApiKeyRepo = {
+    findById: vi.fn(),
+    create: vi.fn(),
+    revoke: vi.fn(),
+  } as unknown as ApiKeyRepository;
+  const mockProfileRepo = { ensureExists: vi.fn() } as unknown as AuthProfileRepository;
+
   let setContextMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    vi.resetAllMocks();
+
     const { privateKey, publicKey } = generateKeyPairSync('ed25519');
     signingKey = {
       kid: 'test-key',
@@ -47,23 +53,6 @@ describe('AuthCoreService.verifyRequest', () => {
     };
     keyStore = new SigningKeyStore([signingKey], signingKey.kid);
     setContextMock = vi.fn().mockResolvedValue(undefined);
-    prismaStub = {
-      user: {
-        findUnique: vi.fn(),
-      },
-      authSession: {
-        findUnique: vi.fn(),
-      },
-      workspaceMember: {
-        findFirst: vi.fn().mockResolvedValue(null),
-        findMany: vi.fn().mockResolvedValue([]),
-      },
-      apiKey: {
-        create: vi.fn(),
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-    };
   });
 
   it('returns AuthContext for a valid token and session', async () => {
@@ -73,7 +62,12 @@ describe('AuthCoreService.verifyRequest', () => {
       { userId: 'user-123', sessionId: 'session-123' }
     );
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -81,20 +75,21 @@ describe('AuthCoreService.verifyRequest', () => {
       setContext: setContextMock,
     });
 
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-123',
       userState: 'active',
-      profile: { id: 'profile-123' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-123',
     });
-    prismaStub.authSession.findUnique.mockResolvedValue({
+    vi.mocked(mockSessionRepo.findById).mockResolvedValue({
       id: 'session-123',
       userId: 'user-123',
-      clientType: 'web',
       expiresAt: new Date(Date.now() + 60_000),
-      absoluteExpiresAt: new Date(Date.now() + 120_000),
       revokedAt: null,
       mfaLevel: 'none',
+      clientInfo: { type: 'web' },
     });
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
 
     const context = await service.verifyRequest({
       authorizationHeader: `Bearer ${tokenResult.token}`,
@@ -112,7 +107,7 @@ describe('AuthCoreService.verifyRequest', () => {
       requestId: 'req-1',
       mfaLevel: 'none',
     });
-    expect(setContextMock).toHaveBeenCalledWith(prismaStub, {
+    expect(setContextMock).toHaveBeenCalledWith(expect.anything(), {
       userId: 'user-123',
       profileId: 'profile-123',
       workspaceId: null,
@@ -128,7 +123,12 @@ describe('AuthCoreService.verifyRequest', () => {
       { userId: 'user-abc', sessionId: 'session-abc' }
     );
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -136,23 +136,26 @@ describe('AuthCoreService.verifyRequest', () => {
       setContext: setContextMock,
     });
 
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-abc',
       userState: 'active',
-      profile: { id: 'profile-abc' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-abc',
     });
-    prismaStub.authSession.findUnique.mockResolvedValue({
+    vi.mocked(mockSessionRepo.findById).mockResolvedValue({
       id: 'session-abc',
       userId: 'user-abc',
-      clientType: 'web',
       expiresAt: new Date(Date.now() + 60_000),
-      absoluteExpiresAt: new Date(Date.now() + 120_000),
       revokedAt: null,
       mfaLevel: 'none',
+      clientInfo: { type: 'web' },
     });
-    prismaStub.workspaceMember.findFirst.mockImplementation(
-      async (args: { where?: { workspaceId?: string } }) => {
-        if (args.where?.workspaceId === WORKSPACE_ID) {
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([
+      { workspaceId: WORKSPACE_ID, role: 'owner' },
+    ]);
+    vi.mocked(mockMembershipRepo.findFirst).mockImplementation(
+      async (_userId: string, workspaceId: string) => {
+        if (workspaceId === WORKSPACE_ID) {
           return { workspaceId: WORKSPACE_ID, role: 'owner' };
         }
         return null;
@@ -181,7 +184,12 @@ describe('AuthCoreService.verifyRequest', () => {
       { userId: 'user-def', sessionId: 'session-def' }
     );
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -189,21 +197,22 @@ describe('AuthCoreService.verifyRequest', () => {
       setContext: setContextMock,
     });
 
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-def',
       userState: 'active',
-      profile: { id: 'profile-def' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-def',
     });
-    prismaStub.authSession.findUnique.mockResolvedValue({
+    vi.mocked(mockSessionRepo.findById).mockResolvedValue({
       id: 'session-def',
       userId: 'user-def',
-      clientType: 'web',
       expiresAt: new Date(Date.now() + 60_000),
-      absoluteExpiresAt: new Date(Date.now() + 120_000),
       revokedAt: null,
       mfaLevel: 'none',
+      clientInfo: { type: 'web' },
     });
-    prismaStub.workspaceMember.findFirst.mockResolvedValue(null);
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue(null);
 
     await expect(
       service.verifyRequest({
@@ -220,7 +229,12 @@ describe('AuthCoreService.verifyRequest', () => {
       { userId: 'user-ghi', sessionId: 'session-ghi', workspaceId: OTHER_WORKSPACE_ID }
     );
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -228,22 +242,22 @@ describe('AuthCoreService.verifyRequest', () => {
       setContext: setContextMock,
     });
 
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-ghi',
       userState: 'active',
-      profile: { id: 'profile-ghi' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-ghi',
     });
-    prismaStub.authSession.findUnique.mockResolvedValue({
+    vi.mocked(mockSessionRepo.findById).mockResolvedValue({
       id: 'session-ghi',
       userId: 'user-ghi',
-      clientType: 'web',
       expiresAt: new Date(Date.now() + 60_000),
-      absoluteExpiresAt: new Date(Date.now() + 120_000),
       revokedAt: null,
       mfaLevel: 'none',
+      clientInfo: { type: 'web' },
     });
-    prismaStub.workspaceMember.findFirst.mockResolvedValue(null);
-    prismaStub.workspaceMember.findMany.mockResolvedValue([
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue(null);
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([
       { workspaceId: WORKSPACE_ID, role: 'admin' },
       { workspaceId: OTHER_WORKSPACE_ID, role: 'viewer' },
     ]);
@@ -292,23 +306,29 @@ describe('AuthCoreService.verifyRequest', () => {
       .setAudience(AUDIENCE)
       .sign(oldPrivateKey);
 
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-rotated',
       userState: 'active',
-      profile: { id: 'profile-rotated' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-rotated',
     });
-    prismaStub.authSession.findUnique.mockResolvedValue({
+    vi.mocked(mockSessionRepo.findById).mockResolvedValue({
       id: 'session-rotated',
       userId: 'user-rotated',
-      clientType: 'web',
       expiresAt: new Date(Date.now() + 60_000),
-      absoluteExpiresAt: new Date(Date.now() + 120_000),
       revokedAt: null,
       mfaLevel: 'none',
+      clientInfo: { type: 'web' },
     });
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore: rotatedKeyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -332,7 +352,12 @@ describe('AuthCoreService.verifyRequest', () => {
     );
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -340,10 +365,11 @@ describe('AuthCoreService.verifyRequest', () => {
       setContext: setContextMock,
     });
 
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-999',
       userState: 'disabled',
-      profile: null,
+      primaryEmail: 'user@example.com',
+      profileId: null,
     });
 
     await expect(
@@ -369,9 +395,12 @@ describe('AuthCoreService.verifyRequest', () => {
     );
 
     const service = new AuthCoreService({
-      prisma: {
-        workspaceMember: { findMany: vi.fn(), findFirst: vi.fn() },
-      } as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -406,18 +435,24 @@ describe('AuthCoreService PAT issuance and revocation', () => {
   const ISSUER = 'http://localhost:3000';
   const AUDIENCE = `${ISSUER}/v1`;
   let keyStore: SigningKeyStore;
-  let prismaStub: {
-    user: {
-      findUnique: ReturnType<typeof vi.fn>;
-    };
-    apiKey: {
-      create: ReturnType<typeof vi.fn>;
-      findUnique: ReturnType<typeof vi.fn>;
-      update: ReturnType<typeof vi.fn>;
-    };
-  };
+
+  // Mocks
+  const mockUserRepo = { findById: vi.fn() } as unknown as AuthUserRepository;
+  const mockSessionRepo = { findById: vi.fn() } as unknown as AuthSessionRepository;
+  const mockMembershipRepo = {
+    findManyByUserId: vi.fn(),
+    findFirst: vi.fn(),
+  } as unknown as WorkspaceMembershipRepository;
+  const mockApiKeyRepo = {
+    findById: vi.fn(),
+    create: vi.fn(),
+    revoke: vi.fn(),
+  } as unknown as ApiKeyRepository;
+  const mockProfileRepo = { ensureExists: vi.fn() } as unknown as AuthProfileRepository;
 
   beforeEach(async () => {
+    vi.resetAllMocks();
+
     const { privateKey, publicKey } = generateKeyPairSync('ed25519');
     keyStore = new SigningKeyStore(
       [
@@ -431,17 +466,6 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       ],
       'test-key'
     );
-
-    prismaStub = {
-      user: {
-        findUnique: vi.fn(),
-      },
-      apiKey: {
-        create: vi.fn(),
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-    };
   });
 
   afterEach(() => {
@@ -465,36 +489,30 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue(hashEnvelope);
 
     const expiresAt = new Date('2025-04-01T00:00:00.000Z');
-    const createdApiKey: ApiKey = {
+
+    vi.mocked(mockApiKeyRepo.create).mockResolvedValue({
       id: 'pat_token',
       userId: 'user-123',
-      workspaceId: 'workspace-1',
-      keyHash: hashEnvelope,
       scopes: ['read:transactions'],
       name: 'CLI token',
-      last4: 't-abc',
-      lastUsedAt: null,
+      workspaceId: 'workspace-1',
       expiresAt,
-      revokedAt: null,
-      createdAt: new Date('2025-03-01T00:00:00.000Z'),
-      updatedAt: new Date('2025-03-01T00:00:00.000Z'),
-      // ApiKey schema fields
-      issuedAt: new Date('2025-03-01T00:00:00.000Z'),
-      createdByIp: null,
-      lastUsedIp: null,
-      userAgent: null,
-      metadata: null,
-    };
+    });
 
-    prismaStub.apiKey.create.mockResolvedValue(createdApiKey);
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-123',
       userState: 'active',
-      profile: { id: 'profile-1' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-1',
     });
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -509,8 +527,8 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       expiresAt,
     });
 
-    expect(prismaStub.apiKey.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockApiKeyRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
         id: 'pat_token',
         userId: 'user-123',
         workspaceId: 'workspace-1',
@@ -518,10 +536,9 @@ describe('AuthCoreService PAT issuance and revocation', () => {
         scopes: ['read:transactions'],
         name: 'CLI token',
         expiresAt,
-        revokedAt: null,
         last4: expect.any(String),
-      }),
-    });
+      })
+    );
 
     expect(issued).toEqual({
       tokenId: 'pat_token',
@@ -548,7 +565,12 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     } satisfies TokenHashEnvelope);
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -563,22 +585,40 @@ describe('AuthCoreService PAT issuance and revocation', () => {
         expiresAt: new Date('invalid'),
       })
     ).rejects.toThrow('expiresAt must be a valid Date instance');
-    expect(prismaStub.apiKey.create).not.toHaveBeenCalled();
+    expect(mockApiKeyRepo.create).not.toHaveBeenCalled();
   });
 
   it('revokes a token and records revocation metadata', async () => {
     const now = new Date('2025-05-01T00:00:00.000Z');
     vi.useFakeTimers({ now });
 
-    prismaStub.apiKey.findUnique.mockResolvedValue({
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: 'tok_pat',
+      userId: 'user-123',
+      keyHash: {
+        algo: 'hmac-sha256',
+        keyId: 'test',
+        hash: 'hashed',
+        issuedAt: new Date().toISOString(),
+      },
+      scopes: [],
+      name: 'cli',
+      workspaceId: null,
+      expiresAt: new Date(),
       revokedAt: null,
+      createdAt: new Date(),
+      user: { id: 'user-123', userState: 'active' },
     });
 
-    prismaStub.apiKey.update.mockResolvedValue({});
+    vi.mocked(mockApiKeyRepo.revoke).mockResolvedValue(undefined);
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -591,25 +631,35 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       revokedBy: 'admin-1',
     });
 
-    expect(prismaStub.apiKey.update).toHaveBeenCalledTimes(1);
-    const updateArg = prismaStub.apiKey.update.mock.calls[0]?.[0];
-    const revokedAt = updateArg?.data.revokedAt;
-
-    expect(updateArg).toMatchObject({
-      where: { id: 'tok_pat' },
-    });
-    expect(revokedAt).toBeInstanceOf(Date);
+    expect(mockApiKeyRepo.revoke).toHaveBeenCalledWith('tok_pat');
   });
 
   it('is idempotent when token already revoked', async () => {
-    prismaStub.apiKey.findUnique.mockResolvedValue({
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: 'tok_pat',
+      userId: 'user-123',
+      keyHash: {
+        algo: 'hmac-sha256',
+        keyId: 'test',
+        hash: 'hashed',
+        issuedAt: new Date().toISOString(),
+      },
+      scopes: [],
+      name: 'cli',
+      workspaceId: null,
+      expiresAt: new Date(),
       revokedAt: new Date('2025-04-01T00:00:00.000Z'),
-      metadata: null,
+      createdAt: new Date(),
+      user: { id: 'user-123', userState: 'active' },
     });
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -617,14 +667,19 @@ describe('AuthCoreService PAT issuance and revocation', () => {
     });
 
     await service.revokeToken({ tokenId: 'tok_pat' });
-    expect(prismaStub.apiKey.update).not.toHaveBeenCalled();
+    expect(mockApiKeyRepo.revoke).not.toHaveBeenCalled();
   });
 
   it('throws when token is missing', async () => {
-    prismaStub.apiKey.findUnique.mockResolvedValue(null);
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue(null);
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -644,19 +699,25 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   const WORKSPACE_ID = '22222222-2222-4222-8222-222222222222';
 
   let keyStore: SigningKeyStore;
-  let prismaStub: {
-    apiKey: {
-      findUnique: ReturnType<typeof vi.fn>;
-      update: ReturnType<typeof vi.fn>;
-    };
-    workspaceMember: {
-      findFirst: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-    };
-  };
+
+  // Mocks
+  const mockUserRepo = { findById: vi.fn() } as unknown as AuthUserRepository;
+  const mockSessionRepo = { findById: vi.fn() } as unknown as AuthSessionRepository;
+  const mockMembershipRepo = {
+    findManyByUserId: vi.fn(),
+    findFirst: vi.fn(),
+  } as unknown as WorkspaceMembershipRepository;
+  const mockApiKeyRepo = {
+    findById: vi.fn(),
+    create: vi.fn(),
+    revoke: vi.fn(),
+  } as unknown as ApiKeyRepository;
+  const mockProfileRepo = { ensureExists: vi.fn() } as unknown as AuthProfileRepository;
   let setContextMock: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
+    vi.resetAllMocks();
+
     const { privateKey, publicKey } = generateKeyPairSync('ed25519');
     keyStore = new SigningKeyStore(
       [
@@ -670,17 +731,6 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       ],
       'test-key'
     );
-
-    prismaStub = {
-      apiKey: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-      workspaceMember: {
-        findFirst: vi.fn(),
-        findMany: vi.fn().mockResolvedValue([]),
-      },
-    };
     setContextMock = vi.fn().mockResolvedValue(undefined);
   });
 
@@ -691,7 +741,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('returns AuthContext for a valid PAT and intersects scopes with workspace role', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.apiKey.findUnique.mockResolvedValue({
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
       keyHash: {
@@ -705,24 +755,32 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       workspaceId: WORKSPACE_ID,
       expiresAt: new Date(Date.now() + 60_000),
       revokedAt: null,
+      createdAt: new Date(),
       user: {
         id: 'user-pat',
         userState: 'active',
-        profile: { id: 'profile-1' },
+        profileId: 'profile-1',
       },
     });
 
-    prismaStub.workspaceMember.findFirst.mockImplementation(
-      async (args: { where?: { workspaceId?: string } }) => {
-        if (args.where?.workspaceId === WORKSPACE_ID) {
+    vi.mocked(mockMembershipRepo.findFirst).mockImplementation(
+      async (_userId: string, workspaceId: string) => {
+        if (workspaceId === WORKSPACE_ID) {
           return { workspaceId: WORKSPACE_ID, role: 'owner' };
         }
         return null;
       }
     );
 
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
+
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -744,7 +802,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
     expect(auth?.scopes).toEqual(expect.arrayContaining(['read:transactions', 'write:accounts']));
     expect(auth?.requestId).toBe('req-123');
     expect(setContextMock).toHaveBeenCalledWith(
-      prismaStub,
+      expect.anything(),
       expect.objectContaining({
         userId: 'user-pat',
         profileId: 'profile-1',
@@ -756,7 +814,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('throws when PAT is revoked', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.apiKey.findUnique.mockResolvedValue({
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
       keyHash: {
@@ -768,17 +826,23 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       scopes: [],
       name: 'cli',
       workspaceId: null,
-      expiresAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
       revokedAt: new Date(),
+      createdAt: new Date(),
       user: {
         id: 'user-pat',
         userState: 'active',
-        profile: { id: 'profile-1' },
+        profileId: 'profile-1',
       },
     });
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -796,7 +860,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('intersects PAT scopes with workspace membership scopes', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.apiKey.findUnique.mockResolvedValue({
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
       keyHash: {
@@ -808,22 +872,29 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       scopes: ['read:profile', 'write:accounts'],
       name: 'cli',
       workspaceId: WORKSPACE_ID,
-      expiresAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
       revokedAt: null,
+      createdAt: new Date(),
       user: {
         id: 'user-pat',
         userState: 'active',
-        profile: { id: 'profile-1' },
+        profileId: 'profile-1',
       },
     });
 
-    prismaStub.workspaceMember.findFirst.mockResolvedValue({
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue({
       workspaceId: WORKSPACE_ID,
       role: 'viewer',
     });
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -841,7 +912,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   it('does not grant PAT scopes outside the workspace intersection or requested set', async () => {
     vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
 
-    prismaStub.apiKey.findUnique.mockResolvedValue({
+    vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
       userId: 'user-pat',
       keyHash: {
@@ -853,22 +924,29 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
       scopes: ['admin'],
       name: 'cli',
       workspaceId: WORKSPACE_ID,
-      expiresAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
       revokedAt: null,
+      createdAt: new Date(),
       user: {
         id: 'user-pat',
         userState: 'active',
-        profile: { id: 'profile-1' },
+        profileId: 'profile-1',
       },
     });
 
-    prismaStub.workspaceMember.findFirst.mockResolvedValue({
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue({
       workspaceId: WORKSPACE_ID,
       role: 'viewer',
     });
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
 
     const service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient,
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,

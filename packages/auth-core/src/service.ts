@@ -5,19 +5,27 @@ import {
   parseOpaqueToken,
   verifyTokenSecret,
 } from '@repo/auth';
-import {
-  type IdentityProvider,
-  Prisma,
-  type PrismaClient,
-  prisma,
-  setPostgresContext,
-} from '@repo/database';
+import { type PrismaClient, prisma, setPostgresContext } from '@repo/database';
 import { jwtVerify } from 'jose';
 import { GLOBAL_PERMISSION_SCOPES, deriveScopesFromRoles, isWorkspaceRole } from './authz.js';
 import { type AuthCoreEnvironment, loadAuthCoreConfig } from './config.js';
 import { AuthorizationError, InactiveUserError, UnauthorizedError } from './errors.js';
-import type { AuthService } from './interfaces.js';
-import { toJsonInput } from './json.js';
+import type {
+  ApiKeyRepository,
+  AuthProfileRepository,
+  AuthService,
+  AuthSessionRepository,
+  AuthUserRepository,
+  WorkspaceMembershipRepository,
+} from './interfaces.js';
+import {
+  PrismaApiKeyRepository,
+  PrismaAuthProfileRepository,
+  PrismaAuthSessionRepository,
+  PrismaAuthUserRepository,
+  PrismaRefreshTokenRepository,
+  PrismaWorkspaceMembershipRepository,
+} from './prisma-repositories.js';
 import {
   type SignAccessTokenParams,
   type SignIdTokenParams,
@@ -58,6 +66,11 @@ export type IssueAccessTokenInput = {
 
 type AuthCoreServiceDependencies = {
   prisma: PrismaClient;
+  userRepo: AuthUserRepository;
+  sessionRepo: AuthSessionRepository;
+  membershipRepo: WorkspaceMembershipRepository;
+  apiKeyRepo: ApiKeyRepository;
+  profileRepo: AuthProfileRepository;
   keyStore: SigningKeyStore;
   issuer: string;
   audience: string;
@@ -143,6 +156,11 @@ async function getDefaultSigningResources(): Promise<SigningResources> {
 
 export class AuthCoreService implements AuthService {
   private readonly prisma: PrismaClient;
+  private readonly userRepo: AuthUserRepository;
+  private readonly sessionRepo: AuthSessionRepository;
+  private readonly membershipRepo: WorkspaceMembershipRepository;
+  private readonly apiKeyRepo: ApiKeyRepository;
+  private readonly profileRepo: AuthProfileRepository;
   private readonly keyStore: SigningKeyStore;
   private readonly issuer: string;
   private readonly audience: string;
@@ -158,12 +176,19 @@ export class AuthCoreService implements AuthService {
 
   constructor(dependencies: AuthCoreServiceDependencies) {
     this.prisma = dependencies.prisma;
+    this.userRepo = dependencies.userRepo;
+    this.sessionRepo = dependencies.sessionRepo;
+    this.membershipRepo = dependencies.membershipRepo;
+    this.apiKeyRepo = dependencies.apiKeyRepo;
+    this.profileRepo = dependencies.profileRepo;
     this.keyStore = dependencies.keyStore;
     this.issuer = dependencies.issuer;
     this.audience = dependencies.audience;
     this.clockToleranceSeconds = dependencies.clockToleranceSeconds;
     this.setContext = dependencies.setContext ?? setPostgresContext;
-    this.tokenService = dependencies.tokenService ?? new TokenService({ prisma: this.prisma });
+    this.tokenService =
+      dependencies.tokenService ??
+      new TokenService({ repo: new PrismaRefreshTokenRepository(this.prisma) });
     if (dependencies.onSessionCreated) {
       this.onSessionCreated = dependencies.onSessionCreated;
     }
@@ -263,14 +288,7 @@ export class AuthCoreService implements AuthService {
   }
 
   async createSession(input: CreateSessionInput): Promise<SessionHandle> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: input.userId },
-      select: {
-        id: true,
-        userState: true,
-        primaryEmail: true,
-      },
-    });
+    const user = await this.userRepo.findById(input.userId);
 
     if (!user) {
       throw new UnauthorizedError('User not found');
@@ -291,31 +309,18 @@ export class AuthCoreService implements AuthService {
       userAgent: input.userAgent ?? null,
     };
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      await this.ensureIdentityLink(
-        tx,
-        {
-          id: user.id,
-          email: user.primaryEmail,
-        },
-        input.identity
-      );
-
-      // Per end-auth-goal.md: sessions don't have their own tokens
-      // Refresh tokens are created separately and have the token/hash
-      const session = await tx.authSession.create({
-        data: {
-          userId: user.id,
-          expiresAt,
-          lastActivityAt: now,
-          mfaLevel: input.mfaLevel ?? 'none',
-          ipAddress: input.ipAddress ?? null,
-          clientInfo,
-        },
-      });
-
-      return session;
-    });
+    // The transaction and identity link is now handled by the repository
+    const created = await this.sessionRepo.create(
+      {
+        userId: user.id,
+        expiresAt,
+        lastActivityAt: now,
+        mfaLevel: input.mfaLevel ?? 'none',
+        ipAddress: input.ipAddress ?? null,
+        clientInfo,
+      },
+      input.identity
+    );
 
     if (this.onSessionCreated) {
       const createdClientInfo = (created.clientInfo ?? null) as {
@@ -324,7 +329,7 @@ export class AuthCoreService implements AuthService {
       this.onSessionCreated({
         id: created.id,
         userId: created.userId,
-        ipAddress: created.ipAddress,
+        ipAddress: created.ipAddress ?? null,
         userAgent: createdClientInfo?.userAgent ?? null,
       });
     }
@@ -336,7 +341,7 @@ export class AuthCoreService implements AuthService {
       activeWorkspaceId: input.workspaceId ?? null,
       createdAt: created.createdAt,
       expiresAt: created.expiresAt,
-      mfaLevel: created.mfaLevel,
+      mfaLevel: created.mfaLevel as MfaLevel,
     };
   }
 
@@ -352,25 +357,21 @@ export class AuthCoreService implements AuthService {
     const opaque = createOpaqueToken({ prefix: 'sbf' });
     const envelope = createTokenHashEnvelope(opaque.tokenSecret);
 
-    const created = await this.prisma.apiKey.create({
-      data: {
-        id: opaque.tokenId,
-        userId: input.userId,
-        name: input.name,
-        keyHash: toJsonInput(envelope),
-        last4: opaque.value.slice(-4),
-        scopes: input.scopes,
-        // No metadata field in ApiKey schema
-        ...(input.workspaceId ? { workspaceId: input.workspaceId } : {}),
-        expiresAt: input.expiresAt ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Default 90 days
-        revokedAt: null,
-      },
+    const created = await this.apiKeyRepo.create({
+      id: opaque.tokenId,
+      userId: input.userId,
+      name: input.name,
+      keyHash: envelope,
+      last4: opaque.value.slice(-4),
+      scopes: input.scopes,
+      workspaceId: input.workspaceId ?? null,
+      expiresAt: input.expiresAt ?? new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // Default 90 days
     });
 
     return {
       tokenId: created.id,
       secret: opaque.value,
-      type: 'personal_access', // Hardcoded for return type compatibility
+      type: 'personal_access',
       scopes: created.scopes as PermissionScope[],
       name: created.name ?? '',
       workspaceId: created.workspaceId,
@@ -379,13 +380,7 @@ export class AuthCoreService implements AuthService {
   }
 
   async revokeToken(input: RevokeTokenInput): Promise<void> {
-    const token = await this.prisma.apiKey.findUnique({
-      where: { id: input.tokenId },
-      select: {
-        id: true,
-        revokedAt: true,
-      },
-    });
+    const token = await this.apiKeyRepo.findById(input.tokenId);
 
     if (!token) {
       throw new UnauthorizedError('Token not found');
@@ -395,13 +390,7 @@ export class AuthCoreService implements AuthService {
       return;
     }
 
-    const now = new Date();
-    await this.prisma.apiKey.update({
-      where: { id: input.tokenId },
-      data: {
-        revokedAt: now,
-      },
-    });
+    await this.apiKeyRepo.revoke(input.tokenId);
   }
 
   async issueRefreshToken(input: IssueRefreshTokenInput): Promise<IssueRefreshTokenResult> {
@@ -449,25 +438,7 @@ export class AuthCoreService implements AuthService {
   }
 
   async ensureProfileExists(userId: string): Promise<string> {
-    const existing = await this.prisma.profile.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-
-    if (existing) {
-      return existing.id;
-    }
-
-    const created = await this.prisma.profile.create({
-      data: {
-        userId,
-        timezone: 'UTC', // Default to UTC
-        currency: 'USD', // Default to USD
-      },
-      select: { id: true },
-    });
-
-    return created.id;
+    return this.profileRepo.ensureExists(userId);
   }
 
   getJwks() {
@@ -502,18 +473,7 @@ export class AuthCoreService implements AuthService {
     clientTypeClaim?: string | ClientType;
     authTime?: Date | null;
   }): Promise<AuthContext> {
-    const user = await this.prisma.user.findUnique({
-      where: { id: options.userId },
-      select: {
-        id: true,
-        userState: true,
-        profile: {
-          select: {
-            id: true,
-          },
-        },
-      },
-    });
+    const user = await this.userRepo.findById(options.userId);
 
     if (!user) {
       throw new UnauthorizedError('User not found');
@@ -523,22 +483,9 @@ export class AuthCoreService implements AuthService {
       throw new InactiveUserError();
     }
 
-    const profileId = user.profile?.id ?? null;
+    const profileId = user.profileId ?? null;
 
-    const session = options.sessionId
-      ? await this.prisma.authSession.findUnique({
-          where: { id: options.sessionId },
-          select: {
-            id: true,
-            userId: true,
-            expiresAt: true,
-            revokedAt: true,
-            mfaLevel: true,
-            lastActivityAt: true,
-            clientInfo: true,
-          },
-        })
-      : null;
+    const session = options.sessionId ? await this.sessionRepo.findById(options.sessionId) : null;
 
     if (options.sessionId) {
       if (!session || session.userId !== user.id) {
@@ -563,7 +510,7 @@ export class AuthCoreService implements AuthService {
     const clientId = ((options as Record<string, unknown>).clientIdClaim as string | null) ?? null;
     const serviceId =
       ((options as Record<string, unknown>).serviceIdClaim as string | null) ?? null;
-    const mfaLevel = session?.mfaLevel ?? 'none';
+    const mfaLevel = (session?.mfaLevel as MfaLevel) ?? 'none';
 
     const workspaceResolution = await this.resolveWorkspaceContext({
       userId: user.id,
@@ -614,34 +561,7 @@ export class AuthCoreService implements AuthService {
     tokenSecret: string;
     request: VerifyRequestInput;
   }): Promise<AuthContext> {
-    const token = await this.prisma.apiKey.findUnique({
-      where: { id: options.tokenId },
-      select: {
-        id: true,
-        userId: true,
-        name: true,
-        keyHash: true,
-        last4: true,
-        scopes: true,
-        // No metadata field in ApiKey schema
-        expiresAt: true,
-        revokedAt: true,
-        createdAt: true,
-        lastUsedAt: true,
-        workspaceId: true,
-        user: {
-          select: {
-            id: true,
-            userState: true,
-            profile: {
-              select: {
-                id: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const token = await this.apiKeyRepo.findById(options.tokenId);
 
     if (!token) {
       // || token.type !== 'personal_access') {
@@ -664,7 +584,7 @@ export class AuthCoreService implements AuthService {
       throw new InactiveUserError();
     }
 
-    const profileId = token.user.profile?.id ?? null;
+    const profileId = token.user.profileId ?? null;
     const forcedWorkspaceId = token.workspaceId ?? null;
     const workspaceHeader = forcedWorkspaceId ?? options.request.workspaceHeader ?? null;
     const workspacePathParam = forcedWorkspaceId
@@ -806,19 +726,7 @@ export class AuthCoreService implements AuthService {
   }
 
   private async findWorkspaceMembership(userId: string, workspaceId: string) {
-    return this.prisma.workspaceMember.findFirst({
-      where: {
-        userId,
-        workspaceId,
-        workspace: {
-          deletedAt: null,
-        },
-      },
-      select: {
-        workspaceId: true,
-        role: true,
-      },
-    });
+    return this.membershipRepo.findFirst(userId, workspaceId);
   }
 
   private resolveWorkspaceFromMembership(
@@ -846,20 +754,7 @@ export class AuthCoreService implements AuthService {
   }
 
   private async findAllMemberships(userId: string) {
-    return this.prisma.workspaceMember.findMany({
-      where: {
-        userId,
-        revokedAt: null,
-        workspace: { deletedAt: null },
-      },
-      select: {
-        workspaceId: true,
-        role: true,
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
+    return this.membershipRepo.findManyByUserId(userId);
   }
 
   private normalizeWorkspaceRole(role: string | null): WorkspaceRole | null {
@@ -872,92 +767,6 @@ export class AuthCoreService implements AuthService {
     }
     const alias = WORKSPACE_ROLE_ALIASES[normalized];
     return alias ?? null;
-  }
-
-  private async ensureIdentityLink(
-    tx: Pick<PrismaClient, 'user' | 'userIdentity'>,
-    user: { id: string; email: string | null },
-    identity: CreateSessionInput['identity']
-  ) {
-    if (!identity.provider || !identity.providerSubject) {
-      return;
-    }
-
-    try {
-      const normalizedEmail = identity.email?.trim() ?? null;
-
-      const existing = await tx.userIdentity.findUnique({
-        where: {
-          provider_providerSubject: {
-            provider: identity.provider as IdentityProvider,
-            providerSubject: identity.providerSubject,
-          },
-        },
-      });
-
-      if (existing && existing.userId !== user.id) {
-        throw new UnauthorizedError('Identity is linked to another user');
-      }
-
-      if (existing) {
-        const metadataUpdate: { metadata: Prisma.InputJsonValue } | undefined =
-          identity.rawClaims !== undefined
-            ? { metadata: toJsonInput(identity.rawClaims) }
-            : undefined;
-        await tx.userIdentity.update({
-          where: { id: existing.id },
-          data: {
-            emailAtProvider: normalizedEmail ?? existing.emailAtProvider,
-            emailVerifiedAtProvider:
-              typeof identity.emailVerified === 'boolean'
-                ? identity.emailVerified
-                : existing.emailVerifiedAtProvider,
-            ...(metadataUpdate ?? {}),
-          },
-        });
-      } else {
-        const metadataCreate: { metadata: Prisma.InputJsonValue } | undefined =
-          identity.rawClaims !== undefined
-            ? { metadata: toJsonInput(identity.rawClaims) }
-            : undefined;
-        await tx.userIdentity.create({
-          data: {
-            userId: user.id,
-            provider: identity.provider as IdentityProvider,
-            providerSubject: identity.providerSubject,
-            emailAtProvider: normalizedEmail,
-            emailVerifiedAtProvider: identity.emailVerified ?? false,
-            ...(metadataCreate ?? {}),
-          },
-        });
-      }
-
-      if (identity.email && identity.emailVerified) {
-        const normalized = identity.email.trim().toLowerCase();
-        if (!user.email || user.email.toLowerCase() !== normalized) {
-          const conflicting = await tx.user.findFirst({
-            where: {
-              primaryEmail: normalized,
-              NOT: { id: user.id },
-            },
-          });
-          if (!conflicting) {
-            await tx.user.update({
-              where: { id: user.id },
-              data: {
-                // email: identity.email.trim(), // Don't update user email from identity automatically
-                // emailLower: normalized,
-              },
-            });
-          }
-        }
-      }
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2021') {
-        return;
-      }
-      throw error;
-    }
   }
 }
 
@@ -989,13 +798,22 @@ export async function createAuthService(
     resolvedConfig = resources.config;
   }
 
+  const prismaClient = options.prisma ?? prisma;
+
   return new AuthCoreService({
-    prisma: options.prisma ?? prisma,
+    prisma: prismaClient,
+    userRepo: new PrismaAuthUserRepository(prismaClient),
+    sessionRepo: new PrismaAuthSessionRepository(prismaClient),
+    membershipRepo: new PrismaWorkspaceMembershipRepository(prismaClient),
+    apiKeyRepo: new PrismaApiKeyRepository(prismaClient),
+    profileRepo: new PrismaAuthProfileRepository(prismaClient),
     keyStore,
     issuer: resolvedConfig.issuer,
     audience: resolvedConfig.audience,
     clockToleranceSeconds: resolvedConfig.clockToleranceSeconds,
-    tokenService: options.tokenService ?? new TokenService({ prisma: options.prisma ?? prisma }),
+    tokenService:
+      options.tokenService ??
+      new TokenService({ repo: new PrismaRefreshTokenRepository(prismaClient) }),
   });
 }
 

@@ -15,6 +15,15 @@ export {
 } from './oauth-clients.js';
 export { extractClientSecret, authenticateConfidentialClient } from './oauth-client-auth.js';
 export {
+  PrismaOAuthClientRepository,
+  PrismaRefreshTokenRepository,
+  PrismaAuthUserRepository,
+  PrismaAuthSessionRepository,
+  PrismaWorkspaceMembershipRepository,
+  PrismaApiKeyRepository,
+  PrismaAuthProfileRepository,
+} from './prisma-repositories.js';
+export {
   AuthCoreService,
   createAuthService,
   generateAccessToken,

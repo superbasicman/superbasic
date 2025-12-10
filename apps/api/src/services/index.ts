@@ -27,6 +27,7 @@ import {
 import {
   requireOAuthClient as coreRequireOAuthClient,
   authenticateConfidentialClient as coreAuthenticateConfidentialClient,
+  PrismaOAuthClientRepository,
 } from '@repo/auth-core';
 
 export const profileRepository = new ProfileRepository(prisma);
@@ -40,6 +41,7 @@ export const authorizationCodeRepository = new AuthorizationCodeRepository(prism
 export const refreshTokenRepository = new RefreshTokenRepository(prisma);
 export const sessionTransferTokenRepository = new SessionTransferTokenRepository(prisma);
 export const serviceIdentityRepository = new ServiceIdentityRepository(prisma);
+export const oauthClientRepository = new PrismaOAuthClientRepository(prisma);
 
 // Create service instances (inject repositories and dependencies)
 export const profileService = new ProfileService(prisma);
@@ -51,15 +53,15 @@ export const verificationService = new VerificationService(
 );
 export const tokenService = new TokenService(tokenRepository, authEvents);
 
-type RequireOAuthClientParams = Omit<Parameters<typeof coreRequireOAuthClient>[0], 'prisma'>;
+type RequireOAuthClientParams = Omit<Parameters<typeof coreRequireOAuthClient>[0], 'repo'>;
 type AuthenticateClientParams = Omit<
   Parameters<typeof coreAuthenticateConfidentialClient>[0],
-  'prisma'
+  'repo'
 >;
 
 export const oauthClientService = {
   requireClient: (params: RequireOAuthClientParams) =>
-    coreRequireOAuthClient({ ...params, prisma }),
+    coreRequireOAuthClient({ ...params, repo: oauthClientRepository }),
   authenticateConfidentialClient: (params: AuthenticateClientParams) =>
-    coreAuthenticateConfidentialClient({ ...params, prisma }),
+    coreAuthenticateConfidentialClient({ ...params, repo: oauthClientRepository }),
 };

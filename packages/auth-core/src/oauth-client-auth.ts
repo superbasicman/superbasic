@@ -1,7 +1,6 @@
 import { verifyTokenSecret } from '@repo/auth';
-import type { TokenHashEnvelope } from '@repo/auth';
-import type { PrismaClient } from '@repo/database';
 import { AuthorizationError } from './errors.js';
+import type { OAuthClientRepository } from './interfaces.js';
 import type { OAuthClientRecord } from './types.js';
 
 /**
@@ -35,11 +34,11 @@ export function extractClientSecret(
  * Throws AuthorizationError if authentication fails
  */
 export async function authenticateConfidentialClient(params: {
-  prisma: Pick<PrismaClient, 'serviceIdentity'>;
+  repo: OAuthClientRepository;
   client: OAuthClientRecord;
   clientSecret: string | null;
 }): Promise<void> {
-  const { prisma, client, clientSecret } = params;
+  const { repo, client, clientSecret } = params;
 
   // Only confidential clients require authentication
   if (client.type !== 'confidential') {
@@ -50,32 +49,12 @@ export async function authenticateConfidentialClient(params: {
     throw new AuthorizationError('client_secret is required for confidential clients');
   }
 
-  // Look up the service identity linked to this OAuth client
-  const serviceIdentity = await prisma.serviceIdentity.findUnique({
-    where: { clientId: client.clientId },
-    include: {
-      clientSecrets: {
-        where: {
-          revokedAt: null,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
-    },
-  });
-
-  if (!serviceIdentity || serviceIdentity.disabledAt) {
+  const hashEnvelope = await repo.findClientSecret(client.clientId);
+  if (!hashEnvelope) {
     throw new AuthorizationError('Invalid client credentials');
   }
 
-  const [clientSecretRecord] = serviceIdentity.clientSecrets;
-  if (!clientSecretRecord) {
-    throw new AuthorizationError('Invalid client credentials');
-  }
-
-  const hashEnvelope = clientSecretRecord.secretHash as TokenHashEnvelope | null;
-  if (!hashEnvelope || !verifyTokenSecret(clientSecret, hashEnvelope)) {
+  if (!verifyTokenSecret(clientSecret, hashEnvelope)) {
     throw new AuthorizationError('Invalid client credentials');
   }
 }

@@ -1,30 +1,6 @@
-import type { PrismaClient } from '@repo/database';
 import { AuthorizationError } from './errors.js';
+import type { OAuthClientRepository } from './interfaces.js';
 import type { OAuthClientRecord } from './types.js';
-
-function mapClient(record: {
-  id: string;
-  clientId: string;
-  clientType: 'public' | 'confidential';
-  redirectUris: string[];
-  tokenEndpointAuthMethod:
-    | 'none'
-    | 'client_secret_basic'
-    | 'client_secret_post'
-    | 'private_key_jwt';
-  isFirstParty: boolean;
-  disabledAt: Date | null;
-}): OAuthClientRecord {
-  return {
-    id: record.id,
-    clientId: record.clientId,
-    type: record.clientType, // Map clientType -> type per goal spec
-    redirectUris: record.redirectUris,
-    tokenEndpointAuthMethod: record.tokenEndpointAuthMethod,
-    isFirstParty: record.isFirstParty,
-    disabledAt: record.disabledAt,
-  };
-}
 
 export function normalizeRedirectUri(value: string | null | undefined): string {
   if (!value || typeof value !== 'string') {
@@ -38,22 +14,10 @@ export function normalizeRedirectUri(value: string | null | undefined): string {
 }
 
 export async function findOAuthClient(
-  prisma: Pick<PrismaClient, 'oAuthClient'>,
+  repo: OAuthClientRepository,
   clientId: string
 ): Promise<OAuthClientRecord | null> {
-  const record = await prisma.oAuthClient.findUnique({
-    where: { clientId },
-    select: {
-      id: true,
-      clientId: true,
-      clientType: true,
-      redirectUris: true,
-      tokenEndpointAuthMethod: true,
-      isFirstParty: true,
-      disabledAt: true,
-    },
-  });
-  return record ? mapClient(record) : null;
+  return repo.findByClientId(clientId);
 }
 
 /**
@@ -61,13 +25,10 @@ export async function findOAuthClient(
  * First-party clients can receive user profile data in token responses.
  */
 export async function isFirstPartyClient(
-  prisma: Pick<PrismaClient, 'oAuthClient'>,
+  repo: OAuthClientRepository,
   clientId: string
 ): Promise<boolean> {
-  const client = await prisma.oAuthClient.findUnique({
-    where: { clientId },
-    select: { isFirstParty: true },
-  });
+  const client = await repo.findByClientId(clientId);
   return client?.isFirstParty ?? false;
 }
 
@@ -86,12 +47,12 @@ export function validateRedirectUri(client: OAuthClientRecord, redirectUri: stri
 }
 
 export async function requireOAuthClient(params: {
-  prisma: Pick<PrismaClient, 'oAuthClient'>;
+  repo: OAuthClientRepository;
   clientId: string;
   redirectUri?: string | null;
   allowDisabled?: boolean;
 }): Promise<OAuthClientRecord> {
-  const client = await findOAuthClient(params.prisma, params.clientId);
+  const client = await findOAuthClient(params.repo, params.clientId);
   if (!client) {
     throw new AuthorizationError('Invalid client_id');
   }

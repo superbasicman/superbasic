@@ -1,9 +1,9 @@
-import type { PrismaClient, RefreshToken as PrismaRefreshToken } from '@repo/database';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RefreshTokenRepository } from '../interfaces.js';
 import { TokenService } from '../token-service.js';
-import type { TokenHashEnvelope } from '../types.js';
+import type { RefreshTokenRecord, TokenHashEnvelope } from '../types.js';
 
-function buildToken(overrides: Partial<PrismaRefreshToken> = {}): PrismaRefreshToken {
+function buildRefreshTokenRecord(overrides: Partial<RefreshTokenRecord> = {}): RefreshTokenRecord {
   const now = new Date('2025-01-01T00:00:00.000Z');
   const hashEnvelope: TokenHashEnvelope = {
     algo: 'hmac-sha256',
@@ -15,32 +15,27 @@ function buildToken(overrides: Partial<PrismaRefreshToken> = {}): PrismaRefreshT
     id: 'tok_123',
     userId: 'user_123',
     sessionId: 'sess_123',
-    hashEnvelope: hashEnvelope as unknown as PrismaRefreshToken['hashEnvelope'],
-    last4: 'cret',
-    scopes: [] as string[],
+    workspaceId: null,
+    type: 'refresh',
+    tokenHash: hashEnvelope,
+    scopes: [],
+    name: null,
     familyId: 'family_123',
+    metadata: null,
     lastUsedAt: null,
     expiresAt: new Date('2025-02-01T00:00:00.000Z'),
     revokedAt: null,
     createdAt: now,
     updatedAt: now,
-    // Required RefreshToken schema fields
-    userAgent: null,
-    issuedAt: now,
-    createdByIp: null,
-    lastUsedIp: null,
-    rotatedFromId: null,
     ...overrides,
   };
 }
 
 describe('TokenService.issueRefreshToken', () => {
   const mockCreate = vi.fn();
-  const prismaStub = {
-    token: {
-      create: mockCreate,
-    },
-  } as unknown as PrismaClient;
+  const repoStub = {
+    create: mockCreate,
+  } as unknown as RefreshTokenRepository;
 
   const mockTokenFactory = vi.fn().mockReturnValue({
     tokenId: 'tok_abc',
@@ -63,18 +58,19 @@ describe('TokenService.issueRefreshToken', () => {
     mockHashFactory.mockClear();
   });
 
-  it('creates and returns a refresh token with null familyId (until schema is adjusted)', async () => {
+  it('creates and returns a refresh token', async () => {
     const service = new TokenService({
-      prisma: prismaStub,
+      repo: repoStub,
       createOpaqueToken: mockTokenFactory,
       createTokenHashEnvelope: mockHashFactory,
     });
 
     const expiresAt = new Date('2025-02-10T00:00:00.000Z');
     mockCreate.mockResolvedValue(
-      buildToken({
+      buildRefreshTokenRecord({
         id: 'tok_abc',
         expiresAt,
+        familyId: null,
       })
     );
 
@@ -84,16 +80,15 @@ describe('TokenService.issueRefreshToken', () => {
       expiresAt,
     });
 
-    expect(mockCreate).toHaveBeenCalledWith({
-      data: expect.objectContaining({
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
         id: 'tok_abc',
         userId: 'user_123',
         sessionId: 'sess_123',
-        familyId: null,
-        tokenHash: hashEnvelope,
+        hashEnvelope,
         expiresAt,
-      }),
-    });
+      })
+    );
 
     expect(result.refreshToken).toBe('rt_tok_abc.secret-abc');
     expect(result.token.familyId).toBeNull();
@@ -103,7 +98,7 @@ describe('TokenService.issueRefreshToken', () => {
 
   it('throws when expiresAt is invalid', async () => {
     const service = new TokenService({
-      prisma: prismaStub,
+      repo: repoStub,
       createOpaqueToken: mockTokenFactory,
       createTokenHashEnvelope: mockHashFactory,
     });

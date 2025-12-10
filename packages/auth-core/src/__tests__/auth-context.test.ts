@@ -3,6 +3,13 @@ import type { PrismaClient } from '@repo/database';
 import { exportJWK } from 'jose';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthorizationError } from '../errors.js';
+import type {
+  ApiKeyRepository,
+  AuthProfileRepository,
+  AuthSessionRepository,
+  AuthUserRepository,
+  WorkspaceMembershipRepository,
+} from '../interfaces.js';
 import { AuthCoreService } from '../service.js';
 import { type SigningKey, SigningKeyStore, signAccessToken } from '../signing.js';
 
@@ -12,25 +19,33 @@ const WORKSPACE_ID_1 = '11111111-1111-4111-8111-111111111111';
 const WORKSPACE_ID_2 = '22222222-2222-4222-8222-222222222222';
 
 describe('AuthCoreService.resolveWorkspaceContext', () => {
-  type PrismaStub = {
-    user: {
-      findUnique: ReturnType<typeof vi.fn>;
-    };
-    authSession: {
-      findUnique: ReturnType<typeof vi.fn>;
-    };
-    workspaceMember: {
-      findFirst: ReturnType<typeof vi.fn>;
-      findMany: ReturnType<typeof vi.fn>;
-    };
-  };
   let signingKey: SigningKey;
   let keyStore: SigningKeyStore;
-  let prismaStub: PrismaStub;
+
+  // Mocks
+  const mockUserRepo = {
+    findById: vi.fn(),
+  } as unknown as AuthUserRepository;
+  const mockSessionRepo = {
+    findById: vi.fn(),
+  } as unknown as AuthSessionRepository;
+  const mockMembershipRepo = {
+    findManyByUserId: vi.fn(),
+    findFirst: vi.fn(),
+  } as unknown as WorkspaceMembershipRepository;
+  const mockApiKeyRepo = {
+    findById: vi.fn(),
+  } as unknown as ApiKeyRepository;
+  const mockProfileRepo = {
+    ensureExists: vi.fn(),
+  } as unknown as AuthProfileRepository;
+
   let setContextMock: ReturnType<typeof vi.fn>;
   let service: AuthCoreService;
 
   beforeEach(async () => {
+    vi.resetAllMocks();
+
     const { privateKey, publicKey } = generateKeyPairSync('ed25519');
     signingKey = {
       kid: 'test-key',
@@ -42,21 +57,13 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
     keyStore = new SigningKeyStore([signingKey], signingKey.kid);
     setContextMock = vi.fn().mockResolvedValue(undefined);
 
-    prismaStub = {
-      user: {
-        findUnique: vi.fn(),
-      },
-      authSession: {
-        findUnique: vi.fn(),
-      },
-      workspaceMember: {
-        findFirst: vi.fn(),
-        findMany: vi.fn(),
-      },
-    };
-
     service = new AuthCoreService({
-      prisma: prismaStub as unknown as PrismaClient,
+      prisma: {} as unknown as PrismaClient, // Mock PrismaClient for setContext
+      userRepo: mockUserRepo,
+      sessionRepo: mockSessionRepo,
+      membershipRepo: mockMembershipRepo,
+      apiKeyRepo: mockApiKeyRepo,
+      profileRepo: mockProfileRepo,
       keyStore,
       issuer: ISSUER,
       audience: AUDIENCE,
@@ -65,14 +72,15 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
     });
 
     // Default user setup
-    prismaStub.user.findUnique.mockResolvedValue({
+    vi.mocked(mockUserRepo.findById).mockResolvedValue({
       id: 'user-123',
       userState: 'active',
-      profile: { id: 'profile-123' },
+      primaryEmail: 'user@example.com',
+      profileId: 'profile-123',
     });
 
     // Default session setup
-    prismaStub.authSession.findUnique.mockResolvedValue({
+    vi.mocked(mockSessionRepo.findById).mockResolvedValue({
       id: 'session-123',
       userId: 'user-123',
       clientInfo: { type: 'web' },
@@ -92,8 +100,8 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
   };
 
   it('should return null workspace when user has no memberships', async () => {
-    prismaStub.workspaceMember.findMany.mockResolvedValue([]);
-    prismaStub.workspaceMember.findFirst.mockResolvedValue(null);
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([]);
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue(null);
 
     const token = await createToken();
     const context = await service.verifyRequest({
@@ -105,10 +113,10 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
   });
 
   it('should auto-select workspace when user has exactly one membership', async () => {
-    prismaStub.workspaceMember.findMany.mockResolvedValue([
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([
       { workspaceId: WORKSPACE_ID_1, role: 'owner' },
     ]);
-    prismaStub.workspaceMember.findFirst.mockResolvedValue({
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue({
       workspaceId: WORKSPACE_ID_1,
       role: 'owner',
     });
@@ -123,11 +131,11 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
   });
 
   it('should throw AuthorizationError when user has multiple workspaces and no header', async () => {
-    prismaStub.workspaceMember.findMany.mockResolvedValue([
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([
       { workspaceId: WORKSPACE_ID_1, role: 'owner' },
       { workspaceId: WORKSPACE_ID_2, role: 'member' },
     ]);
-    prismaStub.workspaceMember.findFirst.mockResolvedValue(null);
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue(null);
 
     const token = await createToken();
 
@@ -139,14 +147,14 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
   });
 
   it('should succeed when user has multiple workspaces and provides valid header', async () => {
-    prismaStub.workspaceMember.findMany.mockResolvedValue([
+    vi.mocked(mockMembershipRepo.findManyByUserId).mockResolvedValue([
       { workspaceId: WORKSPACE_ID_1, role: 'owner' },
       { workspaceId: WORKSPACE_ID_2, role: 'member' },
     ]);
 
-    prismaStub.workspaceMember.findFirst.mockImplementation(
-      async ({ where }: { where?: { workspaceId?: string } }) => {
-        if (where?.workspaceId === WORKSPACE_ID_2) {
+    vi.mocked(mockMembershipRepo.findFirst).mockImplementation(
+      async (_userId: string, workspaceId: string) => {
+        if (workspaceId === WORKSPACE_ID_2) {
           return { workspaceId: WORKSPACE_ID_2, role: 'member' };
         }
         return null;
@@ -164,7 +172,7 @@ describe('AuthCoreService.resolveWorkspaceContext', () => {
   });
 
   it('should fail when user provides invalid workspace header', async () => {
-    prismaStub.workspaceMember.findFirst.mockResolvedValue(null);
+    vi.mocked(mockMembershipRepo.findFirst).mockResolvedValue(null);
 
     const token = await createToken();
 

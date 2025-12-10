@@ -1,53 +1,38 @@
-import type { PrismaClient } from '@repo/database';
 import { describe, expect, it, vi } from 'vitest';
 import { AuthorizationError } from '../errors.js';
+import type { OAuthClientRepository } from '../interfaces.js';
 import {
   findOAuthClient,
   normalizeRedirectUri,
   requireOAuthClient,
   validateRedirectUri,
 } from '../oauth-clients.js';
+import type { OAuthClientRecord } from '../types.js';
 
-const baseClient = {
+const baseClient: OAuthClientRecord = {
   id: 'client-1',
   clientId: 'mobile',
-  type: 'public' as const,
+  type: 'public',
   redirectUris: ['sb://callback', 'http://localhost:3000/v1/auth/callback/mobile'],
-  tokenEndpointAuthMethod: 'none' as const,
+  tokenEndpointAuthMethod: 'none',
   isFirstParty: true,
-  disabledAt: null as Date | null,
+  disabledAt: null,
 };
 
-function mockClientDelegate(result: unknown) {
+function mockRepository(client: OAuthClientRecord | null): OAuthClientRepository {
   return {
-    oAuthClient: {
-      findUnique: vi.fn().mockResolvedValue(result),
-      findUniqueOrThrow: vi.fn(),
-      findFirst: vi.fn(),
-      findFirstOrThrow: vi.fn(),
-      findMany: vi.fn(),
-      create: vi.fn(),
-      update: vi.fn(),
-      upsert: vi.fn(),
-      delete: vi.fn(),
-      deleteMany: vi.fn(),
-      createMany: vi.fn(),
-      updateMany: vi.fn(),
-      aggregate: vi.fn(),
-      groupBy: vi.fn(),
-      count: vi.fn(),
-      findRaw: vi.fn(),
-      aggregateRaw: vi.fn(),
-    },
-  } as unknown as Pick<PrismaClient, 'oAuthClient'>;
+    findByClientId: vi.fn().mockResolvedValue(client),
+    findClientSecret: vi.fn().mockResolvedValue(null),
+  };
 }
 
 describe('oauth client helpers', () => {
   it('finds a client by client_id', async () => {
-    const prisma = mockClientDelegate(baseClient);
+    const repo = mockRepository(baseClient);
 
-    const client = await findOAuthClient(prisma, 'mobile');
+    const client = await findOAuthClient(repo, 'mobile');
     expect(client?.clientId).toBe('mobile');
+    expect(repo.findByClientId).toHaveBeenCalledWith('mobile');
   });
 
   it('validates redirect URIs', () => {
@@ -66,10 +51,10 @@ describe('oauth client helpers', () => {
   });
 
   it('requires an active client and allowed redirect URI', async () => {
-    const prisma = mockClientDelegate(baseClient);
+    const repo = mockRepository(baseClient);
 
     const client = await requireOAuthClient({
-      prisma,
+      repo,
       clientId: 'mobile',
       redirectUri: 'sb://callback',
     });
@@ -78,18 +63,19 @@ describe('oauth client helpers', () => {
   });
 
   it('throws for disabled clients', async () => {
-    const prisma = mockClientDelegate({ ...baseClient, disabledAt: new Date() });
+    const disabledClient = { ...baseClient, disabledAt: new Date() };
+    const repo = mockRepository(disabledClient);
 
     await expect(
-      requireOAuthClient({ prisma, clientId: 'mobile', redirectUri: 'sb://callback' })
+      requireOAuthClient({ repo, clientId: 'mobile', redirectUri: 'sb://callback' })
     ).rejects.toBeInstanceOf(AuthorizationError);
   });
 
   it('throws for unknown clients', async () => {
-    const prisma = mockClientDelegate(null);
+    const repo = mockRepository(null);
 
     await expect(
-      requireOAuthClient({ prisma, clientId: 'unknown', redirectUri: 'sb://callback' })
+      requireOAuthClient({ repo, clientId: 'unknown', redirectUri: 'sb://callback' })
     ).rejects.toBeInstanceOf(AuthorizationError);
   });
 });
