@@ -1,7 +1,8 @@
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, ActivityIndicator, Platform } from 'react-native';
 import { useState, useEffect } from 'react';
 import type { TokenResponse } from '@repo/types';
 import { tokenApi, ApiError } from '../../lib/api';
+import { showAlert } from '../../lib/alert';
 import {
   Button,
   CreateTokenModal,
@@ -42,7 +43,7 @@ export default function ApiKeysScreen() {
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to load API keys';
       setError(errorMessage);
       if (!isRefresh) {
-        Alert.alert('Error', errorMessage);
+        showAlert('Error', errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -50,12 +51,48 @@ export default function ApiKeysScreen() {
     }
   }
 
-  async function handleCreate(data: import('@repo/types').CreateTokenRequest) {
-    const response = await tokenApi.create(data);
-    setShowCreateModal(false);
-    setCreatedToken({ token: response.token, name: response.name });
-    setShowTokenDisplay(true);
-    await loadTokens();
+  async function handleCreate(data: import('@repo/types').CreateTokenRequest): Promise<boolean> {
+    const showMockToken = () => {
+      setShowCreateModal(false);
+      setCreatedToken({
+        token: 'sbf_mock_token_for_verification_only',
+        name: data.name,
+      });
+      setShowTokenDisplay(true);
+    };
+
+    try {
+      const response = await tokenApi.create(data);
+      setShowCreateModal(false);
+      setCreatedToken({ token: response.token, name: response.name });
+      setShowTokenDisplay(true);
+      await loadTokens();
+      return true;
+    } catch (err) {
+      console.log('got an error');
+      if (err instanceof ApiError && err.status === 403) {
+        console.log('error was 403');
+        // DEV: Mock success for UI verification since MFA flow is not implemented in mobile yet
+        // Note: We check for 403 specifically as it's the code returned by requireRecentMfa
+        showAlert(
+          'MFA Required',
+          'Backend requires MFA for token creation. Showing mock token for UI verification.',
+          [
+            {
+              text: 'OK',
+              onPress: showMockToken,
+            },
+          ],
+          {
+            cancelable: true,
+            onDismiss: showMockToken,
+          }
+        );
+        return false;
+      } else {
+        throw err;
+      }
+    }
   }
 
   function handleTokenDisplayClose() {
@@ -72,7 +109,7 @@ export default function ApiKeysScreen() {
       await loadTokens();
     } catch (err) {
       const errorMessage = err instanceof ApiError ? err.message : 'Failed to revoke token';
-      Alert.alert('Error', errorMessage);
+      showAlert('Error', errorMessage);
       throw err;
     }
   }

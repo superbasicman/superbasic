@@ -367,7 +367,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       code_challenge: challenge,
       code_challenge_method: 'S256',
       state: state,
-      scope: 'openid profile email',
+      scope: 'openid profile email read:accounts write:accounts',
     });
 
     const authUrl = `${API_URL}/v1/oauth/authorize?${params.toString()}`;

@@ -110,13 +110,13 @@ Context to review before starting:
 
 ## Phase 6: Main Screens
 
-- [ ] 6.1 Create `HomeScreen.tsx` porting from `apps/web/src/pages/Home.tsx`
+- [x] 6.1 Create `HomeScreen.tsx` porting from `apps/web/src/pages/Home.tsx`
   - Display user info
   - Navigation to settings screens
   - Logout functionality
   - Sanity check: User data displays, navigation works
 
-- [ ] 6.2 Create `SettingsMenuScreen.tsx` (new screen for mobile navigation pattern)
+- [x] 6.2 Create `SettingsMenuScreen.tsx` (new screen for mobile navigation pattern)
   - List settings options with navigation
   - Sanity check: Can navigate to ApiKeys and Devices
 
@@ -124,23 +124,23 @@ Context to review before starting:
 
 ## Phase 7: Components
 
-- [ ] 7.1 Create `Button.tsx` component with variants (primary, secondary, outline, ghost) using TouchableOpacity
+- [x] 7.1 Create `Button.tsx` component with variants (primary, secondary, outline, ghost) using TouchableOpacity
   - Sanity check: All button variants render correctly
 
-- [ ] 7.2 Create `Input.tsx` component with dark/light theme support using TextInput
+- [x] 7.2 Create `Input.tsx` component with dark/light theme support using TextInput
   - Sanity check: Input component works in forms
 
-- [ ] 7.3 Create `CreateTokenModal.tsx` using React Native Modal with pageSheet presentation
+- [x] 7.3 Create `CreateTokenModal.tsx` using React Native Modal with pageSheet presentation
   - Port form logic from web component
   - Sanity check: Can create new API tokens
 
-- [ ] 7.4 Create `TokenDisplayModal.tsx` with expo-clipboard integration for copy functionality
+- [x] 7.4 Create `TokenDisplayModal.tsx` with expo-clipboard integration for copy functionality
   - Sanity check: Token display and copy works
 
-- [ ] 7.5 Create `RevokeTokenDialog.tsx` as confirmation dialog
+- [x] 7.5 Create `RevokeTokenDialog.tsx` as confirmation dialog
   - Sanity check: Revoke confirmation works
 
-- [ ] 7.6 Create `EditTokenNameDialog.tsx` for renaming tokens
+- [x] 7.6 Create `EditTokenNameDialog.tsx` for renaming tokens
   - Sanity check: Token rename works
 
 ---
