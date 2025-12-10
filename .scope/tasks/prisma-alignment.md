@@ -129,7 +129,7 @@
 68. [ ] packages/core/src/users/__tests__/user-repository.test.ts
 
 // ===== packages/core/src/verification =====
-69. [ ] packages/core/src/verification/verification-repository.ts
+69. [ok] packages/core/src/verification/verification-repository.ts
 70. [ ] packages/core/src/verification/verification-service.ts
 
 // ===== packages/core/src/verification/__tests__ =====
