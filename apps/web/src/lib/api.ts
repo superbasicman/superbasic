@@ -191,8 +191,8 @@ async function performAccessTokenRefresh(): Promise<UserResponse | null> {
  */
 export const authApi = {
   /**
-   * Login with email and password (AuthCore-backed)
-   * Hits Auth.js credentials callback; OAuth flow will follow to obtain tokens.
+   * Login with email and password (auth-core)
+   * Hits auth-core credentials flow; OAuth flow will follow to obtain tokens.
    */
   async login(credentials: LoginInput): Promise<void> {
     const response = await fetch(`${API_URL}/v1/auth/signin/password`, {

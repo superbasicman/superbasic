@@ -1,7 +1,7 @@
 /**
  * Profile management utilities
  *
- * Ensures that every Auth.js user has a corresponding profile record.
+ * Ensures that every auth-core user has a corresponding profile record.
  * Profiles store user preferences and own business logic data.
  */
 
@@ -16,12 +16,12 @@ const authServicePromise = createAuthService({ prisma });
  *
  * This function is idempotent - safe to call multiple times for the same user.
  *
- * @param userId - The Auth.js user ID (UUID)
+ * @param userId - The auth-core user ID (UUID)
  * @returns The profile ID (existing or newly created)
  *
  * @example
  * ```typescript
- * // In Auth.js signIn callback
+ * // After user creation/sign-in
  * const profileId = await ensureProfileExists(user.id);
  * ```
  */

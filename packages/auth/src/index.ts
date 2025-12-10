@@ -2,12 +2,12 @@
  * @repo/auth
  *
  * Authentication utilities for SuperBasic Finance
- * - Auth.js configuration and adapters
+ * - Shared auth utilities (hashing, PAT helpers, RBAC)
  * - Personal Access Token (PAT) hashing and verification
  * - Role-Based Access Control (RBAC) scope definitions
  */
 
-// Auth.js configuration
+// Shared auth utilities
 
 // Password utilities
 export { hashPassword, verifyPassword } from './password.js';

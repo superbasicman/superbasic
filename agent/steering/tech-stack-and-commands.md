@@ -8,7 +8,7 @@ Quick reference for the main technologies and everyday commands used in SuperBas
 - **Framework:** Hono (Node adapter; future Edge-capable)
 - **Validation & contracts:** Zod → OpenAPI 3.1
 - **ORM & DB:** Prisma 6 on Neon Postgres (UUID PKs, `TIMESTAMPTZ`, `BIGINT` cents)
-- **Auth:** Auth-core OAuth 2.1/OIDC (no Auth.js)
+- **Auth:** Auth-core OAuth 2.1/OIDC
 - **Payments:** Stripe (Checkout, Portal, webhooks)
 - **Banking:** Plaid (Link + server-side token exchange)
 - **Background jobs:** Upstash Redis / QStash + Vercel Cron

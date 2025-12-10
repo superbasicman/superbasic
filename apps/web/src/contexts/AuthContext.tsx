@@ -255,7 +255,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   /**
    * Handle authentication errors from query params
-   * Auth.js redirects with ?error=... on OAuth failures
+   * OAuth redirects with ?error=... on failures
    */
   function handleAuthErrors() {
     const error = searchParams.get('error');

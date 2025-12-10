@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { authEvents, type AuthEvent } from './events.js';
+import { authEvents } from './events.js';
 
 describe('authEvents emitter', () => {
   beforeEach(() => {
@@ -7,9 +7,9 @@ describe('authEvents emitter', () => {
   });
 
   it('attaches a timestamp to emitted events', async () => {
-    let received: AuthEvent | null = null;
+    const timestamps: Date[] = [];
     authEvents.on((event) => {
-      received = event;
+      timestamps.push(event.timestamp);
     });
 
     await authEvents.emit({
@@ -28,8 +28,8 @@ describe('authEvents emitter', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(received).not.toBeNull();
-    expect(received?.timestamp).toBeInstanceOf(Date);
+    expect(timestamps).toHaveLength(1);
+    expect(timestamps[0]).toBeInstanceOf(Date);
   });
 
   it('keeps firing handlers when one throws', async () => {

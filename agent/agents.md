@@ -17,7 +17,7 @@ Treat this section as the per-chat system prompt for any work in this repo.
 - SuperBasic Finance is an **API-first personal finance platform** in a TypeScript **pnpm/Turborepo** monorepo.
 - The **web app** is a thin **React SPA** that only talks to a typed **`/v1` JSON API** generated from **Zod → OpenAPI 3.1**.
 - **Identity vs domain:**
-  - Auth-core owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`) per `docs/auth-migration/end-auth-goal.md`; no Auth.js adapter or legacy compatibility is needed in this repo.
+  - Auth-core owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`) per `docs/auth-migration/end-auth-goal.md`.
   - Domain starts at `profiles.id` and flows:
     - Profiles own connections (banks) and bank accounts: `profiles → connections → bank_accounts → transactions → overlays`.
     - Workspaces link to connections to decide which banks are available per workspace; views then filter transactions (by accounts, date, name, include/exclude, custom rules).
@@ -48,7 +48,7 @@ Treat this section as the per-chat system prompt for any work in this repo.
   - Skim the **Context Map** below and open the relevant doc(s) for your task.
   - Respect the current phase and scope in `.scope/` and specs under `docs/`.
 - For larger tasks:
-  - Break work into **small, numbered checklist items** in `.scope/tasks/` with quick sanity checks.
+  - Break work into **small, numbered checklist items** in `.scope/tasks/` with quick sanity checks with a context section on top.
     - Use the explicit format: `- [ ] 1. Task title` followed by an indented `- Sanity check: ...` line so it’s obvious how each step is validated.
     - Every item must include a sanity check describing how to confirm completion (command, test, manual verification, etc.).
   - Keep related docs (specs, readmes) up to date as part of the change.

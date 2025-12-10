@@ -7,7 +7,7 @@
   - `packages/core`: Services implement business rules and workflows; repositories are Prisma-only CRUD.
   - Database (via `packages/database`): Prisma schema + SQL migrations, with RLS enforced through GUCs (`app.user_id`, `app.profile_id`, `app.workspace_id`, `app.mfa_level`, `app.service_id`).
 
-- **Auth**: Auth-core (not Auth.js). OAuth 2.1/OIDC, short-lived access tokens (JWT), rotated refresh tokens (opaque hash envelopes), and PATs/API keys for programmatic access. MFA enforced for high-risk actions. Auth tables: `users`, `user_identities`, `auth_sessions`, `refresh_tokens`, `verification_tokens`, `session_transfer_tokens`, `api_keys`.
+- **Auth**: Auth-core. OAuth 2.1/OIDC, short-lived access tokens (JWT), rotated refresh tokens (opaque hash envelopes), and PATs/API keys for programmatic access. MFA enforced for high-risk actions. Auth tables: `users`, `user_identities`, `auth_sessions`, `refresh_tokens`, `verification_tokens`, `session_transfer_tokens`, `api_keys`.
 
 - **Domain model (starts at profile)**:
   - Profiles own connections (banks) and their accounts:
@@ -36,5 +36,5 @@
   - Biome for lint/format; Vitest for tests; tsup for builds.
 
 - **What is legacy**:
-  - `packages/auth` is a legacy Auth.js helper; auth-core is the source of truth.
-  - Any remaining Auth.js references are historical; new work must use auth-core patterns.
+- `packages/auth` provides shared auth utilities (hashing, envelopes, PAT helpers) consumed by auth-core.
+- Auth.js is not used; all auth flows rely on auth-core patterns.

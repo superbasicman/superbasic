@@ -163,7 +163,7 @@ it('should access protected route', async () => {
   });
   
   // Extract session cookie
-  const sessionCookie = extractCookie(loginResponse, 'authjs.session-token');
+  const sessionCookie = extractCookie(loginResponse, 'sb.session-token');
   
   // Make authenticated request
   const response = await makeAuthenticatedRequest(

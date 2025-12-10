@@ -1,6 +1,6 @@
 ## @repo/auth
 
-This package houses the Auth.js configuration, adapters, and helpers shared across the monorepo.
+This package provides shared auth utilities (password hashing, token hashing/envelopes, PAT helpers, RBAC scopes). Auth.js adapters are no longer used; auth-core owns authentication flows.
 
 ### Rebuilding after local changes
 

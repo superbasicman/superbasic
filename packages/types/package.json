@@ -15,7 +15,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsup",
-    "typecheck": "echo 'Skipping typecheck (tsc --noEmit) due to Auth.js type issues'"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "zod": "^3.22.0"

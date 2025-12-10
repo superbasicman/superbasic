@@ -30,7 +30,7 @@ export default defineConfig({
         return false;
       }
 
-      // Suppress expected Auth.js errors during testing
+      // Suppress expected auth errors during testing
       // These are intentional test cases (invalid credentials, missing fields, etc.)
       if (
         log.includes('[auth][error]') ||

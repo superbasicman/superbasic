@@ -1,6 +1,6 @@
 import type { Context, Next } from 'hono';
 import { authService } from '../lib/auth-service.js';
-import { resetGlobalPostgresContext } from '@repo/database';
+import { resetGlobalPostgresContext, setGlobalPostgresContext } from '@repo/database';
 import { AuthorizationError } from '@repo/auth-core';
 import type { PermissionScope } from '@repo/auth-core';
 import { checkFailedAuthRateLimit, trackFailedAuth } from './rate-limit/index.js';
@@ -77,6 +77,13 @@ export async function patMiddleware(c: Context, next: Next) {
     c.set('tokenId', auth.tokenId ?? undefined);
     c.set('tokenScopes', tokenScopes);
     c.set('tokenScopesRaw', tokenScopes);
+    await setGlobalPostgresContext({
+      userId: auth.userId,
+      profileId: auth.profileId,
+      workspaceId: auth.activeWorkspaceId,
+      mfaLevel: auth.mfaLevel ?? null,
+      serviceId: auth.serviceId ?? null,
+    });
     contextTouched = true;
 
     await next();

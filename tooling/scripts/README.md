@@ -35,8 +35,8 @@ pnpm tsx tooling/scripts/setup-plaid.ts
 - Have a Plaid developer account (script guides you through signup)
 
 **`check-auth-env.ts`**
-- Validates Auth.js environment variables
-- Checks for required secrets (OAuth credentials, email provider)
+- Validates auth-core environment variables
+- Checks for required secrets (JWT signing keys, token hash keys, OAuth/email provider)
 - Run before deployment or when debugging auth issues
 
 ```bash
@@ -147,8 +147,8 @@ Each permanent script should have:
 The following scripts have been removed as they are no longer needed:
 
 **Phase 2.1 Migration Scripts (Removed):**
-- `task-4-sanity-checks.sh` - Auth.js validation (replaced by integration tests)
-- `backfill-profiles.ts` - One-time migration (profiles now auto-created via Auth.js callback)
+- `task-4-sanity-checks.sh` - Auth validation (replaced by integration tests)
+- `backfill-profiles.ts` - One-time migration (profiles now auto-created via auth-core)
 - `test-resend.ts` - Email verification (one-time testing)
 - `test-credentials-signin.sh`, `test-magic-link-*.sh`, `test-session-endpoint.sh`, `test-signout.sh` - Debugging helpers (replaced by test suites)
 

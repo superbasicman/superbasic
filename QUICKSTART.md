@@ -92,7 +92,7 @@ apps/
 
 packages/
 ├── auth-core/    # Auth-core OAuth 2.1/OIDC logic and token management
-├── auth/         # Legacy Auth.js helpers (to be removed)
+├── auth/         # Shared auth utilities (hashing, envelopes, helpers for auth-core)
 ├── database/     # Prisma schema and client
 ├── design-system/# React components
 └── types/        # Shared TypeScript types

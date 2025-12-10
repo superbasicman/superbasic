@@ -55,7 +55,7 @@ if [[ -z "$CSRF" ]]; then
   exit 1
 fi
 
-echo "2) Credentials login (sets Auth.js session cookie)"
+echo "2) Credentials login (sets session cookie)"
 curl -s -b "$JAR" -c "$JAR" -X POST "$API_URL/v1/auth/callback/credentials" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "email=$EMAIL" \

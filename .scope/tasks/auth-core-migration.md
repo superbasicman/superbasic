@@ -33,8 +33,9 @@ Context to review before starting:
   - Updates so far: `agent/agents.md`, `agent/full-agents.md` (preamble + auth section), `README.md`, `QUICKSTART.md`, `GEMINI.md`, `docs/oauth-mvp.md`, `docs/oauth-setup-guide.md`, `docs/vercel-deployment-guide.md`, `docs/auth-migration/end-auth-goal.md`.
   - TODO: Clean remaining legacy mentions in `agent/full-agents.md` (embedded steering excerpts) and any downstream steering docs that still reference Auth.js.
 
-- [ ] 4. Remove or refactor code/schema/config to eliminate Auth.js adapters and legacy flows; ensure auth tables live under auth-core.  
+- [x] 4. Remove or refactor code/schema/config to eliminate Auth.js adapters and legacy flows; ensure auth tables live under auth-core.  
   - Sanity check: codebase builds/tests (e.g., `pnpm --filter apps/api test -- --run` if applicable) with only auth-core paths referencing auth tables.
 
-- [ ] 5. Verify RLS/GUC alignment with end-auth goal (app.user_id, app.profile_id when applicable, app.workspace_id, app.mfa_level, app.service_id) and clean up any legacy wiring.  
-  - Sanity check: DB access layer sets/clears correct GUCs per AuthContext; no stray legacy GUC usage remains.
+- [x] 5. Verify RLS/GUC alignment with end-auth goal (app.user_id, app.profile_id when applicable, app.workspace_id, app.mfa_level, app.service_id) and clean up any legacy wiring.  
+  - Sanity check: DB access layer sets/clears correct GUCs per AuthContext; no stray legacy GUC usage remains.  
+  - Verified `attachAuthContext` and `patMiddleware` set/clear all GUCs via `setGlobalPostgresContext`/`resetGlobalPostgresContext`; `packages/database/src/context.ts` only manages `app.user_id/app.profile_id/app.workspace_id/app.mfa_level/app.service_id`; no other legacy GUC usage found.

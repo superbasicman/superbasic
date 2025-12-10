@@ -122,7 +122,7 @@ curl http://localhost:3000/v1/auth/providers | jq
 5. You should be redirected back to your app
 
 **Troubleshooting:**
-- If you see "Error 400: redirect_uri_mismatch", verify the redirect URI in Google Cloud Console matches exactly: `http://localhost:3000/v1/auth/callback/google`
+- If you see "Error 400: redirect_uri_mismatch", verify the redirect URI in Google Cloud Console matches exactly: `http://localhost:3000/v1/oauth/callback/google`
 - If you see "Access blocked: This app's request is invalid", ensure the OAuth consent screen is configured
 
 ---
@@ -206,7 +206,7 @@ curl http://localhost:3000/v1/auth/providers | jq
 4. You should be redirected back to your app
 
 **Troubleshooting:**
-- If you see "The redirect_uri MUST match the registered callback URL", verify the callback URL in GitHub matches exactly: `http://localhost:3000/v1/auth/callback/github`
+- If you see "The redirect_uri MUST match the registered callback URL", verify the callback URL in GitHub matches exactly: `http://localhost:3000/v1/oauth/callback/github`
 - If authorization fails, check that your GitHub OAuth app is not suspended
 
 ---

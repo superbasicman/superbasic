@@ -22,11 +22,9 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "echo 'Skipping typecheck (tsc --noEmit) due to Auth.js type issues'"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@auth/core": "^0.37.0",
-    "@auth/prisma-adapter": "^2.11.0",
     "bcrypt": "^5.1.1",
     "nodemailer": "6.9.16",
     "jose": "^5.10.0",

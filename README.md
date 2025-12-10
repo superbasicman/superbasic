@@ -15,7 +15,7 @@ An API-first personal finance platform built as a monorepo. The web client is a 
 ## Current Status
 
 ✅ **Phase 1 Complete**: Monorepo infrastructure with pnpm workspaces, Turborepo, TypeScript, Biome, Vitest, and Playwright  
-🚧 **Phase 2 In Progress**: Authentication via auth-core OAuth 2.1/OIDC (no Auth.js compatibility), short-lived access tokens + rotated refresh tokens, PATs  
+🚧 **Phase 2 In Progress**: Authentication via auth-core OAuth 2.1/OIDC, short-lived access tokens + rotated refresh tokens, PATs  
 ✅ **Phase 3 Complete**: API Key Management with Bearer token auth and scope enforcement  
 🚧 **Phase 3.5 In Progress**: Architecture refactor to Service/Repository pattern for cleaner code organization  
 ⏸️ **Phase 4 Planned**: Plaid Integration for bank connections (not yet started)
@@ -31,7 +31,7 @@ See `.scope/project_plan.md` for detailed roadmap.
 │   └── web/                  # Thin React SPA (Vite)
 ├── packages/
 │   ├── auth-core/            # OAuth 2.1/OIDC auth-core service, tokens, PAT hashing
-│   ├── auth/                 # Legacy Auth.js helpers (to be removed)
+│   ├── auth/                 # Shared auth utilities (hashing, envelopes, helpers for auth-core)
 │   ├── core/                 # Domain logic (billing, ledgers, limits)
 │   ├── database/             # Prisma schema + migrations + client exports
 │   ├── design-system/        # Custom React components with Tailwind CSS
@@ -49,7 +49,7 @@ See `.scope/project_plan.md` for detailed roadmap.
 - **Hono 4** on Node adapter serving /v1 routes
 - **Zod** for validation with OpenAPI generation
 - **Prisma 6** with Neon-hosted Postgres
-- **Auth-core** for OAuth 2.1/OIDC, short-lived access tokens, rotated refresh tokens, PATs (no Auth.js)
+- **Auth-core** for OAuth 2.1/OIDC, short-lived access tokens, rotated refresh tokens, PATs
 - **Upstash Redis** for rate limiting (sliding window algorithm)
 - **Pino** for structured logging
 - **Vitest** for unit/integration tests
@@ -277,7 +277,7 @@ Auth-core OAuth 2.1/OIDC service for token issuance/validation (access tokens, r
 
 ### @repo/auth
 
-Legacy Auth.js helpers; slated for removal as auth-core becomes the single source of truth.
+Shared auth utilities (password/token hashing, PAT helpers, envelopes) used by auth-core flows.
 
 ### @repo/core
 

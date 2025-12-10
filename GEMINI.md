@@ -58,7 +58,7 @@ We enforce a strict separation of concerns for API features:
 *   **Runtime:** Node.js 20+
 *   **Framework:** Hono 4
 *   **Database:** PostgreSQL (Neon) with Prisma 6
-*   **Auth:** Auth-core OAuth 2.1/OIDC + PATs (no Auth.js)
+*   **Auth:** Auth-core OAuth 2.1/OIDC + PATs
 *   **Caching/Rate Limit:** Upstash Redis
 *   **Validation:** Zod
 

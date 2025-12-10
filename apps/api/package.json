@@ -14,7 +14,6 @@
     "test:coverage": "dotenv -e .env.test -- vitest run --coverage"
   },
   "dependencies": {
-    "@auth/core": "^0.37.0",
     "@hono/node-server": "^1.13.7",
     "@hono/zod-openapi": "^0.18.4",
     "@hono/zod-validator": "^0.7.4",

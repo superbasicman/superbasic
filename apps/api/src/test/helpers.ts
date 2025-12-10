@@ -175,14 +175,7 @@ export async function createTestUser(overrides: Partial<TestUserCredentials> = {
   };
 }
 
-/**
- * Create a persisted Auth.js session token for the given user.
- *
- * @param userId - ID of the user who owns the session
- * @param _email - Unused (kept for backward compatibility with existing helpers)
- * @param options - Optional overrides for expiration
- * @returns Session token string to be used as cookie value
- */
+// Create a persisted session token for the given user (auth-core helper).
 function ensureTokenHashKeys() {
   if (!process.env.TOKEN_HASH_KEYS) {
     const fallback =

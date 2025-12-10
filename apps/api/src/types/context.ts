@@ -1,8 +1,7 @@
 import type { AuthContext as CoreAuthContext } from '@repo/auth-core';
 
 /**
- * Shared Hono context variables for API requests.
- * Includes legacy Auth.js bindings and the new auth-core context placeholder.
+ * Shared Hono context variables for API requests (auth-core).
  */
 export type ContextVariables = {
   requestId: string;

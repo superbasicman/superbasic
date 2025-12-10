@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /**
- * Check Auth.js environment variables and database connection
+ * Check auth-core environment variables and database connection
  */
 
 async function checkAuthEnv() {
-  console.log('🔍 Checking Auth.js Environment\n');
+  console.log('🔍 Checking auth-core Environment\n');
 
   // Check environment variables
   console.log('📋 Environment Variables:');
@@ -16,8 +16,12 @@ async function checkAuthEnv() {
   );
   console.log('  EMAIL_FROM:', process.env.EMAIL_FROM || '❌ Not set');
   console.log('  DATABASE_URL:', process.env.DATABASE_URL ? '✅ Set' : '❌ Not set');
-  console.log('  AUTH_SECRET:', process.env.AUTH_SECRET ? '✅ Set' : '❌ Not set');
-  console.log('  AUTH_URL:', process.env.AUTH_URL || '❌ Not set');
+  console.log('  AUTH_SECRET:', process.env.AUTH_SECRET ? '✅ Set' : '⚠️  Not set (used as fallback for token hashing)');
+  console.log('  TOKEN_HASH_KEYS:', process.env.TOKEN_HASH_KEYS ? '✅ Set' : '⚠️  Not set (fallback uses AUTH_SECRET/TOKEN_HASH_FALLBACK_SECRET)');
+  console.log('  AUTH_JWT_PRIVATE_KEY:', process.env.AUTH_JWT_PRIVATE_KEY ? '✅ Set' : '❌ Not set');
+  console.log('  AUTH_JWT_KEY_ID:', process.env.AUTH_JWT_KEY_ID || '⚠️  Not set (defaults to dev-access-key)');
+  console.log('  AUTH_JWT_ISSUER:', process.env.AUTH_JWT_ISSUER || process.env.AUTH_URL || '⚠️  Not set (defaults to AUTH_URL/http://localhost:3000)');
+  console.log('  AUTH_JWT_AUDIENCE:', process.env.AUTH_JWT_AUDIENCE || '⚠️  Not set (defaults to <issuer>/v1)');
   console.log('');
 
   // Test database connection
@@ -82,11 +86,14 @@ async function checkAuthEnv() {
   if (!process.env.EMAIL_FROM) {
     console.log('  - Set EMAIL_FROM in apps/api/.env.local');
   }
-  if (!process.env.AUTH_SECRET) {
-    console.log('  - Set AUTH_SECRET in apps/api/.env.local');
-  }
   if (!process.env.DATABASE_URL) {
     console.log('  - Set DATABASE_URL in apps/api/.env.local');
+  }
+  if (!process.env.AUTH_JWT_PRIVATE_KEY) {
+    console.log('  - Set AUTH_JWT_PRIVATE_KEY (or AUTH_JWT_PRIVATE_KEY_FILE) in apps/api/.env.local');
+  }
+  if (!process.env.TOKEN_HASH_KEYS && !process.env.TOKEN_HASH_FALLBACK_SECRET && !process.env.AUTH_SECRET) {
+    console.log('  - Set TOKEN_HASH_KEYS (or TOKEN_HASH_FALLBACK_SECRET / AUTH_SECRET) for token hashing');
   }
   console.log('');
 }

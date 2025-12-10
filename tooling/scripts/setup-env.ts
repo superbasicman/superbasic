@@ -122,7 +122,7 @@ async function main() {
 
   log('This wizard will help you configure:');
   console.log('  • Database (Neon Postgres)');
-  console.log('  • Authentication (Auth.js secrets)');
+  console.log('  • Authentication (auth-core secrets)');
   console.log('  • Rate Limiting (Upstash Redis)');
   console.log('  • OAuth (Google)');
   console.log('  • Email (Resend)');
@@ -209,7 +209,7 @@ async function main() {
   // STEP 2: Authentication Secret
   // ============================================================
   log('═══════════════════════════════════════════════════════════');
-  log('STEP 2: Authentication Secret (Auth.js)');
+  log('STEP 2: Authentication Secret (auth-core)');
   log('═══════════════════════════════════════════════════════════');
 
   const existingAuthSecret = getExistingValue('AUTH_SECRET', existingApiEnv);
@@ -227,7 +227,7 @@ async function main() {
         : 'AUTH_SECRET left empty'
     );
   } else {
-    info('Generating a secure random secret for Auth.js...');
+    info('Generating a secure random secret for auth-core token hashing fallback...');
     const authSecret = generateSecret();
     config.AUTH_SECRET = authSecret;
     success('Auth secret generated!');
@@ -249,7 +249,7 @@ async function main() {
     success(
       existingTokenHashKeys
         ? 'Reused existing token hash keys from apps/api/.env.local'
-        : 'TOKEN_HASH_KEYS left empty'
+        : 'TOKEN_HASH_KEYS left empty (fallback uses AUTH_SECRET/TOKEN_HASH_FALLBACK_SECRET)'
     );
   } else {
     info('Generating token hashing key material...');
@@ -646,7 +646,7 @@ async function main() {
     const emailFrom = await question('Enter "from" email address (e.g., noreply@yourdomain.com): ');
     config.EMAIL_FROM = emailFrom || 'onboarding@resend.dev';
 
-    // Dummy SMTP server (required by Auth.js but not used)
+    // Dummy SMTP server (required by email flow but not used)
     config.EMAIL_SERVER = 'smtp://dummy:dummy@smtp.example.com:587';
 
     success('Resend configured!');

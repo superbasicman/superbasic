@@ -9,8 +9,6 @@ Goal: Define the end-state authentication & authorization architecture for Super
 - Provides a fully functional OAuth 2.1-style authorization server.
 - Provides basic OpenID Connect (OIDC) compatibility (code flow + id_token + userinfo) for first- and third-party clients.
 
-Current state note: the live system uses an Auth.js adapter that owns `users`, `accounts`, `sessions`, and `verification_tokens`. This plan assumes migrating those responsibilities into auth-core while keeping user identifiers stable and mapping data forward.
-
 This describes the target polished design, as if for a new refactor. For v1, we can ship a smaller subset; heuristics and UX flows can be refined during implementation.
 
 --------------------------------------------------
