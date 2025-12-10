@@ -259,36 +259,31 @@ export class TokenService {
    * @returns Expiration date
    */
   private calculateExpiration(days: number): Date {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return date;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+    return expiresAt;
   }
 
   /**
-   * Map database entity to domain response
+   * Map database ApiKey to TokenResponse
    *
-   * @param apiKey - Database entity
-   * @returns Token response with masked token
+   * @param token - ApiKey record
+   * @returns TokenResponse
    */
-  private mapToTokenResponse(apiKey: ApiKey): TokenResponse {
+  private mapToTokenResponse(token: ApiKey): TokenResponse {
     return {
-      id: apiKey.id,
-      name: apiKey.name ?? 'Unnamed Token',
-      scopes: apiKey.scopes as string[],
-      workspaceId: apiKey.workspaceId ?? null,
-      createdAt: apiKey.createdAt.toISOString(),
-      lastUsedAt: apiKey.lastUsedAt?.toISOString() ?? null,
-      expiresAt: apiKey.expiresAt?.toISOString() ?? null,
-      maskedToken: `sbf_****${apiKey.last4 ?? '....'}`,
+      id: token.id,
+      name: token.name ?? '',
+      scopes: token.scopes,
+      createdAt: token.createdAt.toISOString(),
+      lastUsedAt: token.lastUsedAt ? token.lastUsedAt.toISOString() : null,
+      expiresAt: token.expiresAt.toISOString(),
+      maskedToken: `sbf_****${token.last4 ?? '????'}`,
+      workspaceId: token.workspaceId ?? null,
     };
   }
 }
 
 function isPrismaNotFoundError(error: unknown): error is { code: string } {
-  return Boolean(
-    error &&
-      typeof error === 'object' &&
-      'code' in error &&
-      (error as { code?: string }).code === 'P2025'
-  );
+  return typeof error === 'object' && error !== null && 'code' in error && (error as any).code === 'P2025';
 }

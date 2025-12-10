@@ -113,11 +113,11 @@
 62. [ ] packages/core/src/profiles/__tests__/profile-service.test.ts
 
 // ===== packages/core/src/security =====
-63. [ ] packages/core/src/security/security-event-repository.ts
+63. [ok] packages/core/src/security/security-event-repository.ts
 
 // ===== packages/core/src/tokens =====
-64. [ ] packages/core/src/tokens/token-repository.ts
-65. [ ] packages/core/src/tokens/token-service.ts
+64. [ok] packages/core/src/tokens/token-repository.ts
+65. [x] packages/core/src/tokens/token-service.ts
 
 // ===== packages/core/src/tokens/__tests__ =====
 66. [ ] packages/core/src/tokens/__tests__/token-repository.test.ts
