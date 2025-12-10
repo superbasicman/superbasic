@@ -17,7 +17,7 @@ Treat this section as the per-chat system prompt for any work in this repo.
 - SuperBasic Finance is an **API-first personal finance platform** in a TypeScript **pnpm/Turborepo** monorepo.
 - The **web app** is a thin **React SPA** that only talks to a typed **`/v1` JSON API** generated from **Zod → OpenAPI 3.1**.
 - **Identity vs domain:**
-  - Auth.js adapter owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`).
+  - Auth.js adapter currently owns auth tables (`users`, `accounts`, `sessions`, `verification_tokens`); see `docs/auth-migration/end-auth-goal.md` for the target auth-core ownership during the migration.
   - Domain starts at `profiles.id` and flows:
     `profiles → workspaces → connections → bank_accounts → transactions → overlays`.
 - **Ledger invariants:**

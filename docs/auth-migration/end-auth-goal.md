@@ -9,6 +9,8 @@ Goal: Define the end-state authentication & authorization architecture for Super
 - Provides a fully functional OAuth 2.1-style authorization server.
 - Provides basic OpenID Connect (OIDC) compatibility (code flow + id_token + userinfo) for first- and third-party clients.
 
+Current state note: the live system uses an Auth.js adapter that owns `users`, `accounts`, `sessions`, and `verification_tokens`. This plan assumes migrating those responsibilities into auth-core while keeping user identifiers stable and mapping data forward.
+
 This describes the target polished design, as if for a new refactor. For v1, we can ship a smaller subset; heuristics and UX flows can be refined during implementation.
 
 --------------------------------------------------
@@ -726,6 +728,7 @@ We rely heavily on Postgres RLS + custom GUCs for isolation:
 GUCs:
 
 - app.user_id
+- app.profile_id (when the domain model requires it)
 - app.workspace_id
 - app.mfa_level
 - app.service_id (optional for service principals)
@@ -736,8 +739,10 @@ Pattern:
   - Auth middleware validates token/PAT and constructs an AuthContext.
   - DB wrapper sets required GUCs via SET or SET LOCAL:
     - SET app.user_id = :userId::uuid
+    - SET app.profile_id = :profileId::uuid (when profile-scoped)
     - SET app.workspace_id = :workspaceId::uuid
     - SET app.mfa_level = :mfaLevel
+  - Only set profile_id when the request is tied to a profile; otherwise clear/unset it to avoid leakage between requests.
 
 RLS policies:
 
