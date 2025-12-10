@@ -126,14 +126,14 @@
 67. [ok] packages/core/src/users/user-repository.ts
 
 // ===== packages/core/src/users/__tests__ =====
-68. [ ] packages/core/src/users/__tests__/user-repository.test.ts
+68. [ok] packages/core/src/users/__tests__/user-repository.test.ts
 
 // ===== packages/core/src/verification =====
 69. [ok] packages/core/src/verification/verification-repository.ts
-70. [ ] packages/core/src/verification/verification-service.ts
+70. [x] packages/core/src/verification/verification-service.ts
 
 // ===== packages/core/src/verification/__tests__ =====
-71. [ ] packages/core/src/verification/__tests__/verification-service.test.ts
+71. [ok] packages/core/src/verification/__tests__/verification-service.test.ts
 
 // ===== packages/database =====
 // (Database layer – definitely OK to use Prisma here)
