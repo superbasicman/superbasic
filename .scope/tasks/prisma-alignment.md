@@ -110,7 +110,7 @@
 
 // ===== packages/core/src/profiles/__tests__ =====
 61. [ ] packages/core/src/profiles/__tests__/profile-repository.test.ts
-62. [ ] packages/core/src/profiles/__tests__/profile-service.test.ts
+62. [x] packages/core/src/profiles/__tests__/profile-service.test.ts
 
 // ===== packages/core/src/security =====
 63. [ok] packages/core/src/security/security-event-repository.ts

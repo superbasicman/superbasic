@@ -7,25 +7,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ProfileService } from '../profile-service.js';
 import { ProfileNotFoundError, InvalidProfileDataError } from '../profile-errors.js';
-import type { PrismaClient } from '@repo/database';
+import type { ProfileRepository } from '../profile-repository.js';
+import type { UserRepository } from '../../users/user-repository.js';
 
 describe('ProfileService', () => {
   let profileService: ProfileService;
-  let mockPrisma: any;
+  let mockProfileRepo: ProfileRepository;
+  let mockUserRepo: UserRepository;
 
   beforeEach(() => {
-    // Mock Prisma client
-    mockPrisma = {
-      user: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-      profile: {
-        update: vi.fn(),
-      },
-    } as unknown as PrismaClient;
+    mockProfileRepo = {
+      update: vi.fn(),
+      getCurrentWorkspaceSetting: vi.fn(),
+    } as unknown as ProfileRepository;
+    mockUserRepo = {
+      findWithProfileById: vi.fn(),
+      updateDisplayName: vi.fn(),
+    } as unknown as UserRepository;
 
-    profileService = new ProfileService(mockPrisma);
+    profileService = new ProfileService(mockProfileRepo, mockUserRepo);
   });
 
   describe('getCurrentProfile', () => {
@@ -43,7 +43,7 @@ describe('ProfileService', () => {
         },
       };
 
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      vi.mocked(mockUserRepo.findWithProfileById).mockResolvedValue(mockUser as any);
 
       // Act
       const result = await profileService.getCurrentProfile({ userId: 'user-123' });
@@ -57,22 +57,7 @@ describe('ProfileService', () => {
         timezone: 'America/New_York',
         currency: 'USD',
       });
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: 'user-123' },
-        select: {
-          id: true,
-          primaryEmail: true,
-          displayName: true,
-          createdAt: true,
-          profile: {
-            select: {
-              id: true,
-              timezone: true,
-              currency: true,
-            },
-          },
-        },
-      });
+      expect(mockUserRepo.findWithProfileById).toHaveBeenCalledWith('user-123');
     });
 
     it('should return profile with null profile data', async () => {
@@ -85,7 +70,7 @@ describe('ProfileService', () => {
         profile: null,
       };
 
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
+      vi.mocked(mockUserRepo.findWithProfileById).mockResolvedValue(mockUser as any);
 
       // Act
       const result = await profileService.getCurrentProfile({ userId: 'user-123' });
@@ -96,7 +81,7 @@ describe('ProfileService', () => {
 
     it('should throw ProfileNotFoundError if user does not exist', async () => {
       // Arrange
-      mockPrisma.user.findUnique.mockResolvedValue(null);
+      vi.mocked(mockUserRepo.findWithProfileById).mockResolvedValue(null);
 
       // Act & Assert
       await expect(profileService.getCurrentProfile({ userId: 'nonexistent' })).rejects.toThrow(
@@ -120,8 +105,8 @@ describe('ProfileService', () => {
         },
       };
 
-      mockPrisma.user.update.mockResolvedValue({});
-      mockPrisma.user.findUnique.mockResolvedValue(mockUpdatedUser);
+      vi.mocked(mockUserRepo.updateDisplayName).mockResolvedValue(undefined as any);
+      vi.mocked(mockUserRepo.findWithProfileById).mockResolvedValue(mockUpdatedUser as any);
 
       // Act
       const result = await profileService.updateProfile({
@@ -132,10 +117,7 @@ describe('ProfileService', () => {
 
       // Assert
       expect(result.user.name).toBe('Updated Name');
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({
-        where: { id: 'user-123' },
-        data: { displayName: 'Updated Name' },
-      });
+      expect(mockUserRepo.updateDisplayName).toHaveBeenCalledWith('user-123', 'Updated Name');
     });
 
     it('should update profile timezone and currency', async () => {
@@ -152,8 +134,8 @@ describe('ProfileService', () => {
         },
       };
 
-      mockPrisma.profile.update.mockResolvedValue({});
-      mockPrisma.user.findUnique.mockResolvedValue(mockUpdatedUser);
+      vi.mocked(mockProfileRepo.update).mockResolvedValue({} as any);
+      vi.mocked(mockUserRepo.findWithProfileById).mockResolvedValue(mockUpdatedUser as any);
 
       // Act
       const result = await profileService.updateProfile({
@@ -182,9 +164,9 @@ describe('ProfileService', () => {
         },
       };
 
-      mockPrisma.user.update.mockResolvedValue({});
-      mockPrisma.profile.update.mockResolvedValue({});
-      mockPrisma.user.findUnique.mockResolvedValue(mockUpdatedUser);
+      vi.mocked(mockUserRepo.updateDisplayName).mockResolvedValue(undefined as any);
+      vi.mocked(mockProfileRepo.update).mockResolvedValue({} as any);
+      vi.mocked(mockUserRepo.findWithProfileById).mockResolvedValue(mockUpdatedUser as any);
 
       // Act
       const result = await profileService.updateProfile({
