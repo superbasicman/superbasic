@@ -22,8 +22,10 @@
   "dependencies": {
     "@repo/auth": "workspace:*",
     "@repo/database": "workspace:*",
+    "@repo/email-templates": "workspace:*",
     "@repo/types": "workspace:*",
-    "jose": "^5.10.0"
+    "jose": "^5.10.0",
+    "resend": "^6.2.2"
   },
   "devDependencies": {
     "@types/node": "^20.17.0",

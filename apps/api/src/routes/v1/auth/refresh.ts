@@ -1,9 +1,8 @@
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { authEvents, parseOpaqueToken, verifyTokenSecret } from '@repo/auth';
+import { authEvents, parseOpaqueToken, verifyTokenSecret, type TokenHashEnvelope } from '@repo/auth-core';
 import type { Context } from 'hono';
 import type { AppBindings } from '../../../types/context.js';
-import type { TokenHashEnvelope } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { buildUserClaimsForTokenResponse } from '../../../lib/user-claims.js';
 import {

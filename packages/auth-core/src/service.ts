@@ -1,10 +1,4 @@
-import {
-  SESSION_MAX_AGE_SECONDS,
-  createOpaqueToken,
-  createTokenHashEnvelope,
-  parseOpaqueToken,
-  verifyTokenSecret,
-} from '@repo/auth';
+import { SESSION_MAX_AGE_SECONDS } from '@repo/auth';
 import { type PrismaClient, prisma, setPostgresContext } from '@repo/database';
 import { jwtVerify } from 'jose';
 import { GLOBAL_PERMISSION_SCOPES, deriveScopesFromRoles, isWorkspaceRole } from './authz.js';
@@ -35,6 +29,12 @@ import {
   signAccessToken,
   signIdToken,
 } from './signing.js';
+import {
+  createOpaqueToken,
+  createTokenHashEnvelope,
+  parseOpaqueToken,
+  verifyTokenSecret,
+} from './token-hash.js';
 import { TokenService } from './token-service.js';
 import type {
   AccessTokenClaims,

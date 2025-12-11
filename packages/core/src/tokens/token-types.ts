@@ -4,7 +4,7 @@
  * Type definitions for token service layer
  * These types define the interfaces between layers (HTTP → Service → Repository)
  */
-import type { TokenHashEnvelope } from '@repo/auth';
+import type { TokenHashEnvelope } from '@repo/auth-core';
 
 export interface CreateTokenParams {
   userId: string;

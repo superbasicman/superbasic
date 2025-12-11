@@ -479,4 +479,4 @@ describe('TokenService', () => {
     });
   });
 });
-import { hashToken } from '@repo/auth';
+import { hashToken } from '@repo/auth-core';

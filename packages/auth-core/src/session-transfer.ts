@@ -12,7 +12,12 @@
  * 5. Normal OAuth flow continues (PKCE verification, token exchange)
  */
 
-import { createOpaqueToken, createTokenHashEnvelope, parseOpaqueToken, verifyTokenSecret } from './token-hash.js';
+import {
+  createOpaqueToken,
+  createTokenHashEnvelope,
+  parseOpaqueToken,
+  verifyTokenSecret,
+} from './token-hash.js';
 import type { OpaqueToken, TokenHashEnvelope } from './token-hash.js';
 
 // Prefix for session transfer tokens

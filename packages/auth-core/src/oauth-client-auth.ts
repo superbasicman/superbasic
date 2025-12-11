@@ -1,6 +1,6 @@
-import { verifyTokenSecret } from '@repo/auth';
 import { AuthorizationError } from './errors.js';
 import type { OAuthClientRepository } from './interfaces.js';
+import { verifyTokenSecret } from './token-hash.js';
 import type { OAuthClientRecord } from './types.js';
 
 /**

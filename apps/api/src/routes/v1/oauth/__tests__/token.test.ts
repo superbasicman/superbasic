@@ -9,7 +9,7 @@ import { createTestUser } from '../../../../test/helpers.js';
 import { deriveCodeChallenge, generateCodeVerifier } from '@repo/auth-core';
 import { issueAuthorizationCode } from '../../../../lib/oauth-authorization-codes.js';
 import { authService } from '../../../../lib/auth-service.js';
-import { createTokenHashEnvelope } from '@repo/auth';
+import { createTokenHashEnvelope } from '@repo/auth-core';
 import { randomUUID } from 'node:crypto';
 
 function buildFormRequest(body: Record<string, string>): Request {

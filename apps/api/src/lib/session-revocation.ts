@@ -1,4 +1,4 @@
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 import type { PrismaClientOrTransaction } from '@repo/database';
 import { sessionRepository } from '../services/index.js';
 

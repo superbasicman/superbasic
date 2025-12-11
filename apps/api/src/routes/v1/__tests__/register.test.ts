@@ -30,7 +30,7 @@ import {
   getUser,
   getUserPassword,
 } from '../../../test/helpers.js';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 import { verifyPassword } from '@repo/auth';
 
 describe('POST /v1/register', () => {
@@ -82,7 +82,7 @@ describe('POST /v1/register', () => {
       const passwordRecord = await getUserPassword(userId);
       expect(passwordRecord?.passwordHash).toBeTruthy();
       expect(passwordRecord?.passwordHash).not.toBe(credentials.password);
-      expect(passwordRecord?.passwordHash).toMatch(/^\$2[aby]\$/); // bcrypt hash format
+      expect(passwordRecord?.passwordHash.startsWith('scrypt$')).toBe(true);
 
       const isValid = await verifyPassword(credentials.password, passwordRecord!.passwordHash);
       expect(isValid).toBe(true);

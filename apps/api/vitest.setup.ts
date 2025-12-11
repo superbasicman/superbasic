@@ -12,13 +12,6 @@ import crypto from 'node:crypto';
  * and CallbackRouteError are intentional test cases and don't indicate failures.
  */
 
-// Mock bcrypt to avoid native module loading issues in tests
-vi.mock('bcrypt', () => ({
-  hash: vi.fn(),
-  compare: vi.fn(),
-  genSalt: vi.fn(),
-}));
-
 // Mock rate limiting to avoid Redis connection issues in tests
 vi.mock('@repo/rate-limit', async () => {
   const actual = await vi.importActual<typeof import('@repo/rate-limit')>('@repo/rate-limit');

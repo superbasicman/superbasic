@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import type { User, Profile } from '@repo/database';
-import { hashToken } from '@repo/auth';
+import { hashToken } from '@repo/auth-core';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 

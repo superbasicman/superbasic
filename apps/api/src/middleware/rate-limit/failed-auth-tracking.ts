@@ -1,6 +1,6 @@
 import { Redis, createRateLimiter, createMockRedis } from '@repo/rate-limit';
 import { logger } from '@repo/observability';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 
 // Initialize Redis client if credentials are available
 const redis =

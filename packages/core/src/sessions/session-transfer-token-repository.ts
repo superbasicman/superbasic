@@ -1,5 +1,5 @@
 import type { PrismaClient, PrismaClientOrTransaction } from '@repo/database';
-import type { TokenHashEnvelope } from '@repo/auth';
+import type { TokenHashEnvelope } from '@repo/auth-core';
 
 export type SessionTransferTokenRecord = {
   id: string;

@@ -10,6 +10,7 @@ function buildRefreshTokenRecord(overrides: Partial<RefreshTokenRecord> = {}): R
     keyId: 'v1',
     hash: 'hash-secret',
     issuedAt: now.toISOString(),
+    salt: 'test-salt',
   };
   return {
     id: 'tok_123',
@@ -48,6 +49,7 @@ describe('TokenService.issueRefreshToken', () => {
     keyId: 'v1',
     hash: 'hashed-secret',
     issuedAt: new Date('2025-01-01T00:00:00.000Z').toISOString(),
+    salt: 'test-salt',
   } satisfies TokenHashEnvelope;
 
   const mockHashFactory = vi.fn().mockReturnValue(hashEnvelope);

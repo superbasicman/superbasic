@@ -6,7 +6,7 @@
  */
 
 import { prisma } from '@repo/database';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 import {
   ProfileRepository,
   ProfileService,

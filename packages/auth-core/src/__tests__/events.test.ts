@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { authEvents } from './events.js';
+import { authEvents } from '../events.js';
 
 describe('authEvents emitter', () => {
   beforeEach(() => {

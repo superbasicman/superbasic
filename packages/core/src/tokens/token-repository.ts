@@ -7,7 +7,7 @@
 
 import crypto from 'node:crypto';
 import type { PrismaClient, ApiKey } from '@repo/database';
-import type { TokenHashEnvelope } from '@repo/auth';
+import type { TokenHashEnvelope } from '@repo/auth-core';
 
 export interface CreateTokenData {
   id?: string;

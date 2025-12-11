@@ -11,7 +11,7 @@ import {
   makeRequest,
   createTestWorkspace,
 } from '../../../test/helpers.js';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth-core';
 
 describe('GET /v1/me', () => {
   beforeEach(async () => {

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { sendVerificationEmail } from '@repo/auth';
+import { sendVerificationEmail } from '@repo/auth-core';
 import { verificationService } from '../../../services/index.js';
 import type { AppBindings } from '../../../types/context.js';
 

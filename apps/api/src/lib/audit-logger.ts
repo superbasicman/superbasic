@@ -1,4 +1,4 @@
-import { authEvents, type AuthEvent } from '@repo/auth';
+import { type AuthEvent, authEvents } from '@repo/auth-core';
 import { logger } from '@repo/observability';
 import { securityEventRepository } from '../services/index.js';
 import type { SecurityEventCreateParams } from '@repo/core';

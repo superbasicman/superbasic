@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { authEvents, type AuthEvent } from '@repo/auth';
+import { type AuthEvent, authEvents } from '@repo/auth-core';
 import {
   checkFailedAuthRateLimit,
   resetFailedAuthRateLimit,

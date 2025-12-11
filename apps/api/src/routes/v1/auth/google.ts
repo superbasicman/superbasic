@@ -5,7 +5,7 @@ import { setCookie, getCookie } from 'hono/cookie';
 import { COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth-core';
 import { randomBytes } from 'node:crypto';
 import { resolveGoogleIdentity } from '../../../lib/identity-provider.js';
 import { generateCsrfToken, setCsrfCookie } from '../../../middleware/csrf.js';

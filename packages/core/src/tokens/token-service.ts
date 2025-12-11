@@ -6,7 +6,7 @@
  */
 
 import type { ApiKey } from '@repo/database';
-import { generateToken, hashToken, parseOpaqueToken, validateScopes } from '@repo/auth';
+import { generateToken, hashToken, parseOpaqueToken, validateScopes } from '@repo/auth-core';
 import type { TokenRepository } from './token-repository.js';
 import {
   DuplicateTokenNameError,
@@ -25,7 +25,7 @@ import type {
 
 /**
  * Auth events interface for audit logging
- * Matches the authEvents.emit() signature from @repo/auth
+ * Matches the authEvents.emit() signature from @repo/auth-core
  */
 interface AuthEvents {
   emit(event: {

@@ -1,5 +1,4 @@
 import { generateKeyPairSync } from 'node:crypto';
-import * as authLib from '@repo/auth';
 import type { PrismaClient } from '@repo/database';
 import { SignJWT, exportJWK } from 'jose';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -13,6 +12,7 @@ import type {
 } from '../interfaces.js';
 import { AuthCoreService } from '../service.js';
 import { type SigningKey, SigningKeyStore, signAccessToken } from '../signing.js';
+import * as tokenLib from '../token-hash.js';
 import type { TokenHashEnvelope } from '../types.js';
 
 const ISSUER = 'http://localhost:3000';
@@ -479,14 +479,15 @@ describe('AuthCoreService PAT issuance and revocation', () => {
       keyId: 'v1',
       hash: 'hashed-secret',
       issuedAt: '2025-01-01T00:00:00.000Z',
+      salt: 'test-salt',
     } satisfies TokenHashEnvelope;
 
-    vi.spyOn(authLib, 'createOpaqueToken').mockReturnValue({
+    vi.spyOn(tokenLib, 'createOpaqueToken').mockReturnValue({
       tokenId: 'pat_token',
       tokenSecret: 'secret-abc',
       value: 'sbf_pat_token.secret-abc',
     });
-    vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue(hashEnvelope);
+    vi.spyOn(tokenLib, 'createTokenHashEnvelope').mockReturnValue(hashEnvelope);
 
     const expiresAt = new Date('2025-04-01T00:00:00.000Z');
 
@@ -552,16 +553,17 @@ describe('AuthCoreService PAT issuance and revocation', () => {
   });
 
   it('rejects invalid expiry', async () => {
-    vi.spyOn(authLib, 'createOpaqueToken').mockReturnValue({
+    vi.spyOn(tokenLib, 'createOpaqueToken').mockReturnValue({
       tokenId: 'pat_token',
       tokenSecret: 'secret-abc',
       value: 'sbf_pat_token.secret-abc',
     });
-    vi.spyOn(authLib, 'createTokenHashEnvelope').mockReturnValue({
+    vi.spyOn(tokenLib, 'createTokenHashEnvelope').mockReturnValue({
       algo: 'hmac-sha256',
       keyId: 'v1',
       hash: 'hashed',
       issuedAt: '2025-01-01T00:00:00.000Z',
+      salt: 'test-salt',
     } satisfies TokenHashEnvelope);
 
     const service = new AuthCoreService({
@@ -600,6 +602,7 @@ describe('AuthCoreService PAT issuance and revocation', () => {
         keyId: 'test',
         hash: 'hashed',
         issuedAt: new Date().toISOString(),
+        salt: 'test-salt',
       },
       scopes: [],
       name: 'cli',
@@ -643,6 +646,7 @@ describe('AuthCoreService PAT issuance and revocation', () => {
         keyId: 'test',
         hash: 'hashed',
         issuedAt: new Date().toISOString(),
+        salt: 'test-salt',
       },
       scopes: [],
       name: 'cli',
@@ -739,7 +743,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   });
 
   it('returns AuthContext for a valid PAT and intersects scopes with workspace role', async () => {
-    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+    vi.spyOn(tokenLib, 'verifyTokenSecret').mockReturnValue(true);
 
     vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
@@ -749,6 +753,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
         keyId: 'v1',
         hash: 'hashed',
         issuedAt: '2025-01-01T00:00:00.000Z',
+        salt: 'test-salt',
       },
       scopes: ['read:transactions', 'write:accounts'],
       name: 'cli',
@@ -812,7 +817,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   });
 
   it('throws when PAT is revoked', async () => {
-    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+    vi.spyOn(tokenLib, 'verifyTokenSecret').mockReturnValue(true);
 
     vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
@@ -822,6 +827,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
         keyId: 'v1',
         hash: 'hashed',
         issuedAt: '2025-01-01T00:00:00.000Z',
+        salt: 'test-salt',
       },
       scopes: [],
       name: 'cli',
@@ -858,7 +864,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   });
 
   it('intersects PAT scopes with workspace membership scopes', async () => {
-    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+    vi.spyOn(tokenLib, 'verifyTokenSecret').mockReturnValue(true);
 
     vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
@@ -868,6 +874,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
         keyId: 'v1',
         hash: 'hashed',
         issuedAt: '2025-01-01T00:00:00.000Z',
+        salt: 'test-salt',
       },
       scopes: ['read:profile', 'write:accounts'],
       name: 'cli',
@@ -910,7 +917,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
   });
 
   it('does not grant PAT scopes outside the workspace intersection or requested set', async () => {
-    vi.spyOn(authLib, 'verifyTokenSecret').mockReturnValue(true);
+    vi.spyOn(tokenLib, 'verifyTokenSecret').mockReturnValue(true);
 
     vi.mocked(mockApiKeyRepo.findById).mockResolvedValue({
       id: PAT_ID,
@@ -920,6 +927,7 @@ describe('AuthCoreService.verifyRequest with PATs', () => {
         keyId: 'v1',
         hash: 'hashed',
         issuedAt: '2025-01-01T00:00:00.000Z',
+        salt: 'test-salt',
       },
       scopes: ['admin'],
       name: 'cli',

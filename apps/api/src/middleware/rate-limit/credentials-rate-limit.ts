@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono';
 import { Redis, createRateLimiter } from '@repo/rate-limit';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 
 // Initialize Redis client if credentials are available
 const redis =

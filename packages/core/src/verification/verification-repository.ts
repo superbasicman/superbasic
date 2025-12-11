@@ -10,7 +10,7 @@ import type {
   VerificationToken,
   VerificationTokenType,
 } from '@repo/database';
-import type { TokenHashEnvelope } from '@repo/auth';
+import type { TokenHashEnvelope } from '@repo/auth-core';
 
 export interface CreateVerificationTokenData {
   identifier: string;

@@ -14,7 +14,7 @@ import {
 } from '../../../test/helpers.js';
 import { authService } from '../../../lib/auth-service.js';
 import { REFRESH_TOKEN_COOKIE } from '../auth/refresh-cookie.js';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 
 describe('POST /v1/auth/refresh', () => {
   beforeEach(async () => {

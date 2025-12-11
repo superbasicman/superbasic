@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 import { logger } from '@repo/observability';
 import { initializeAuditLogging } from '../audit-logger.js';
 import { securityEventRepository } from '../../services/index.js';

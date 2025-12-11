@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Resend } from 'resend';
 import { renderEmailVerification } from '@repo/email-templates';
+import { Resend } from 'resend';
 
 export interface SendMagicLinkEmailParams {
   to: string;

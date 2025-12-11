@@ -2,12 +2,9 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
 import { setCookie } from 'hono/cookie';
-import {
-  sendMagicLinkEmail,
-  createOpaqueToken,
-  createTokenHashEnvelope,
-  COOKIE_NAME,
-} from '@repo/auth';
+import { COOKIE_NAME } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope, verifyTokenSecret } from '@repo/auth-core';
+import { sendMagicLinkEmail } from '@repo/auth-core';
 import { authService } from '../../../lib/auth-service.js';
 import { setRefreshTokenCookie } from './refresh-cookie.js';
 import { randomBytes } from 'node:crypto';
@@ -108,7 +105,6 @@ magicLink.get(
     }
 
     // Verify the token
-    const { verifyTokenSecret } = await import('@repo/auth');
     const isValid = await verifyTokenSecret(token, verificationToken.hashEnvelope as any);
     if (!isValid) {
       const errorUrl = new URL('/login', WEB_APP_URL);

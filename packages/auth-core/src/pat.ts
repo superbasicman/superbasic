@@ -6,11 +6,11 @@
  */
 
 import {
+  type TokenHashEnvelope,
   createOpaqueToken,
   createTokenHashEnvelope,
   parseOpaqueToken,
   verifyTokenSecret,
-  type TokenHashEnvelope,
 } from './token-hash.js';
 
 /**

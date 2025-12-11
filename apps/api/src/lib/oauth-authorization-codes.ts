@@ -1,4 +1,4 @@
-import { createOpaqueToken, createTokenHashEnvelope, verifyTokenSecret } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope, verifyTokenSecret } from '@repo/auth-core';
 import { AuthorizationError } from '@repo/auth-core';
 import type { PermissionScope, PkceChallengeMethod, TokenHashEnvelope } from '@repo/auth-core';
 import { authorizationCodeRepository } from '../services/index.js';

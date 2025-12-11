@@ -9,8 +9,8 @@ import {
   UserNotFoundForVerificationError,
 } from '../verification-errors.js';
 
-// Mock @repo/auth
-vi.mock('@repo/auth', () => ({
+// Mock @repo/auth-core token helpers
+vi.mock('@repo/auth-core', () => ({
   createOpaqueToken: vi.fn(() => ({
     tokenId: 'mock-token-id',
     tokenSecret: 'mock-token-secret',

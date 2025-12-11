@@ -3,7 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { RegisterSchema } from '@repo/types';
 import { userService, verificationService } from '../../services/index.js';
 import { DuplicateEmailError, InvalidEmailError, WeakPasswordError } from '@repo/core';
-import { sendVerificationEmail } from '@repo/auth';
+import { sendVerificationEmail } from '@repo/auth-core';
 import type { AppBindings } from '../../types/context.js';
 
 const registerRoute = new Hono<AppBindings>();

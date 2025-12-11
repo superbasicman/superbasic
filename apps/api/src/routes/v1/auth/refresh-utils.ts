@@ -1,4 +1,4 @@
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 import { clearRefreshTokenCookie } from './refresh-cookie.js';
 import type { Context } from 'hono';
 import type { AppBindings } from '../../../types/context.js';

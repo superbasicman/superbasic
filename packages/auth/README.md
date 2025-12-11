@@ -1,6 +1,6 @@
 ## @repo/auth
 
-This package provides shared auth utilities (password hashing, token hashing/envelopes, PAT helpers, RBAC scopes). Auth.js adapters are no longer used; auth-core owns authentication flows.
+This package provides shared auth primitives (password hashing, constants, cookie name, session schema). All higher-order auth flows live in `@repo/auth-core`; no Auth.js adapters are used in this repo.
 
 ### Rebuilding after local changes
 

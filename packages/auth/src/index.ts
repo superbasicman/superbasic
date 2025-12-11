@@ -1,34 +1,16 @@
 /**
  * @repo/auth
  *
- * Authentication utilities for SuperBasic Finance
- * - Shared auth utilities (hashing, PAT helpers, RBAC)
- * - Personal Access Token (PAT) hashing and verification
- * - Role-Based Access Control (RBAC) scope definitions
+ * Authentication primitives for SuperBasic Finance
+ * - Password hashing/verification
+ * - Auth constants (cookie name, salts, provider IDs)
+ * - Session schema parsing
+ *
+ * All higher-order auth flows live in @repo/auth-core.
  */
-
-// Shared auth utilities
 
 // Password utilities
 export { hashPassword, verifyPassword } from './password.js';
-
-// Authentication events
-export { authEvents } from './events.js';
-export type {
-  AuthEvent,
-  AuthEventType,
-  AuthEventHandler,
-  TokenCreatedEvent,
-  TokenUsedEvent,
-  TokenRevokedEvent,
-  TokenAuthFailedEvent,
-  TokenScopeDeniedEvent,
-  TokenUpdatedEvent,
-  RefreshRotatedEvent,
-  SessionRevokedEvent,
-  RefreshReuseDetectedEvent,
-  UserStatusChangedEvent,
-} from './events.js';
 
 // Constants
 export {
@@ -44,51 +26,6 @@ export {
   GITHUB_PROVIDER_ID,
 } from './constants.js';
 
-// PAT utilities
-export {
-  generateToken,
-  hashToken,
-  verifyToken,
-  isValidTokenFormat,
-  extractTokenFromHeader,
-} from './pat.js';
-export {
-  createOpaqueToken,
-  parseOpaqueToken,
-  createTokenHashEnvelope,
-  verifyTokenSecret,
-} from './token-hash.js';
-export type { TokenHashEnvelope, OpaqueToken } from './token-hash.js';
-
-// RBAC and scope utilities
-export {
-  VALID_SCOPES,
-  isValidScope,
-  validateScopes,
-  hasScope,
-  hasAllScopes,
-  hasAnyScope,
-  RBAC_SCOPES,
-  RBAC_ROLES,
-} from './rbac.js';
-export type { Scope, RBACScope, RBACRole } from './rbac.js';
-
-// Email utilities
-export { sendMagicLinkEmail, sendVerificationEmail } from './email.js';
-export type { SendMagicLinkEmailParams, SendVerificationEmailParams } from './email.js';
-
-// Profile utilities
-export { ensureProfileExists } from './profile.js';
-
 // Session typing & runtime validation
 export { AuthSessionSchema, parseAuthSession } from './session-schema.js';
 export type { AuthSession } from './session-schema.js';
-
-// Session transfer tokens (for mobile OAuth flow)
-export {
-  generateSessionTransferToken,
-  parseSessionTransferToken,
-  verifySessionTransferToken,
-  SESSION_TRANSFER_TTL_SECONDS,
-} from './session-transfer.js';
-export type { SessionTransferTokenData, ParsedSessionTransferToken } from './session-transfer.js';

@@ -8,11 +8,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./events": {
-      "types": "./dist/events.d.ts",
-      "import": "./dist/events.js",
-      "require": "./dist/events.cjs"
     }
   },
   "main": "./dist/index.cjs",
@@ -25,18 +20,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
-    "nodemailer": "6.9.16",
     "jose": "^5.10.0",
     "@repo/database": "workspace:*",
-    "@repo/email-templates": "workspace:*",
     "@repo/types": "workspace:*",
-    "resend": "^6.2.2",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
-    "@types/nodemailer": "^7.0.2",
     "@vitest/ui": "^4.0.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",

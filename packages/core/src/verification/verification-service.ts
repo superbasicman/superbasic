@@ -10,7 +10,7 @@ import {
   createTokenHashEnvelope,
   parseOpaqueToken,
   verifyTokenSecret,
-} from '@repo/auth';
+} from '@repo/auth-core';
 import type { VerificationRepository } from './verification-repository.js';
 import {
   TokenExpiredError,

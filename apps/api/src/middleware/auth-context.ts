@@ -1,5 +1,5 @@
 import type { Context, Next } from 'hono';
-import { parseOpaqueToken } from '@repo/auth';
+import { parseOpaqueToken } from '@repo/auth-core';
 import { AuthorizationError, UnauthorizedError, type VerifyRequestInput } from '@repo/auth-core';
 import type { AppBindings } from '../types/context.js';
 import { authService } from '../lib/auth-service.js';

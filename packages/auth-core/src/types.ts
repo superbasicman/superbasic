@@ -15,8 +15,7 @@ export type TokenHashEnvelope = {
   keyId: string;
   hash: string;
   issuedAt: string;
-  salt?: string;
-  [key: string]: string | undefined;
+  salt: string;
 };
 
 export type MfaLevel = 'none' | 'mfa' | 'phishing_resistant';

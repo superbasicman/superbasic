@@ -15,7 +15,7 @@ import {
   createTestUser,
   createAccessToken,
 } from '../../../../test/helpers.js';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
+import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth-core';
 import { getTestPrisma } from '../../../../test/setup.js';
 import { tokensRoute } from '../index.js';
 import { corsMiddleware } from '../../../../middleware/cors.js';

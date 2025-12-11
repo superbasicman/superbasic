@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { createOpaqueToken, createTokenHashEnvelope } from '@repo/auth';
 import type { RefreshTokenRepository } from './interfaces.js';
+import { createOpaqueToken, createTokenHashEnvelope } from './token-hash.js';
 import type { IssueRefreshTokenInput, IssueRefreshTokenResult } from './types.js';
 
 type TokenServiceDependencies = {

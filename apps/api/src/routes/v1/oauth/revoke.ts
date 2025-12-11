@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { parseOpaqueToken } from '@repo/auth';
+import { parseOpaqueToken } from '@repo/auth-core';
 import { csrfProtection } from '../../../middleware/csrf.js';
 import type { AppBindings } from '../../../types/context.js';
 import { refreshTokenRepository, tokenRepository } from '../../../services/index.js';
@@ -31,11 +31,11 @@ revoke.post('/', csrfProtection, zValidator('form', revokeSchema), async (c) => 
 
         const now = new Date();
 
-        // Determine token type from prefix:
-        // rt = refresh token
-        // sbf = PAT (Personal Access Token)
-        // parseOpaqueToken returns tokenId as UUID only, prefix separately
-        if (token_type_hint === 'refresh_token' || parsed.prefix === 'rt') {
+        const isRefresh =
+            token_type_hint === 'refresh_token' ||
+            token.startsWith('rt_');
+
+        if (isRefresh) {
             // Try to revoke as refresh token
             await refreshTokenRepository.revokeById(parsed.tokenId, now);
         } else {

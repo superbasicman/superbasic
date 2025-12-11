@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendMagicLinkEmail } from '../email.js';
 
 // Mock Resend
@@ -105,7 +105,7 @@ describe('sendMagicLinkEmail', () => {
   });
 
   it('should fall back to default sender if EMAIL_FROM not set', async () => {
-    delete process.env.EMAIL_FROM;
+    process.env.EMAIL_FROM = undefined;
 
     const params = {
       to: 'test@example.com',

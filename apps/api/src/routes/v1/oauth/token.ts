@@ -8,10 +8,12 @@ import {
   generateAccessToken,
   generateIdToken,
   extractClientSecret,
+  parseOpaqueToken,
+  verifyTokenSecret,
+  type ClientType,
+  type TokenHashEnvelope,
 } from '@repo/auth-core';
-import type { ClientType } from '@repo/auth-core';
-import { parseOpaqueToken, verifyTokenSecret, COOKIE_NAME } from '@repo/auth';
-import type { TokenHashEnvelope } from '@repo/auth';
+import { COOKIE_NAME } from '@repo/auth';
 import { authService } from '../../../lib/auth-service.js';
 import { buildUserClaimsForTokenResponse } from '../../../lib/user-claims.js';
 import type { AppBindings } from '../../../types/context.js';

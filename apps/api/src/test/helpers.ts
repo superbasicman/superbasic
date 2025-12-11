@@ -3,7 +3,8 @@
  * Provides utilities for making requests to Hono app and handling cookies
  */
 
-import { SESSION_MAX_AGE_SECONDS, createOpaqueToken, hashPassword } from '@repo/auth';
+import { SESSION_MAX_AGE_SECONDS, hashPassword } from '@repo/auth';
+import { createOpaqueToken } from '@repo/auth-core';
 import type { ClientType, MfaLevel, PermissionScope } from '@repo/auth-core';
 import { generateAccessToken } from '@repo/auth-core';
 import type { Prisma } from '@repo/database';

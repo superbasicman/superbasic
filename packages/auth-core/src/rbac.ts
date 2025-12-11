@@ -6,7 +6,7 @@
  */
 
 // Re-export scope constants from @repo/types to avoid circular dependencies
-import { VALID_SCOPES, type Scope } from '@repo/types';
+import { type Scope, VALID_SCOPES } from '@repo/types';
 export { VALID_SCOPES, type Scope };
 
 /**

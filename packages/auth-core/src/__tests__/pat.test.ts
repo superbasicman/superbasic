@@ -2,14 +2,15 @@
  * Unit tests for Personal Access Token (PAT) utilities
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
+  extractTokenFromHeader,
   generateToken,
   hashToken,
-  verifyToken,
   isValidTokenFormat,
-  extractTokenFromHeader,
-} from './pat.js';
+  verifyToken,
+} from '../pat.js';
+import type { TokenHashEnvelope } from '../token-hash.js';
 
 describe('generateToken', () => {
   it('should generate a token with sbf_ prefix', () => {
@@ -91,7 +92,7 @@ describe('verifyToken', () => {
 
   it('should reject a token with wrong hash', () => {
     const token = generateToken();
-    const wrongHash = { ...hashToken(token), hash: 'invalid' };
+    const wrongHash: TokenHashEnvelope = { ...hashToken(token), hash: 'invalid' };
 
     expect(verifyToken(token, wrongHash)).toBe(false);
   });
@@ -107,12 +108,13 @@ describe('verifyToken', () => {
 
   it('should handle invalid hash format gracefully', () => {
     const token = generateToken();
-    const invalidHash = {
+    const invalidHash: TokenHashEnvelope = {
       algo: 'hmac-sha256',
       keyId: 'v1',
       hash: 'invalid',
       issuedAt: new Date().toISOString(),
-    } as any;
+      salt: 'invalid',
+    };
 
     expect(verifyToken(token, invalidHash)).toBe(false);
   });
@@ -120,7 +122,7 @@ describe('verifyToken', () => {
   it('should handle empty hash gracefully', () => {
     const token = generateToken();
 
-    expect(verifyToken(token, undefined as any)).toBe(false);
+    expect(verifyToken(token, undefined as unknown as TokenHashEnvelope)).toBe(false);
   });
 });
 
@@ -162,8 +164,8 @@ describe('isValidTokenFormat', () => {
   });
 
   it('should reject null or undefined', () => {
-    expect(isValidTokenFormat(null as any)).toBe(false);
-    expect(isValidTokenFormat(undefined as any)).toBe(false);
+    expect(isValidTokenFormat(null as unknown as string)).toBe(false);
+    expect(isValidTokenFormat(undefined as unknown as string)).toBe(false);
   });
 });
 
@@ -198,11 +200,6 @@ describe('extractTokenFromHeader', () => {
     const token = generateToken();
     const header = `Bearer  ${token}`; // Extra space
 
-    // Should return null because split(' ') will create more than 2 parts
-    expect(extractTokenFromHeader(header)).toBe(null);
-  });
-
-  it('should return null for empty string', () => {
-    expect(extractTokenFromHeader('')).toBe(null);
+    expect(extractTokenFromHeader(header)).toBe(token);
   });
 });

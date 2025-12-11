@@ -1,5 +1,5 @@
 import type { Context } from 'hono';
-import { authEvents } from '@repo/auth';
+import { authEvents } from '@repo/auth-core';
 import { revokeSessionForUser } from '../../../lib/session-revocation.js';
 import type { AppBindings } from '../../../types/context.js';
 import {
